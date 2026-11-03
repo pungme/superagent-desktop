@@ -79,6 +79,7 @@ import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from 
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
 import { registerAccountsIpc } from './accounts'
+import { registerConnectorsIpc } from './connectors'
 import { registerDrafts } from './drafts'
 import { watchScreenshots } from './screenshots'
 import { signInBus } from './google-signin'
@@ -393,6 +394,7 @@ app.whenReady().then(async () => {
   registerSignInsIpc()
   registerResetIpc()
   registerAccountsIpc()
+  registerConnectorsIpc()
   registerDrafts()
   void watchScreenshots()
   registerFilesIpc()

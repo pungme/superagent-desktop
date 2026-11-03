@@ -10,7 +10,7 @@ import { APP_HOTKEYS, NO_APP_HOTKEY, appHotkeyLabel } from '../../../shared/app-
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Account } from '../../../preload'
+import type { Account, Connector } from '../../../preload'
 import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state'
 import { IconEditor } from './IconEditor'
 import type { IconPlace } from '../app-icon'
@@ -178,10 +178,75 @@ function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): Reac
 }
 
 /** A labeled row: title + description on the left, a control on the right. */
+/** What a token account cannot do, said once under it. */
+const TOKEN_NOTE =
+  'Signed in with a token: claude.ai connectors and Claude in Chrome are not available. Sign in fully to use them.'
+
+/**
+ * A Claude account's claude.ai connectors, under it: each with Connected, or a
+ * Connect that signs it in in a window of ours (main/connectors.ts). Nothing
+ * is shown until the list has been read, and nothing for an account with none.
+ */
+function AccountConnectors({ accountId }: { accountId: string }): React.JSX.Element | null {
+  const [list, setList] = useState<Connector[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = (): void =>
+      void window.cove.connectorsList(accountId).then((l) => {
+        if (alive) setList(l)
+      })
+    load()
+    const off = window.cove.onConnectorsChanged?.((id) => {
+      if (id === accountId) load()
+    })
+    return () => {
+      alive = false
+      off?.()
+    }
+  }, [accountId])
+  if (!list?.length) return null
+  const connect = async (name: string): Promise<void> => {
+    setBusy(name)
+    setError(null)
+    try {
+      const r = await window.cove.connectorsConnect(accountId, name)
+      if (r.error) setError(r.error)
+      setList(await window.cove.connectorsList(accountId))
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <div className="settings-connectors">
+      {list.map((c) => (
+        <span key={c.name} className={`settings-connector ${c.status}`}>
+          <span className="settings-connector-name">{c.name}</span>
+          {c.status === 'connected' ? (
+            <span className="settings-connector-state">Connected</span>
+          ) : (
+            <button
+              className="settings-account-action"
+              disabled={!!busy}
+              onClick={() => void connect(c.name)}
+            >
+              {busy === c.name ? 'Connecting…' : 'Connect'}
+            </button>
+          )}
+        </span>
+      ))}
+      {error && <p className="settings-accounts-error">{error}</p>}
+    </div>
+  )
+}
+
 /**
  * More than one subscription per agent. The CLI's own login is always there;
- * extra Claude accounts are tokens from `claude setup-token`, extra Codex
- * accounts sign in through the browser into their own home. (Antigravity has
+ * extra Claude accounts sign in fully in a window of ours, each in a config
+ * folder of its own (or, as a fallback, with a token from `claude
+ * setup-token`); extra Codex accounts sign in through the browser into their
+ * own home. (Antigravity has
  * the one login only.) When the account
  * a chat is on runs dry, the chat asks to switch — or just does, in auto.
  */
@@ -209,6 +274,8 @@ function AgentsPanel({
   const [adding, setAdding] = useState<AgentProvider | null>(null)
   const [name, setName] = useState('')
   const [token, setToken] = useState('')
+  /** Adding a Claude account by token instead of signing in. */
+  const [byToken, setByToken] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -234,7 +301,7 @@ function AgentsPanel({
           ? 'Sign in again by running `agy` in Terminal.'
           : 'Sign in again with `codex login` in Terminal.'
       : a.kind === 'token'
-        ? 'Make a new token with `claude setup-token` and add it again.'
+        ? 'Sign it in fully, or make a new token with `claude setup-token` and add it again.'
         : 'Remove it and add it again to sign in afresh.'
   // With the day when it is not today: a weekly limit said "out until 10:00
   // PM" beside a 5-hour window at 6%, and read as a contradiction. It was
@@ -245,14 +312,49 @@ function AgentsPanel({
     setAdding(p)
     setName('')
     setToken('')
+    setByToken(false)
     setError(null)
+  }
+  const failed = (e: unknown): void => {
+    const why = String((e as Error)?.message ?? e).replace(
+      /^Error invoking remote method '[^']*': (Error: )?/,
+      ''
+    )
+    // Closing the window is an answer, not an error.
+    setError(why === 'Cancelled.' ? null : why)
+  }
+  /** A token account of the same person, signed in fully: it takes the token's place. */
+  const [upgrading, setUpgrading] = useState<string | null>(null)
+  const [upgradeError, setUpgradeError] = useState<{ id: string; why: string } | null>(null)
+  const signInFully = async (a: Account): Promise<void> => {
+    setUpgrading(a.id)
+    setUpgradeError(null)
+    try {
+      await window.cove.accountsAddClaudeLogin('', a.id)
+      await refresh()
+    } catch (e) {
+      const why = String((e as Error)?.message ?? e).replace(
+        /^Error invoking remote method '[^']*': (Error: )?/,
+        ''
+      )
+      if (why !== 'Cancelled.') setUpgradeError({ id: a.id, why })
+    } finally {
+      setUpgrading(null)
+    }
+  }
+  const makeDefault = async (a: Account): Promise<void> => {
+    await window.cove.accountsSetDefault(a.provider, a.id)
+    await refresh()
   }
   const add = async (): Promise<void> => {
     if (!adding) return
     setError(null)
     try {
-      if (adding === 'claude') {
+      if (adding === 'claude' && byToken) {
         await window.cove.accountsAddClaude(name, token)
+      } else if (adding === 'claude') {
+        setBusy('Finish signing in in the window…')
+        await window.cove.accountsAddClaudeLogin(name)
       } else {
         setBusy('Finish signing in in your browser…')
         await window.cove.accountsAddCodex(name)
@@ -260,12 +362,7 @@ function AgentsPanel({
       setAdding(null)
       await refresh()
     } catch (e) {
-      setError(
-        String((e as Error)?.message ?? e).replace(
-          /^Error invoking remote method '[^']*': (Error: )?/,
-          ''
-        )
-      )
+      failed(e)
     } finally {
       setBusy(null)
     }
@@ -371,6 +468,20 @@ function AgentsPanel({
                           {a.needsAuth ? 'Needs sign-in' : timeLeft(a.limitedUntil)}
                         </span>
                       )}
+                      {/* Which one new chats start on: said on that one, and
+                          one click on any other. Only with a choice to make. */}
+                      {(list?.[p]?.length ?? 0) > 1 &&
+                        (a.isDefault ? (
+                          <span className="settings-account-default">Default for new chats</span>
+                        ) : (
+                          <button
+                            className="settings-account-action"
+                            title="Start new chats on this account"
+                            onClick={() => void makeDefault(a)}
+                          >
+                            Make default
+                          </button>
+                        ))}
                       {a.kind !== 'login' && (
                         <button
                           className="settings-account-remove"
@@ -387,6 +498,24 @@ function AgentsPanel({
                       </span>
                     )}
                     {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
+                    {a.kind === 'token' && (
+                      <div className="settings-account-note">
+                        <span>{TOKEN_NOTE}</span>
+                        <button
+                          className="settings-account-action"
+                          disabled={!!upgrading}
+                          onClick={() => void signInFully(a)}
+                        >
+                          {upgrading === a.id ? 'Finish in the window…' : 'Sign in fully'}
+                        </button>
+                        {upgradeError?.id === a.id && (
+                          <p className="settings-accounts-error">{upgradeError.why}</p>
+                        )}
+                      </div>
+                    )}
+                    {p === 'claude' &&
+                      (a.kind === 'login' || a.kind === 'config') &&
+                      !a.needsAuth && <AccountConnectors accountId={a.id} />}
                   </li>
                 ))}
               </ul>
@@ -400,10 +529,14 @@ function AgentsPanel({
             )}
             {adding === p && (
               <div className="settings-accounts-add">
-                {p === 'claude' ? (
+                {p === 'claude' && byToken ? (
                   <p className="settings-agent-hint">
                     In Terminal, run <code>claude setup-token</code>, sign in with the other
                     account, and paste the token it prints here.
+                  </p>
+                ) : p === 'claude' ? (
+                  <p className="settings-agent-hint">
+                    Sign in with the other Claude account in the window that opens.
                   </p>
                 ) : (
                   <p className="settings-agent-hint">
@@ -412,12 +545,12 @@ function AgentsPanel({
                 )}
                 <input
                   className="settings-accounts-input"
-                  placeholder="Name, e.g. Work"
+                  placeholder={p === 'claude' && !byToken ? 'Name (optional)' : 'Name, e.g. Work'}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
                 />
-                {p === 'claude' && (
+                {p === 'claude' && byToken && (
                   <input
                     className="settings-accounts-input"
                     placeholder="sk-ant-oat01-…"
@@ -428,19 +561,33 @@ function AgentsPanel({
                 )}
                 {error && <p className="settings-accounts-error">{error}</p>}
                 <div className="settings-accounts-actions">
+                  {p === 'claude' && (
+                    <button
+                      className="settings-account-action settings-accounts-other"
+                      onClick={() => {
+                        setByToken((t) => !t)
+                        setError(null)
+                      }}
+                      disabled={!!busy}
+                    >
+                      {byToken ? 'Sign in instead' : 'Use a token instead'}
+                    </button>
+                  )}
                   <button
                     className="settings-agent-btn ghost"
-                    onClick={() => setAdding(null)}
-                    disabled={!!busy}
+                    onClick={() => {
+                      if (busy) window.cove.cancelAgentSignIn()
+                      setAdding(null)
+                    }}
                   >
                     Cancel
                   </button>
                   <button
                     className="settings-agent-btn"
                     onClick={() => void add()}
-                    disabled={!!busy || (p === 'claude' && !token.trim())}
+                    disabled={!!busy || (p === 'claude' && byToken && !token.trim())}
                   >
-                    {busy ?? (p === 'claude' ? 'Add' : 'Sign in…')}
+                    {busy ?? (p === 'claude' && byToken ? 'Add' : 'Sign in…')}
                   </button>
                 </div>
               </div>

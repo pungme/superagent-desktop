@@ -1688,6 +1688,16 @@ export function EasyChat({
   const [limitNotice, setLimitNotice] = useState<LimitNotice | null>(null)
   /** Set when the notice lands ahead of the failed result, so that result's ⚠ note stays quiet. */
   const limitPendingRef = useRef(false)
+  /**
+   * A claude.ai connector the agent needed is not signed in: the card that
+   * connects it here, instead of the CLI's "ask the user to run /mcp".
+   */
+  const [connectAsk, setConnectAsk] = useState<{
+    accountId: string
+    names: string[]
+    busy: string | null
+    error: string | null
+  } | null>(null)
   /** Fallbacks already announced in this chat ("fable>opus"). */
   const saidFallbackRef = useRef(new Set<string>())
   /**
@@ -5284,8 +5294,9 @@ export function EasyChat({
         setAccounts({ all: list[provider] ?? [], current })
         const lines: Partial<Record<AgentProvider, string>> = {}
         for (const p of AGENT_PROVIDERS) {
-          // The account a chat on that agent would start on: its first.
-          const line = usageLine(p === provider ? (current ?? list[p]?.[0]) : list[p]?.[0])
+          // The account a chat on that agent would start on: its default.
+          const start = list[p]?.find((a) => a.isDefault) ?? list[p]?.[0]
+          const line = usageLine(p === provider ? (current ?? start) : start)
           if (line) lines[p] = line
         }
         setAgentUsage(lines)
@@ -5411,6 +5422,49 @@ export function EasyChat({
       }, 300)
     })
   }, [chatId])
+  useEffect(() => {
+    return window.cove.onConnectorsNeedAuth?.((n) => {
+      if (n.chatId !== chatId) return
+      setConnectAsk((prev) => ({
+        accountId: n.accountId,
+        names: [...new Set([...(prev?.accountId === n.accountId ? prev.names : []), ...n.names])],
+        busy: null,
+        error: null
+      }))
+    })
+  }, [chatId])
+  const connectConnector = async (name: string): Promise<void> => {
+    if (!connectAsk) return
+    const { accountId } = connectAsk
+    setConnectAsk((c) => c && { ...c, busy: name, error: null })
+    const r = await window.cove.connectorsConnect(accountId, name)
+    if (!r.ok) {
+      setConnectAsk(
+        (c) => c && { ...c, busy: null, error: r.error ?? `${name} is not connected yet.` }
+      )
+      return
+    }
+    // The running agent dials it again; the next message can use it.
+    void window.cove.agentMcpReconnect(chatId, `claude.ai ${name}`)
+    setItems((prev) => [
+      ...prev,
+      {
+        kind: 'msg',
+        msg: {
+          id: `sys-connected-${Date.now()}`,
+          at: Date.now(),
+          role: 'assistant',
+          text: `✓ ${name} is connected. Ask again and the agent can use it.`,
+          system: true
+        }
+      }
+    ])
+    setConnectAsk((c) => {
+      if (!c) return c
+      const names = c.names.filter((n) => n !== name)
+      return names.length ? { ...c, names, busy: null } : null
+    })
+  }
   useEffect(() => {
     return window.cove.onAccountsLimit?.((n) => {
       if (n.chatId !== chatId) return
@@ -5860,6 +5914,37 @@ export function EasyChat({
           login, a two-factor code — and waits for you to do it. Same place and
           plumbing as a permission ask (sidebar "Needs you", the phone), with
           Done / Skip instead of Approve / Deny. */}
+      {connectAsk && (
+        <div className="easy-guard easy-connect" role="alertdialog" aria-modal="false">
+          <div className="easy-guard-head">
+            <strong>
+              {connectAsk.names.length === 1
+                ? `${connectAsk.names[0]} is not connected`
+                : `${connectAsk.names.join(', ')} are not connected`}
+            </strong>
+          </div>
+          <p className="easy-handoff-what">
+            {connectAsk.error ??
+              'Connect it here. You sign in to the service in a window of Superagent’s.'}
+          </p>
+          <div className="easy-guard-actions">
+            <button className="easy-guard-deny" onClick={() => setConnectAsk(null)}>
+              Not now
+            </button>
+            <div className="easy-guard-spacer" />
+            {connectAsk.names.slice(0, 3).map((n) => (
+              <button
+                key={n}
+                className="easy-guard-trust"
+                disabled={!!connectAsk.busy}
+                onClick={() => void connectConnector(n)}
+              >
+                {connectAsk.busy === n ? 'Connecting…' : `Connect ${n}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {limitNotice && (
         <div className="easy-guard easy-limit" role="alertdialog" aria-modal="false">
           <div className="easy-guard-head">
@@ -6665,7 +6750,10 @@ export function EasyChat({
                     disabled={!!a.needsAuth}
                   >
                     <span className="easy-control-item-text">
-                      <span className="easy-control-item-label">{a.name}</span>
+                      <span className="easy-control-item-label">
+                        {a.name}
+                        {a.isDefault && <span className="easy-account-default">Default</span>}
+                      </span>
                       <span
                         className={`easy-control-item-hint ${
                           !a.needsAuth && a.usage ? 'easy-account-windows' : ''

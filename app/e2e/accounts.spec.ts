@@ -116,6 +116,7 @@ test('each account says how much of its allowance is used', async () => {
 test('a Claude token is added, kept encrypted, and removed again', async () => {
   const claude = window.locator('.settings-accounts-provider', { hasText: 'Claude' })
   await claude.getByRole('button', { name: 'Add account…' }).click()
+  await claude.getByRole('button', { name: 'Use a token instead' }).click()
   await claude.locator('.settings-accounts-input').first().fill('Work')
   await claude.locator('.settings-accounts-input').nth(1).fill('not-a-token')
   await claude.getByRole('button', { name: 'Add', exact: true }).click()
@@ -130,6 +131,60 @@ test('a Claude token is added, kept encrypted, and removed again', async () => {
   expect(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).not.toContain(TOKEN)
   await row.getByRole('button', { name: 'Remove' }).click()
   await expect(row).toHaveCount(0)
+})
+
+test('one account is the default for new chats, and another can be made it', async () => {
+  const claude = window.locator('.settings-accounts-provider', { hasText: 'Claude' })
+  const rows = claude.locator('.settings-account')
+  // One account: no choice, so nothing said.
+  await expect(claude.locator('.settings-account-default')).toHaveCount(0)
+  await claude.getByRole('button', { name: 'Add account…' }).click()
+  await claude.getByRole('button', { name: 'Use a token instead' }).click()
+  await claude.locator('.settings-accounts-input').first().fill('Spare')
+  await claude.locator('.settings-accounts-input').nth(1).fill(TOKEN)
+  await claude.getByRole('button', { name: 'Add', exact: true }).click()
+  const spare = claude.locator('.settings-account', { hasText: 'Spare' })
+  await expect(spare).toBeVisible()
+  // The login is the default until another is chosen.
+  await expect(rows.first().locator('.settings-account-default')).toHaveText(
+    'Default for new chats'
+  )
+  // A token account says what it cannot do, and offers the way out.
+  await expect(spare.locator('.settings-account-note')).toContainText(
+    'Signed in with a token: claude.ai connectors and Claude in Chrome are not available. Sign in fully to use them.'
+  )
+  await expect(spare.getByRole('button', { name: 'Sign in fully' })).toBeVisible()
+  await spare.getByRole('button', { name: 'Make default' }).click()
+  await expect(spare.locator('.settings-account-default')).toHaveText('Default for new chats')
+  await expect(rows.first().getByRole('button', { name: 'Make default' })).toBeVisible()
+  const spareId = (
+    JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')) as {
+      accounts: { id: string; name: string }[]
+    }
+  ).accounts.find((a) => a.name === 'Spare')!.id
+  expect(JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).defaults).toEqual({
+    claude: spareId
+  })
+  // A new chat (no chat named) starts on it.
+  expect(await window.evaluate(() => window.cove.accountsForChat('claude', ''))).toMatchObject({
+    id: spareId
+  })
+  await claude.screenshot({ path: 'test-results/accounts-default.png' })
+  // The sidebar's usage list says which, in one word.
+  await window.click('main button:has-text("Done")')
+  await window.locator('.usage-footer-btn').hover()
+  const popRow = window.locator('.usage-popover-row', { hasText: 'Spare' })
+  await expect(popRow.locator('.usage-popover-default')).toHaveText('Default')
+  await expect(window.locator('.usage-popover-default')).toHaveCount(1)
+  await window
+    .locator('.usage-popover')
+    .screenshot({ path: 'test-results/usage-popover-default.png' })
+  await window.mouse.move(600, 300)
+  // Removing it gives the place back to the login.
+  await openAccounts()
+  await spare.getByRole('button', { name: 'Remove' }).click()
+  await expect(spare).toHaveCount(0)
+  expect(JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).defaults).toEqual({})
 })
 
 test('the limit mode is a setting that sticks', async () => {
@@ -148,6 +203,7 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   // A second account to offer.
   const claude = window.locator('.settings-accounts-provider', { hasText: 'Claude' })
   await claude.getByRole('button', { name: 'Add account…' }).click()
+  await claude.getByRole('button', { name: 'Use a token instead' }).click()
   await claude.locator('.settings-accounts-input').first().fill('Work')
   await claude.locator('.settings-accounts-input').nth(1).fill(TOKEN)
   await claude.getByRole('button', { name: 'Add', exact: true }).click()
@@ -253,9 +309,9 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   const footer = window.locator('.usage-footer-btn')
   await expect(footer).toContainText('92%')
   await footer.hover()
-  await expect(
-    window.locator('.usage-popover-window', { hasText: 'Weekly Fable' })
-  ).toContainText('100%')
+  await expect(window.locator('.usage-popover-window', { hasText: 'Weekly Fable' })).toContainText(
+    '100%'
+  )
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
   await expect(work).toBeEnabled()
   // The row the chat is on is filled and so is the one under the pointer: with

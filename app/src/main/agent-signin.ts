@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import os from 'os'
 import { join } from 'path'
 import { applyBrowserIdentity } from './browser'
+import { isGoogleSignInRejected } from './google-signin'
 import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
 import { PROVIDER_PRODUCT, type AgentProvider } from '../shared/agent-provider'
 
@@ -23,13 +24,41 @@ import { PROVIDER_PRODUCT, type AgentProvider } from '../shared/agent-provider'
  *  - Antigravity (`agy models`) prints a Google link and waits for a code.
  *    Google sends the code to antigravity.google/oauth-callback; it is read off
  *    that address and typed into the CLI for the user.
+ *
+ * Read from Claude Code 2.1.314: `auth login` prints a link whose redirect is
+ * platform.claude.com/oauth/code/callback (the paste-a-code page), then opens
+ * a second one, redirecting to http://localhost:<port>/callback, with $BROWSER
+ * or `open`. The second one is shown here and finishes by itself; the first is
+ * the fallback, and its code is typed into the CLI for the user.
+ *
+ * Google refuses some embedded windows outright ("This browser or app may not
+ * be secure"). If its sign-in turns the window away, the same link goes to the
+ * user's own browser, which returns to the CLI's port just the same, and the
+ * window says so in a line and closes itself when the CLI is through.
  */
+
+export interface SignInOptions {
+  /** Added to the CLI's environment: CLAUDE_CONFIG_DIR for an extra account. */
+  env?: Record<string, string>
+  /**
+   * The window's cookie jar. An extra account gets a fresh one, or the page
+   * would already be signed in as the main account and hand that one back.
+   */
+  partition?: string
+}
+
+/** The one line shown when Google turned the window away. */
+export const BROWSER_FALLBACK_NOTE =
+  'Google does not allow signing in inside this window. Finish in your browser; Superagent carries on by itself.'
 
 export type SignInResult = { ok: true } | { ok: false; cancelled?: boolean; error: string }
 
-/** A link in a CLI's output. */
+/**
+ * A link in a CLI's output: https, or this Mac's own loopback address (the
+ * stand-in CLI the e2e runs serves its sign-in page there).
+ */
 export function linkIn(text: string): string | null {
-  return text.match(/https:\/\/[^\s"'<>]+/)?.[0] ?? null
+  return text.match(/(https:\/\/|http:\/\/(127\.0\.0\.1|localhost)[:/])[^\s"'<>]+/)?.[0] ?? null
 }
 
 /** The code an OAuth provider hands back on its callback address. */
@@ -68,7 +97,8 @@ let active: { provider: AgentProvider; cancel: () => void } | null = null
 /** One sign-in at a time; a second request for the same agent refocuses it. */
 export function signInAgent(
   provider: AgentProvider,
-  parent: BrowserWindow | null
+  parent: BrowserWindow | null,
+  opts: SignInOptions = {}
 ): Promise<SignInResult> {
   if (active) active.cancel()
   return new Promise<SignInResult>((resolve) => {
@@ -78,6 +108,9 @@ export function signInAgent(
     let poll: ReturnType<typeof setInterval> | null = null
     let out = ''
     let attempts = 0
+    /** The link that returns to the CLI by itself, for the user's own browser if need be. */
+    let returning: string | null = null
+    let handedOff = false
     const { dir, file } = shim()
 
     const finish = (result: SignInResult): void => {
@@ -120,7 +153,7 @@ export function signInAgent(
         fullscreenable: false,
         webPreferences: {
           // Its own jar: a sign-in here is the agent's, not the browser pane's.
-          partition: 'persist:agent-signin',
+          partition: opts.partition ?? 'persist:agent-signin',
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true
@@ -139,8 +172,26 @@ export function signInAgent(
           codeFromCallback(next, 'platform.claude.com', '/oauth/code/callback')
         if (code) proc?.stdin?.write(code + '\n')
       }
-      win.webContents.on('will-redirect', (_e, next) => seen(next))
-      win.webContents.on('did-navigate', (_e, next) => seen(next))
+      /** Google turned the window away: the user's own browser finishes it. */
+      const refused = (next: string): void => {
+        if (handedOff || !isGoogleSignInRejected(next) || !returning) return
+        handedOff = true
+        void shell.openExternal(returning)
+        void win?.loadURL(
+          'data:text/html;charset=utf-8,' +
+            encodeURIComponent(
+              `<!doctype html><meta charset="utf-8"><title>Sign in</title><body style="font:14px -apple-system,system-ui;margin:0;display:grid;place-items:center;height:100vh;color:#333"><p style="max-width:340px;text-align:center;line-height:1.5">${BROWSER_FALLBACK_NOTE}</p></body>`
+            )
+        )
+      }
+      win.webContents.on('will-redirect', (_e, next) => {
+        seen(next)
+        refused(next)
+      })
+      win.webContents.on('did-navigate', (_e, next) => {
+        seen(next)
+        refused(next)
+      })
       win.once('ready-to-show', () => win?.show())
       win.on('closed', () => {
         win = null
@@ -149,14 +200,18 @@ export function signInAgent(
       void win.loadURL(url)
     }
 
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...process.env,
+      ...opts.env,
       // Our `open` first, to catch the sign-in link; then what the CLI needs to
       // run (node, for one installed with npm).
       PATH: `${dir}:${agentEnv(provider === 'codex' ? findCodex() : provider === 'antigravity' ? findAgy() : findClaude()).PATH ?? ''}`,
       BROWSER: join(dir, 'open'),
       SUPERAGENT_LINK_FILE: file
     }
+    // A sign-in into a config folder of its own must not be overruled by a
+    // token in our environment (see withAccountEnv in accounts.ts).
+    if (opts.env?.CLAUDE_CONFIG_DIR) delete env.CLAUDE_CODE_OAUTH_TOKEN
 
     if (provider === 'codex') {
       // The app server: a link on request, no browser of its own, and a
@@ -236,6 +291,7 @@ export function signInAgent(
         const printed = linkIn(out)
         const url = opened ?? (Date.now() - startedAt > 2500 ? printed : null)
         if (!url) return
+        if (opened) returning = opened
         shown = true
         show(url)
       }

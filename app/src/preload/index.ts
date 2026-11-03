@@ -9,7 +9,8 @@ export interface Account {
   id: string
   provider: 'claude' | 'codex' | 'antigravity'
   name: string
-  kind: 'login' | 'token' | 'home'
+  /** 'config': a Claude account signed in fully, in a config folder of its own. */
+  kind: 'login' | 'token' | 'home' | 'config'
   limitedUntil: number | null
   detail: string
   needsAuth: string | null
@@ -18,6 +19,15 @@ export interface Account {
     windows: { label: string; percent: number; resetsAt: number | null; model?: string }[]
     at: number
   } | null
+  /** New chats of this agent start on it. */
+  isDefault: boolean
+}
+
+/** A claude.ai connector of a Claude account (main/connectors.ts). */
+export interface Connector {
+  name: string
+  url: string
+  status: 'connected' | 'needs-auth' | 'failed' | 'other'
 }
 
 /** An account ran dry mid-chat; what the window may do about it. */
@@ -916,6 +926,27 @@ export interface CoveApi {
   accountsRefreshUsage: (force?: boolean) => Promise<void>
   accountsAddClaude: (name: string, token: string) => Promise<Account>
   accountsAddCodex: (name: string) => Promise<Account>
+  /**
+   * Sign another Claude account in fully, in Superagent's sign-in window; with
+   * `replaces`, it takes the place of that token account.
+   */
+  accountsAddClaudeLogin: (name: string, replaces?: string) => Promise<Account>
+  /** Which account new chats of this agent start on. */
+  accountsSetDefault: (provider: Account['provider'], id: string) => Promise<void>
+  /** A Claude account's claude.ai connectors and whether each is connected (main/connectors.ts). */
+  connectorsList: (accountId: string, force?: boolean) => Promise<Connector[]>
+  /** Connect one in a sign-in window of ours; resolves with it as it is after. */
+  connectorsConnect: (
+    accountId: string,
+    name: string
+  ) => Promise<{ ok: boolean; connector?: Connector; error?: string }>
+  onConnectorsChanged: (cb: (accountId: string) => void) => () => void
+  /** Have a chat's running agent dial an MCP server again ("claude.ai Attio"). */
+  agentMcpReconnect: (chatId: string, serverName: string) => Promise<boolean>
+  /** A chat's turn needed a connector that is not signed in. */
+  onConnectorsNeedAuth: (
+    cb: (n: { chatId: string; accountId: string; names: string[] }) => void
+  ) => () => void
   accountsRemove: (id: string) => Promise<void>
   accountsSetMode: (mode: 'ask' | 'auto') => Promise<void>
   /** Move a chat onto an account; takes effect when its agent next starts. */
@@ -1631,6 +1662,18 @@ const cove: CoveApi = {
   accountsRefreshUsage: (force) => ipcRenderer.invoke('accounts:refresh-usage', force),
   accountsAddClaude: (name, token) => ipcRenderer.invoke('accounts:add-claude', name, token),
   accountsAddCodex: (name) => ipcRenderer.invoke('accounts:add-codex', name),
+  accountsAddClaudeLogin: (name, replaces) =>
+    ipcRenderer.invoke('accounts:add-claude-login', name, replaces),
+  accountsSetDefault: (provider, id) => ipcRenderer.invoke('accounts:set-default', provider, id),
+  connectorsList: (accountId, force) => ipcRenderer.invoke('connectors:list', accountId, force),
+  connectorsConnect: (accountId, name) => ipcRenderer.invoke('connectors:connect', accountId, name),
+  onConnectorsChanged: (cb) => subscribe('connectors:changed', (id) => cb(id as string)),
+  agentMcpReconnect: (chatId, serverName) =>
+    ipcRenderer.invoke('agent:mcp-reconnect', chatId, serverName),
+  onConnectorsNeedAuth: (cb) =>
+    subscribe('connectors:needs-auth', (n) =>
+      cb(n as { chatId: string; accountId: string; names: string[] })
+    ),
   accountsRemove: (id) => ipcRenderer.invoke('accounts:remove', id),
   accountsSetMode: (mode) => ipcRenderer.invoke('accounts:set-mode', mode),
   accountsSwitch: (chatId, id) => ipcRenderer.invoke('accounts:switch', chatId, id),

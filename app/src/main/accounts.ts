@@ -1,12 +1,14 @@
-import { app, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, safeStorage, session } from 'electron'
+import { signInAgent } from './agent-signin'
 import { healthLog } from './health'
 import { execFile, spawn } from 'child_process'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import {
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync
@@ -35,10 +37,16 @@ export type { Usage, UsageWindow } from './usage'
  * whatever `claude auth login` / `codex login` set up and needs nothing from
  * us. Extra accounts ride on top without disturbing it:
  *
- *  - Claude: a long-lived token from `claude setup-token`, handed to the CLI as
- *    CLAUDE_CODE_OAUTH_TOKEN. Verified against 2.1.283: the env var wins over
- *    the Keychain login, and the config folder (settings, skills, session
- *    transcripts) stays shared — so a conversation resumes across accounts.
+ *  - Claude, signed in fully ('config'): `claude auth login` run with its own
+ *    CLAUDE_CONFIG_DIR, a folder of ours whose entries are symlinks back to
+ *    ~/.claude except the ones that belong to an account (see linkClaudeConfigDir).
+ *    A full login carries every scope, so claude.ai connectors, Claude in Chrome
+ *    and Remote Control work on it as on the main login.
+ *  - Claude, by token ('token'): a long-lived token from `claude setup-token`,
+ *    handed to the CLI as CLAUDE_CODE_OAUTH_TOKEN. Verified against 2.1.283:
+ *    the env var wins over the Keychain login, and the config folder stays
+ *    shared. Claude Code limits such a token to inference only, so a token
+ *    account never sees the claude.ai connectors (they need user:mcp_servers).
  *  - Codex: its own CODEX_HOME folder holding just that account's auth.json;
  *    everything else in it is a symlink back to ~/.codex, so config, skills
  *    and threads are shared the same way.
@@ -51,8 +59,11 @@ export interface Account {
   id: string
   provider: AgentProvider
   name: string
-  /** The CLI's own login, an extra Claude token, or an extra Codex home. */
-  kind: 'login' | 'token' | 'home'
+  /**
+   * The CLI's own login, an extra Claude token, an extra Codex home, or an
+   * extra Claude login in a config folder of its own.
+   */
+  kind: AccountKind
   /** Epoch ms until which this account is known to be out of allowance. */
   limitedUntil: number | null
   /** Who it is: "campaigns@songpush.com · Max" for a login; when a token was added. */
@@ -64,19 +75,32 @@ export interface Account {
   needsAuth: string | null
   /** How much of its allowance is used, as last read — null until it has been. */
   usage: Usage | null
+  /** The account new chats of this agent start on (the login unless one was chosen). */
+  isDefault: boolean
 }
+
+export type AccountKind = 'login' | 'token' | 'home' | 'config'
 
 /** Extra accounts, as written to disk. Tokens are stored encrypted. */
 interface StoredAccount {
   id: string
   provider: AgentProvider
   name: string
-  kind: 'token' | 'home'
+  kind: 'token' | 'home' | 'config'
   addedAt?: number
   /** base64 of the safeStorage-encrypted token (Claude). */
   token?: string
   /** CODEX_HOME folder (Codex). */
   home?: string
+  /** CLAUDE_CONFIG_DIR folder (Claude, signed in fully). */
+  configDir?: string
+  /** Who it signed in as: "campaigns@songpush.com · Max plan" (config). */
+  who?: string
+  /**
+   * The cookie jar its sign-in window used (config): claude.ai stays signed in
+   * there as this account, which is what connecting a connector needs.
+   */
+  partition?: string
 }
 
 export type LimitMode = 'ask' | 'auto'
@@ -90,6 +114,8 @@ interface AccountsFile {
   auth: Record<string, string>
   /** What each account last said about its allowance (see usage.ts). */
   usage: Record<string, Usage>
+  /** Per agent, the account new chats start on, when the user chose one. */
+  defaults: Partial<Record<AgentProvider, string>>
 }
 
 /** What the window is told when an account runs dry. */
@@ -145,10 +171,11 @@ function load(): AccountsFile {
       limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
-      usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {}
+      usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {},
+      defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {}
     }
   } catch {
-    file = { accounts: [], mode: 'ask', limits: {}, chats: {}, auth: {}, usage: {} }
+    file = { accounts: [], mode: 'ask', limits: {}, chats: {}, auth: {}, usage: {}, defaults: {} }
   }
   return file
 }
@@ -194,6 +221,7 @@ function limitedUntil(id: string): number | null {
 export function listAccounts(provider: AgentProvider): Account[] {
   const f = load()
   const state = logins[provider]
+  const chosen = defaultAccountId(provider)
   const login: Account = {
     id: LOGIN_ID[provider],
     provider,
@@ -203,7 +231,8 @@ export function listAccounts(provider: AgentProvider): Account[] {
     detail: state ? (state.signedIn ? state.detail : '') : 'Checking…',
     needsAuth:
       state && !state.signedIn ? SIGN_IN_HINT[provider] : (f.auth[LOGIN_ID[provider]] ?? null),
-    usage: f.usage[LOGIN_ID[provider]] ?? null
+    usage: f.usage[LOGIN_ID[provider]] ?? null,
+    isDefault: chosen === LOGIN_ID[provider]
   }
   return [
     login,
@@ -216,10 +245,13 @@ export function listAccounts(provider: AgentProvider): Account[] {
         kind: a.kind,
         limitedUntil: limitedUntil(a.id),
         detail:
-          (a.kind === 'token' ? 'Token' : 'Signed in') +
-          (a.addedAt ? ` · added ${new Date(a.addedAt).toLocaleDateString()}` : ''),
+          a.kind === 'config' && a.who
+            ? a.who
+            : (a.kind === 'token' ? 'Token' : 'Signed in') +
+              (a.addedAt ? ` · added ${new Date(a.addedAt).toLocaleDateString()}` : ''),
         needsAuth: f.auth[a.id] ?? null,
-        usage: f.usage[a.id] ?? null
+        usage: f.usage[a.id] ?? null,
+        isDefault: chosen === a.id
       }))
   ]
 }
@@ -233,12 +265,40 @@ export function setLimitMode(mode: LimitMode): void {
   save()
 }
 
-/** Which account a chat runs on: its own pick, else the first with allowance left. */
+/**
+ * The account new chats of this agent start on: the one the user chose, while
+ * it still exists, else the CLI's own login.
+ */
+function defaultAccountId(provider: AgentProvider): string {
+  const f = load()
+  const id = f.defaults[provider]
+  if (id && f.accounts.some((a) => a.id === id && a.provider === provider)) return id
+  return LOGIN_ID[provider]
+}
+
+/** Choose which account new chats of this agent start on. */
+export function setDefaultAccount(provider: AgentProvider, accountId: string): void {
+  const f = load()
+  if (accountId === LOGIN_ID[provider]) delete f.defaults[provider]
+  else if (f.accounts.some((a) => a.id === accountId && a.provider === provider))
+    f.defaults[provider] = accountId
+  else throw new Error('No such account.')
+  save()
+  broadcastToWindows('accounts:changed')
+}
+
+/**
+ * Which account a chat runs on: its own pick while that has allowance, else
+ * the default the user chose while that has, else the first that has (the
+ * CLI's own login first). With every account out: the pick, else the default.
+ */
 export function accountForChat(provider: AgentProvider, chatId: string | undefined): Account {
   const all = listAccounts(provider)
   const pinned = chatId ? all.find((a) => a.id === load().chats[chatId]) : undefined
   if (pinned && !pinned.limitedUntil) return pinned
-  return all.find((a) => !a.limitedUntil) ?? pinned ?? all[0]
+  const chosen = all.find((a) => a.isDefault)
+  if (chosen && !chosen.limitedUntil) return chosen
+  return all.find((a) => !a.limitedUntil) ?? pinned ?? chosen ?? all[0]
 }
 
 export function pinChatAccount(chatId: string, accountId: string): void {
@@ -256,7 +316,28 @@ export function accountEnv(accountId: string): Record<string, string> {
     linkCodexHome(stored.home)
     return { CODEX_HOME: stored.home }
   }
+  if (stored.kind === 'config' && stored.configDir) {
+    linkClaudeConfigDir(stored.configDir)
+    return { CLAUDE_CONFIG_DIR: stored.configDir }
+  }
   return {}
+}
+
+/**
+ * The environment a CLI process gets: `base` with the account's additions.
+ *
+ * An account in its own config folder must never also carry a token: Claude
+ * Code takes CLAUDE_CODE_OAUTH_TOKEN over any login, so a token left in
+ * Superagent's own environment would run that chat on the token's account,
+ * with inference-only scopes, and the full login would be ignored in silence.
+ */
+export function withAccountEnv(
+  base: NodeJS.ProcessEnv,
+  extra: Record<string, string>
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base, ...extra }
+  if (extra.CLAUDE_CONFIG_DIR) delete env.CLAUDE_CODE_OAUTH_TOKEN
+  return env
 }
 
 /**
@@ -563,6 +644,329 @@ export function addCodexAccount(name: string): Promise<Account> {
   })
 }
 
+// --- Claude accounts signed in fully, each in a config folder of its own -------
+
+function claudeConfigRoot(): string {
+  return join(process.env.COVE_USER_DATA || app.getPath('userData'), 'claude-accounts')
+}
+
+/**
+ * What in ~/.claude belongs to one account and is never linked into another's
+ * folder. Read from Claude Code 2.1.314, which keeps here (with
+ * CLAUDE_CONFIG_DIR set, in that folder instead):
+ *  - .credentials.json: the login itself when the Keychain cannot be used;
+ *  - .claude.json / .config.json (and the -staging/-local/-custom-oauth
+ *    variants): the global config, holding oauthAccount, the userID and the
+ *    account's cached feature flags; backups/ holds copies of it;
+ *  - .storage-write: the lock round writes to that account's credentials;
+ *  - policy-limits.json, remote-settings.json (and their .signature/.stamp
+ *    files), teams/: what the account's organisation set;
+ *  - mcp-needs-auth-cache.json, mcp-discovery-cache: the account's own claude.ai
+ *    connectors; statsig/, cache/ (the model list is per plan), state/,
+ *    remote-control, remote, daemon, chrome, the locks and session tokens.
+ * Everything else (settings, CLAUDE.md, skills, agents, commands, plugins,
+ * hooks, projects/ with every transcript, history, todos) is shared, so a chat
+ * resumes on any account and behaves the same on each.
+ */
+export const CLAUDE_NOT_SHARED = new Set([
+  '.credentials.json',
+  '.claude.json',
+  '.claude.json.backup',
+  '.config.json',
+  '.storage-write',
+  '.device-keys.json',
+  '.session_ingress_token',
+  'backups',
+  'teams',
+  'statsig',
+  'cache',
+  'state',
+  'mcp-needs-auth-cache.json',
+  'mcp-discovery-cache',
+  'hfi-auth.json',
+  'remote-control',
+  'remote',
+  'daemon',
+  'chrome',
+  'server-sessions.json',
+  'usage-data',
+  'stats-cache.json'
+])
+
+export function claudeEntryShared(name: string): boolean {
+  if (CLAUDE_NOT_SHARED.has(name)) return false
+  // The global config's per-environment twins, and the organisation's files
+  // with their signatures and stamps.
+  if (/^\.claude.*\.json/.test(name)) return false
+  if (/^(policy-limits|remote-settings)\.json/.test(name)) return false
+  if (name.endsWith('.lock')) return false
+  return true
+}
+
+/**
+ * Make `dir` a Claude config folder that shares everything with ~/.claude but
+ * what belongs to an account (CLAUDE_NOT_SHARED): every other entry there is a
+ * symlink. Safe to repeat; anything ~/.claude gained since is linked next time.
+ * projects/ is made in ~/.claude first if it is missing, so the transcripts of
+ * every account land in the one place.
+ *
+ * The global config file is not linked: it holds who is signed in, and
+ * `claude auth login` writes it. The user's MCP servers in it are copied in
+ * instead (syncClaudeGlobalConfig).
+ */
+export function linkClaudeConfigDir(
+  dir: string,
+  source = join(os.homedir(), '.claude'),
+  globalConfig = join(os.homedir(), '.claude.json')
+): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  if (existsSync(source)) {
+    try {
+      mkdirSync(join(source, 'projects'), { recursive: true })
+    } catch {
+      // read-only or odd; the account then keeps its own
+    }
+    for (const entry of readdirSync(source)) {
+      if (!claudeEntryShared(entry)) continue
+      const target = join(dir, entry)
+      if (existsSync(target)) continue
+      try {
+        symlinkSync(join(source, entry), target)
+      } catch {
+        // A file Claude Code already wrote here of its own; leave it.
+      }
+    }
+  }
+  syncClaudeGlobalConfig(dir, globalConfig)
+}
+
+/** The MCP settings Claude Code keeps per project in its global config. */
+const PROJECT_MCP_KEYS = [
+  'mcpServers',
+  'enabledMcpjsonServers',
+  'disabledMcpjsonServers',
+  'enableAllProjectMcpServers'
+] as const
+
+/**
+ * Copy the user's MCP servers from ~/.claude.json into the account's own
+ * .claude.json: the user-level ones (`mcpServers`) and each project's
+ * (`projects[path].mcpServers` and its .mcp.json approvals). ~/.claude.json
+ * stays the one the user edits; the account's file keeps everything else of
+ * its own (oauthAccount above all). Written only when something changed.
+ */
+export function syncClaudeGlobalConfig(dir: string, globalConfig: string): void {
+  let main: Record<string, unknown>
+  try {
+    main = JSON.parse(readFileSync(globalConfig, 'utf8')) as Record<string, unknown>
+  } catch {
+    return
+  }
+  const mine = join(dir, '.claude.json')
+  let own: Record<string, unknown> = {}
+  let before = ''
+  try {
+    before = readFileSync(mine, 'utf8')
+    own = JSON.parse(before) as Record<string, unknown>
+  } catch {
+    if (before) return // there, but half-written: never overwrite what we cannot read
+  }
+  const next: Record<string, unknown> = { ...own }
+  if (main.mcpServers && typeof main.mcpServers === 'object') next.mcpServers = main.mcpServers
+  else delete next.mcpServers
+  const mainProjects = (main.projects ?? {}) as Record<string, Record<string, unknown>>
+  if (mainProjects && typeof mainProjects === 'object') {
+    const projects = { ...((own.projects ?? {}) as Record<string, Record<string, unknown>>) }
+    for (const [path, p] of Object.entries(mainProjects)) {
+      if (!p || typeof p !== 'object') continue
+      const picked = Object.fromEntries(
+        PROJECT_MCP_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]])
+      )
+      if (!Object.keys(picked).length && !projects[path]) continue
+      projects[path] = { ...projects[path], ...picked }
+    }
+    next.projects = projects
+  }
+  const text = JSON.stringify(next, null, 2)
+  if (before && JSON.stringify(own, null, 2) === text) return
+  const tmp = `${mine}.superagent-${process.pid}`
+  writeFileSync(tmp, text, { mode: 0o600 })
+  renameSync(tmp, mine)
+}
+
+/**
+ * The Keychain item Claude Code keeps a config folder's login in. Read from
+ * 2.1.314: "Claude Code-credentials", and with CLAUDE_CONFIG_DIR set, "-" and
+ * the first 8 hex characters of the SHA-256 of that path exactly as given
+ * (NFC), not resolved. The item's account is $USER.
+ */
+export function claudeCredentialService(configDir: string): string {
+  const hash = createHash('sha256').update(configDir.normalize('NFC')).digest('hex').slice(0, 8)
+  return `Claude Code-credentials-${hash}`
+}
+
+/** $USER as Claude Code names the Keychain item's account. */
+function keychainAccount(): string {
+  let user: string
+  try {
+    user = process.env.USER || os.userInfo().username
+  } catch {
+    user = 'claude-code-user'
+  }
+  return /^[a-zA-Z0-9._-]+$/.test(user) ? user : 'claude-code-user'
+}
+
+/** The Keychain as accounts.ts uses it; a fake in tests. */
+export interface Keychain {
+  read(service: string, account: string): Promise<string>
+  remove(service: string, account: string): Promise<void>
+}
+
+/** The real one; a test instance of the app never opens it (see liveUsage). */
+const realKeychain: Keychain = {
+  read: async (service, account) =>
+    liveUsage()
+      ? run('/usr/bin/security', ['find-generic-password', '-a', account, '-s', service, '-w'])
+      : '',
+  remove: async (service, account) => {
+    // Never the main login's item: only an account folder's has a suffix.
+    if (!liveUsage() || service === 'Claude Code-credentials') return
+    await run('/usr/bin/security', ['delete-generic-password', '-a', account, '-s', service])
+  }
+}
+let keychain: Keychain = realKeychain
+
+/** Tests: a Keychain of their own. */
+export function _setKeychainForTests(k: Keychain | null): void {
+  keychain = k ?? realKeychain
+}
+
+/**
+ * The access token in a stored Claude login, while it is still good. Claude
+ * Code writes it as JSON, which `security -w` prints as is, or as hex when it
+ * would not print.
+ */
+export function accessTokenFrom(raw: string, now = Date.now()): string | null {
+  let text = raw.trim()
+  if (!text) return null
+  if (/^[0-9a-f]+$/i.test(text) && text.length % 2 === 0)
+    text = Buffer.from(text, 'hex').toString('utf8')
+  try {
+    const o = (JSON.parse(text) as { claudeAiOauth?: { accessToken?: string; expiresAt?: number } })
+      .claudeAiOauth
+    if (!o?.accessToken) return null
+    if (o.expiresAt && o.expiresAt < now + 60_000) return null
+    return o.accessToken
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The access token of an account signed in in its own config folder: its
+ * Keychain item, else the .credentials.json Claude Code falls back to. Like
+ * the main login's, never refreshed from here: refreshing hands out a new
+ * refresh token and the one Claude Code holds would stop working.
+ */
+export async function claudeConfigToken(configDir: string): Promise<string | null> {
+  const fromKeychain = accessTokenFrom(
+    await keychain.read(claudeCredentialService(configDir), keychainAccount()).catch(() => '')
+  )
+  if (fromKeychain) return fromKeychain
+  try {
+    return accessTokenFrom(readFileSync(join(configDir, '.credentials.json'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/** How a sign-in is run: agent-signin.ts in the app, a fake in tests. */
+export type ClaudeSignIn = (
+  env: Record<string, string>,
+  partition: string
+) => Promise<{ ok: true } | { ok: false; cancelled?: boolean; error: string }>
+/** Who a config folder is signed in as: `claude auth status` in the app. */
+export type ClaudeWhoAmI = (env: Record<string, string>) => Promise<LoginState | null>
+
+/**
+ * Sign another Claude account in fully: `claude auth login` with a config
+ * folder of its own, in Superagent's sign-in window. Named after who signed in
+ * ("campaigns@songpush.com · Max plan") unless a name was given.
+ *
+ * With `replaces`, a token account of the same person is swapped for it: its
+ * chats move to the new one, as does its place as the default, and the token
+ * is forgotten. Nothing is left behind when the sign-in does not finish.
+ */
+export async function addClaudeLogin(
+  name: string,
+  signIn: ClaudeSignIn,
+  whoAmI: ClaudeWhoAmI,
+  replaces?: string
+): Promise<Account> {
+  const id = `claude:${randomUUID()}`
+  const configDir = join(claudeConfigRoot(), id.replace(':', '-'))
+  const env = { CLAUDE_CONFIG_DIR: configDir }
+  // A jar of its own, new and empty: the main one is signed in to claude.ai as
+  // the main account and would hand that one straight back.
+  const partition = `persist:claude-${id.slice('claude:'.length)}`
+  const forget = async (): Promise<void> => {
+    await keychain.remove(claudeCredentialService(configDir), keychainAccount()).catch(() => {})
+    clearJar(partition)
+    try {
+      rmSync(configDir, { recursive: true, force: true })
+    } catch {
+      // best effort
+    }
+  }
+  try {
+    linkClaudeConfigDir(configDir)
+    const res = await signIn(env, partition)
+    if (!res.ok) throw new Error(res.error)
+    const who = await whoAmI(env)
+    if (!who?.signedIn) throw new Error('Claude did not finish signing in. Try again.')
+    const email = who.detail.split(' · ')[0]
+    const main = logins.claude
+    if (email && main?.signedIn && main.detail.split(' · ')[0] === email)
+      throw new Error(`${email} is already your Claude login.`)
+    const f = load()
+    if (email && f.accounts.some((a) => a.kind === 'config' && a.who?.split(' · ')[0] === email))
+      throw new Error(`${email} is already added.`)
+    const old = replaces ? f.accounts.find((a) => a.id === replaces) : undefined
+    f.accounts.push({
+      id,
+      provider: 'claude',
+      name: name.trim() || old?.name || email || 'Claude account',
+      kind: 'config',
+      addedAt: Date.now(),
+      configDir,
+      who: who.detail,
+      partition
+    })
+    if (old) moveAccount(old.id, id)
+    save()
+    broadcastToWindows('accounts:changed')
+    return listAccounts('claude').find((a) => a.id === id)!
+  } catch (e) {
+    await forget()
+    throw e
+  }
+}
+
+/**
+ * Hand everything of one account to another (a token account signed in fully):
+ * the chats on it, its place as the default, then forget it.
+ */
+function moveAccount(from: string, to: string): void {
+  const f = load()
+  for (const [chatId, acct] of Object.entries(f.chats)) if (acct === from) f.chats[chatId] = to
+  for (const p of Object.keys(f.defaults) as AgentProvider[])
+    if (f.defaults[p] === from) f.defaults[p] = to
+  f.accounts = f.accounts.filter((a) => a.id !== from)
+  delete f.limits[from]
+  delete f.auth[from]
+  delete f.usage[from]
+}
+
 export function removeAccount(id: string): void {
   const f = load()
   const stored = f.accounts.find((a) => a.id === id)
@@ -570,25 +974,47 @@ export function removeAccount(id: string): void {
   f.accounts = f.accounts.filter((a) => a.id !== id)
   delete f.limits[id]
   for (const [chatId, acct] of Object.entries(f.chats)) if (acct === id) delete f.chats[chatId]
-  if (stored.home) {
+  if (f.defaults[stored.provider] === id) delete f.defaults[stored.provider]
+  // The folder holds symlinks into ~/.codex or ~/.claude: rm removes the links,
+  // never what they point at.
+  for (const folder of [stored.home, stored.configDir]) {
+    if (!folder) continue
     try {
-      rmSync(stored.home, { recursive: true, force: true })
+      rmSync(folder, { recursive: true, force: true })
     } catch {
       // best effort
     }
   }
+  if (stored.configDir)
+    void keychain
+      .remove(claudeCredentialService(stored.configDir), keychainAccount())
+      .catch(() => {})
+  if (stored.partition) clearJar(stored.partition)
   save()
+}
+
+/** Sign an account's sign-in window out of everything: its cookies go with it. */
+function clearJar(partition: string): void {
+  try {
+    void session?.fromPartition(partition).clearStorageData()
+  } catch {
+    // no session to clear (tests), or already gone
+  }
 }
 
 // --- the CLIs' own logins, by name -----------------------------------------------
 
 /** "campaigns@songpush.com · Max" from `claude auth status`; signedIn false when it says so. */
-function probeClaudeLogin(): Promise<LoginState | null> {
+export function probeClaudeLogin(env?: Record<string, string>): Promise<LoginState | null> {
   return new Promise((resolve) => {
     let out = ''
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn(findClaude(), ['auth', 'status'], { cwd: os.homedir(), shell: false })
+      proc = spawn(findClaude(), ['auth', 'status'], {
+        cwd: os.homedir(),
+        shell: false,
+        ...(env ? { env: withAccountEnv(agentEnv(findClaude()), env) } : {})
+      })
     } catch {
       return resolve(null)
     }
@@ -771,15 +1197,7 @@ async function claudeLoginToken(): Promise<string | null> {
     'Claude Code-credentials',
     '-w'
   ])
-  try {
-    const o = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string; expiresAt?: number } })
-      .claudeAiOauth
-    if (!o?.accessToken) return null
-    if (o.expiresAt && o.expiresAt < Date.now() + 60_000) return null
-    return o.accessToken
-  } catch {
-    return null
-  }
+  return accessTokenFrom(raw)
 }
 
 /** Which windows Anthropic last named for each account, to log only a change. */
@@ -951,6 +1369,13 @@ export function refreshUsage(force = false): Promise<void> {
         )
       )
     }
+    // A full login may ask for its usage, as the main one does.
+    if (a.provider === 'claude' && a.kind === 'config' && a.configDir && liveUsage()) {
+      const dir = a.configDir
+      jobs.push(
+        claudeConfigToken(dir).then(async (t) => put(a.id, t ? await claudeUsage(t, a.id) : null))
+      )
+    }
   }
   if (logins.antigravity?.signedIn !== false && liveUsage())
     jobs.push(antigravityUsage().then((u) => put(LOGIN_ID.antigravity, u)))
@@ -984,6 +1409,20 @@ export function registerAccountsIpc(): void {
     addClaudeToken(name, token)
   )
   ipcMain.handle('accounts:add-codex', (_e, name: string) => addCodexAccount(name))
+  // Another Claude account, signed in fully in Superagent's sign-in window; or
+  // a token account of the same person signed in fully (`replaces`).
+  ipcMain.handle('accounts:add-claude-login', (e, name: string, replaces?: string) =>
+    addClaudeLogin(
+      name,
+      (env, partition) =>
+        signInAgent('claude', BrowserWindow.fromWebContents(e.sender), { env, partition }),
+      (env) => probeClaudeLogin(env),
+      replaces
+    )
+  )
+  ipcMain.handle('accounts:set-default', (_e, provider: AgentProvider, id: string) =>
+    setDefaultAccount(provider, id)
+  )
   ipcMain.handle('accounts:remove', (_e, id: string) => removeAccount(id))
   ipcMain.handle('accounts:set-mode', (_e, mode: LimitMode) => setLimitMode(mode))
   ipcMain.handle('accounts:switch', (_e, chatId: string, id: string) => {
@@ -1005,6 +1444,25 @@ export function registerAccountsIpc(): void {
     clearLimit(id)
     broadcastToWindows('accounts:changed')
   })
+}
+
+/** What connectors.ts needs to know of a Claude account: where it lives. */
+export function claudeAccountPlace(
+  accountId: string
+): { kind: AccountKind; configDir?: string; partition?: string } | null {
+  if (accountId === LOGIN_ID.claude) return { kind: 'login', partition: 'persist:agent-signin' }
+  const a = load().accounts.find((x) => x.id === accountId && x.provider === 'claude')
+  return a ? { kind: a.kind, configDir: a.configDir, partition: a.partition } : null
+}
+
+/** A Claude account's access token, where one can be read (login and config). */
+export async function claudeAccountToken(accountId: string): Promise<string | null> {
+  const place = claudeAccountPlace(accountId)
+  if (!place) return null
+  if (place.kind === 'login') return claudeLoginToken()
+  if (place.kind === 'config' && place.configDir && liveUsage())
+    return claudeConfigToken(place.configDir)
+  return null
 }
 
 /** Tests: forget the cached file so the next call re-reads it. */

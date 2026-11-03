@@ -107,7 +107,9 @@ export function agentEnv(bin: string, env: NodeJS.ProcessEnv = process.env): Nod
 
 /** Absolute path to `claude`. */
 export function findClaude(): string {
-  return findBinary('claude')
+  // A stand-in CLI for an e2e run (never set in a packaged app: harden.ts
+  // strips every COVE_E2E_ variable).
+  return process.env.COVE_E2E_CLAUDE_BIN || findBinary('claude')
 }
 
 /** Absolute path to `codex`. */

@@ -15880,3 +15880,82 @@ button {
 :root.app-asleep *::after {
   animation-play-state: paused !important;
 }
+
+/* Settings → Agents: which account new chats start on, and the quiet actions
+   beside an account (Make default, Sign in fully, Connect). */
+.settings-account-default {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.settings-account-action {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.settings-account-action:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.settings-account-action:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.settings-accounts-other {
+  margin-right: auto;
+}
+/* A token account: what it cannot do, in one line, and the way out. */
+.settings-account-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.settings-account-note .settings-accounts-error {
+  flex-basis: 100%;
+}
+/* Its claude.ai connectors: name, then Connected or Connect. */
+.settings-connectors {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 18px;
+  row-gap: 3px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.settings-connector {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.settings-connector-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.settings-connector-state {
+  flex: none;
+  color: var(--text-tertiary);
+}
+.settings-connectors .settings-accounts-error {
+  flex-basis: 100%;
+}
+/* Sidebar usage list and the composer's Account menu: one word on the default. */
+.usage-popover-default,
+.easy-account-default {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}

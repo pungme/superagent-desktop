@@ -23,6 +23,7 @@ import {
   reportLimit
 } from './accounts'
 import { usageFromClaudeEvent } from './usage'
+import { connectorsAskedFor, knownConnectors } from './connectors'
 import { fallbackModelFor, modelFallbackFrom } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import { startAntigravitySession, suggestTitleWithAntigravity } from './antigravity/session'
@@ -324,6 +325,10 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   // allowance, else the first that does; the CLI's own login by default.
   const account = accountForChat(provider, opts.chatId)
   let limitReported = false
+  /** claude.ai connectors the session started without (init says needs-auth). */
+  let unconnected: string[] = []
+  /** Connectors this run has already offered to connect: once each. */
+  const offered = new Set<string>()
   const limits = new LimitGate()
 
   const host: SessionHost = {
@@ -356,6 +361,11 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
         if (session) session.lastInit = event
         // The CLI took this account's credentials: whatever it refused before is over.
         markAuth(account.id, null)
+        const servers = (event as { mcp_servers?: { name?: string; status?: string }[] })
+          .mcp_servers
+        unconnected = (Array.isArray(servers) ? servers : [])
+          .filter((m) => m.status === 'needs-auth' && m.name?.startsWith('claude.ai '))
+          .map((m) => m.name!.slice('claude.ai '.length))
         // Stamp the backend onto the chat alongside the session id it just
         // issued: a Codex thread id resumed with `claude --resume` finds
         // nothing, and the conversation silently starts over.
@@ -370,6 +380,25 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       }
       const refused = authFailureFromEvent(event)
       if (refused) markAuth(account.id, refused)
+      // A claude.ai connector the turn needed is not signed in: the window
+      // offers to connect it there and then, instead of the CLI's "run /mcp".
+      if (provider === 'claude' && opts.chatId) {
+        const known = [
+          ...unconnected,
+          ...knownConnectors(account.id)
+            .filter((c) => c.status === 'needs-auth')
+            .map((c) => c.name)
+        ]
+        const asked = connectorsAskedFor(event, known).filter((n) => !offered.has(n))
+        if (asked.length) {
+          asked.forEach((n) => offered.add(n))
+          broadcastToWindows('connectors:needs-auth', {
+            chatId: opts.chatId,
+            accountId: account.id,
+            names: asked
+          })
+        }
+      }
       // Every Claude turn says how much of this account's allowance is used.
       const usage = usageFromClaudeEvent(event)
       if (usage) recordUsage(account.id, usage)
@@ -708,6 +737,14 @@ export function registerAgentIpc(): void {
     ) => sendToAgent(id, text, images ?? [], { from: 'desktop', replyTo })
   )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
+  // A claude.ai connector was just connected from the chat's card: the agent
+  // dials it again, so the next message can use it without a restart.
+  ipcMain.handle('agent:mcp-reconnect', (_e, chatId: string, serverName: string) => {
+    let done = false
+    for (const s of sessions.values())
+      if (s.chatId === chatId && s.backend.reconnectMcp?.(serverName)) done = true
+    return done
+  })
   ipcMain.on('agent:stop', (_e, id: string, why?: string) =>
     stopAgent(id, `window: ${why ?? 'unspecified'}`)
   )

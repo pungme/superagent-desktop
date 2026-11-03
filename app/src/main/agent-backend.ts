@@ -64,6 +64,11 @@ export interface AgentBackend {
   hardInterrupt(): Promise<boolean>
   /** End the session for good. */
   kill(): void
+  /**
+   * Have the agent dial one MCP server again (a claude.ai connector just
+   * connected), so the running session can use it. Claude only.
+   */
+  reconnectMcp?(serverName: string): boolean
   readonly writable: boolean
 }
 

@@ -10,7 +10,7 @@ import { describeRepoSet, projectMemoryDir } from '../repo-set'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, killProcessTreeForSure, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
-import { limitFromEvent, modelLimitedUntil } from '../accounts'
+import { limitFromEvent, modelLimitedUntil, withAccountEnv } from '../accounts'
 import { fallbackModelFor, modelFamily } from '../../shared/model-fallback'
 
 /**
@@ -157,6 +157,14 @@ function claudeBackend(proc: ChildProcessWithoutNullStreams): AgentBackend {
         request: { subtype: 'interrupt' }
       })
     },
+    // The SDK's reconnectMcpServer: the same control request on stdin.
+    reconnectMcp(serverName) {
+      return write({
+        type: 'control_request',
+        request_id: randomUUID(),
+        request: { subtype: 'mcp_reconnect', serverName }
+      })
+    },
     /**
      * The stdin control_request above is the polite route, but the CLI only reads
      * stdin between steps — inside a long Bash call (a 15-minute deploy) nothing
@@ -200,8 +208,7 @@ export function startClaudeSession(
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),
       env: {
-        ...process.env,
-        ...ctx.env,
+        ...withAccountEnv(process.env, ctx.env ?? {}),
         COVE_HOOK_URL: getHookUrl(),
         COVE_MCP_URL: getMcpUrl(),
         ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})

@@ -147,6 +147,10 @@ export function UsageFooter(): React.JSX.Element | null {
                     <span className="usage-popover-name">
                       {here && <span className="usage-popover-tick">✓</span>}
                       {a.name}
+                      {/* Where new chats start, once there is a choice. */}
+                      {a.isDefault && lists[p].length > 1 && (
+                        <span className="usage-popover-default">Default</span>
+                      )}
                     </span>
                     <span className="usage-popover-windows">
                       {a.needsAuth

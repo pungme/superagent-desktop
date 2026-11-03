@@ -750,7 +750,8 @@ export interface WireAccount {
   id: string
   provider: 'claude' | 'codex' | 'antigravity'
   name: string
-  kind: 'login' | 'token' | 'home'
+  /** 'config' is a Claude account signed in fully in a config folder of its own. */
+  kind: 'login' | 'token' | 'home' | 'config'
   detail: string
   /** Epoch ms the account is out until, if it is. */
   limitedUntil: number | null
@@ -759,6 +760,8 @@ export interface WireAccount {
     windows: { label: string; percent: number; resetsAt: number | null; model?: string }[]
     at: number
   } | null
+  /** New chats of this agent start on it (absent from a Mac older than 2.1.0-beta.27). */
+  isDefault?: boolean
 }
 
 export interface WireAccounts {

@@ -298,6 +298,30 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   wheel`). `scripts/remote-stream-bench.mjs` measures the stream on app
   screenshots.
 
+## Accounts and connectors
+
+`src/main/accounts.ts` (accounts, the default per agent, the pick rule),
+`src/main/connectors.ts` (claude.ai connectors), `src/main/agent-signin.ts`
+(every sign-in, in a window of ours).
+
+- An extra Claude account is a full `claude auth login` in its own
+  CLAUDE_CONFIG_DIR (kind `config`); a `claude setup-token` token (kind
+  `token`) is the fallback and is inference-only: no claude.ai connectors, no
+  Claude in Chrome. Read from 2.1.314: with CLAUDE_CONFIG_DIR the login is in
+  the Keychain item `Claude Code-credentials-<first 8 hex of sha256(dir)>`
+  (account $USER; `.credentials.json` in the dir as fallback) and the global
+  config is `<dir>/.claude.json`. The dir links back to ~/.claude except
+  `CLAUDE_NOT_SHARED`; MCP servers from ~/.claude.json are copied in.
+- `withAccountEnv` drops CLAUDE_CODE_OAUTH_TOKEN whenever CLAUDE_CONFIG_DIR is
+  set: the token would win over the folder's login.
+- Each `config` account has its own persistent cookie jar; connecting a
+  connector opens claude.ai's start-auth page there (claude.ai holds the
+  connection, Claude Code does no local OAuth for these).
+- Tests never touch the real ~/.claude or Keychain: a test instance's Keychain
+  is a no-op (`liveUsage`), unit tests set HOME, and the e2e
+  (`accounts-signin.spec.ts`) runs a stand-in `claude` through
+  `COVE_E2E_CLAUDE_BIN` with its own HOME.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and
