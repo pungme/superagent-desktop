@@ -1136,6 +1136,38 @@ export interface CoveApi {
   ) => Promise<
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
   >
+  /** Read and check a skill from a folder, a .zip/.skill/.md file or a link; nothing is written yet. Null when the picker was cancelled. */
+  skillsAddPrepare: (
+    source: { kind: 'folder' } | { kind: 'file' } | { kind: 'link'; url: string },
+    provider?: AgentProvider,
+    projectPath?: string
+  ) => Promise<
+    | {
+        token: string
+        canProject: boolean
+        skills: {
+          name: string
+          description: string
+          hasScripts: boolean
+          extraFiles: number
+          exists: { global: boolean; project: boolean }
+        }[]
+      }
+    | { error: string }
+    | null
+  >
+  skillsAddInstall: (
+    token: string,
+    where: 'global' | 'project',
+    onConflict: 'replace' | 'keep-both' | 'none'
+  ) => Promise<{ installed: string[] } | { error: string }>
+  skillsAddCancel: (token: string) => Promise<void>
+  /** Move one of the user's skills to the Trash. */
+  skillsRemove: (
+    skill: { name: string; scope: 'global' | 'project'; kind: 'skill' | 'command' },
+    provider?: AgentProvider,
+    projectPath?: string
+  ) => Promise<{ ok: true } | { error: string }>
 
   agentStart: (opts: {
     /** Which agent CLI to run. Omitted means the chat's own, else Claude. */
@@ -1722,6 +1754,13 @@ const cove: CoveApi = {
 
   skillsList: (projectPath, provider) => ipcRenderer.invoke('skills:list', projectPath, provider),
   skillsInstallStarters: (provider) => ipcRenderer.invoke('skills:installStarters', provider),
+  skillsAddPrepare: (source, provider, projectPath) =>
+    ipcRenderer.invoke('skills:addPrepare', source, provider, projectPath),
+  skillsAddInstall: (token, where, onConflict) =>
+    ipcRenderer.invoke('skills:addInstall', token, where, onConflict),
+  skillsAddCancel: (token) => ipcRenderer.invoke('skills:addCancel', token),
+  skillsRemove: (skill, provider, projectPath) =>
+    ipcRenderer.invoke('skills:remove', skill, provider, projectPath),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
   agentSuggestTitle: (cwd, excerpt, provider) =>

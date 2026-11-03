@@ -1,8 +1,32 @@
-import { ipcMain } from 'electron'
-import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs'
-import { join, dirname } from 'path'
+import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import {
+  readFileSync,
+  existsSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync
+} from 'fs'
+import { join, dirname, basename, extname } from 'path'
 import { homedir } from 'os'
+import { randomUUID } from 'crypto'
 import { toProvider, type AgentProvider } from '../shared/agent-provider'
+import {
+  SkillError,
+  alreadyThere,
+  bundleFromMarkdown,
+  bundlesFromFolder,
+  bundlesFromLink,
+  bundlesFromZip,
+  hasScripts,
+  installBundles,
+  removablePath,
+  skillTargets,
+  MAX_DOWNLOAD,
+  type OnConflict,
+  type SkillBundle
+} from './skill-install'
 
 /**
  * Discovers the agent's skills and slash commands so Superagent can show them as
@@ -186,7 +210,160 @@ export function installStarterSkills(provider: AgentProvider = 'claude'): void {
   }
 }
 
+/** What the panel is shown before it installs: read and checked, nothing written yet. */
+export interface SkillPreview {
+  token: string
+  skills: {
+    name: string
+    description: string
+    hasScripts: boolean
+    /** Files besides SKILL.md that a flat Codex prompt leaves out. */
+    extraFiles: number
+    exists: { global: boolean; project: boolean }
+  }[]
+  /** Whether this agent has a project-level folder to offer. */
+  canProject: boolean
+}
+
+export type SkillSource = { kind: 'folder' } | { kind: 'file' } | { kind: 'link'; url: string }
+
+interface Pending {
+  bundles: SkillBundle[]
+  provider: AgentProvider
+  projectPath?: string
+}
+const pending = new Map<string, Pending>()
+
+/** The app's own window, its top frame: a page in a browser pane never installs or removes. */
+function fromApp(e: IpcMainInvokeEvent): boolean {
+  return e.senderFrame === e.sender.mainFrame && !!BrowserWindow.fromWebContents(e.sender)
+}
+
+/**
+ * Move to the Trash. A test run (which answers the picker itself) deletes in
+ * its temporary home instead, so tests never fill the real Trash.
+ */
+async function trash(path: string): Promise<void> {
+  if (process.env.COVE_E2E_PICK_SKILL) rmSync(path, { recursive: true, force: true })
+  else await shell.trashItem(path)
+}
+
+async function pick(kind: 'folder' | 'file'): Promise<string | null> {
+  // A test answers the picker through a file it writes before each click,
+  // instead of driving macOS's out-of-process dialog.
+  if (process.env.COVE_E2E_PICK_SKILL)
+    return readFileSync(process.env.COVE_E2E_PICK_SKILL, 'utf8').trim()
+  const win = BrowserWindow.getFocusedWindow()
+  const opts: Electron.OpenDialogOptions =
+    kind === 'folder'
+      ? {
+          properties: ['openDirectory'],
+          message: 'Choose a skill folder (one with a SKILL.md in it)'
+        }
+      : {
+          properties: ['openFile'],
+          filters: [{ name: 'Skill', extensions: ['zip', 'skill', 'md'] }]
+        }
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
+}
+
+async function readSource(source: SkillSource): Promise<SkillBundle[] | null> {
+  if (source.kind === 'link') return bundlesFromLink(source.url)
+  const path = await pick(source.kind)
+  if (!path) return null
+  if (statSync(path).isDirectory()) return bundlesFromFolder(path)
+  if (statSync(path).size > MAX_DOWNLOAD) throw new SkillError('That file is too big for a skill.')
+  const ext = extname(path).toLowerCase()
+  const name = basename(path, extname(path))
+  if (ext === '.md')
+    return bundleFromMarkdown(readFileSync(path), name === 'SKILL' ? basename(dirname(path)) : name)
+  return bundlesFromZip(readFileSync(path), name)
+}
+
 export function registerSkillsIpc(): void {
+  ipcMain.handle(
+    'skills:addPrepare',
+    async (
+      e,
+      source: SkillSource,
+      provider?: AgentProvider,
+      projectPath?: string
+    ): Promise<SkillPreview | { error: string } | null> => {
+      if (!fromApp(e)) return null
+      const p = toProvider(provider)
+      try {
+        const bundles = await readSource(source)
+        if (!bundles) return null
+        const targets = skillTargets(p, homedir(), projectPath)
+        const token = randomUUID()
+        // One waiting install at a time is all the panel ever has.
+        pending.clear()
+        pending.set(token, { bundles, provider: p, projectPath })
+        return {
+          token,
+          canProject: !!targets.project,
+          skills: bundles.map((b) => ({
+            name: b.name,
+            description: b.description,
+            hasScripts: hasScripts(b),
+            extraFiles: b.files.size - 1,
+            exists: {
+              global: alreadyThere(targets.global, b.name),
+              project: !!targets.project && alreadyThere(targets.project, b.name)
+            }
+          }))
+        }
+      } catch (err) {
+        return { error: err instanceof SkillError ? err.message : "Couldn't read that skill." }
+      }
+    }
+  )
+  ipcMain.handle(
+    'skills:addInstall',
+    async (
+      e,
+      token: string,
+      where: 'global' | 'project',
+      onConflict: OnConflict
+    ): Promise<{ installed: string[] } | { error: string }> => {
+      if (!fromApp(e)) return { error: 'Not allowed.' }
+      const job = pending.get(token)
+      if (!job) return { error: 'Choose the skill again.' }
+      const targets = skillTargets(job.provider, homedir(), job.projectPath)
+      const target = where === 'project' ? targets.project : targets.global
+      if (!target) return { error: 'This agent has no project folder for skills.' }
+      try {
+        const installed = await installBundles(job.bundles, target, onConflict, trash)
+        pending.delete(token)
+        return { installed }
+      } catch (err) {
+        return { error: err instanceof SkillError ? err.message : "Couldn't install it." }
+      }
+    }
+  )
+  ipcMain.handle('skills:addCancel', (_e, token: string) => {
+    pending.delete(token)
+  })
+  ipcMain.handle(
+    'skills:remove',
+    async (
+      e,
+      skill: { name: string; scope: 'global' | 'project'; kind: 'skill' | 'command' },
+      provider?: AgentProvider,
+      projectPath?: string
+    ): Promise<{ ok: true } | { error: string }> => {
+      if (!fromApp(e)) return { error: 'Not allowed.' }
+      const path = removablePath(toProvider(provider), homedir(), projectPath, skill)
+      if (!path) return { error: "This one can't be removed from here." }
+      try {
+        await trash(path)
+        return { ok: true }
+      } catch {
+        return { error: "Couldn't move it to the Trash." }
+      }
+    }
+  )
   ipcMain.handle('skills:list', (_e, projectPath?: string, provider?: AgentProvider) =>
     discoverSkills(projectPath, toProvider(provider))
   )

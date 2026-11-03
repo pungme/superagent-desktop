@@ -2427,17 +2427,23 @@ export function EasyChat({
   useEffect(() => {
     // Directories come back too (trailing '/'), but you mention a file.
     window.cove.filesList(cwd).then((fs) => setFiles(fs.filter((f) => !f.endsWith('/'))))
-    window.cove.skillsList(cwd, provider).then((list) => {
-      // Merge, never replace: this used to overwrite the pool with the project's
-      // own skills, so a project with none — which is most of them — wiped the
-      // built-ins straight back out and "/" offered nothing at all.
-      setCommands((prev) => Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort())
-      setCommandDescs((prev) => {
-        const next = { ...prev }
-        for (const s of list) if (s.description) next[s.name] = s.description
-        return next
+    const loadSkills = (): void => {
+      void window.cove.skillsList(cwd, provider).then((list) => {
+        // Merge, never replace: this used to overwrite the pool with the project's
+        // own skills, so a project with none — which is most of them — wiped the
+        // built-ins straight back out and "/" offered nothing at all.
+        setCommands((prev) => Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort())
+        setCommandDescs((prev) => {
+          const next = { ...prev }
+          for (const s of list) if (s.description) next[s.name] = s.description
+          return next
+        })
       })
-    })
+    }
+    loadSkills()
+    // A skill added in the Skills panel is offered in "/" straight away.
+    window.addEventListener('cove:skills-changed', loadSkills)
+    return () => window.removeEventListener('cove:skills-changed', loadSkills)
     // Re-read when the chat moves agents: the two keep their skills in different
     // places, so the "/" menu would otherwise offer commands this agent can't run.
   }, [cwd, provider])
