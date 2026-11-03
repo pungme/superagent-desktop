@@ -179,8 +179,7 @@ function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): Reac
 
 /** A labeled row: title + description on the left, a control on the right. */
 /** What a token account cannot do, said once under it. */
-const TOKEN_NOTE =
-  'Signed in with a token: claude.ai connectors and Claude in Chrome are not available. Sign in fully to use them.'
+const TOKEN_NOTE = 'No claude.ai connectors or Claude in Chrome on a token.'
 
 /**
  * A Claude account's claude.ai connectors, under it: each with Connected, or a
@@ -191,6 +190,7 @@ function AccountConnectors({ accountId }: { accountId: string }): React.JSX.Elem
   const [list, setList] = useState<Connector[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     let alive = true
     const load = (): void =>
@@ -218,24 +218,42 @@ function AccountConnectors({ accountId }: { accountId: string }): React.JSX.Elem
       setBusy(null)
     }
   }
+  const on = list.filter((c) => c.status === 'connected')
+  const off = list.filter((c) => c.status !== 'connected')
   return (
     <div className="settings-connectors">
-      {list.map((c) => (
-        <span key={c.name} className={`settings-connector ${c.status}`}>
+      {on.map((c) => (
+        <span key={c.name} className="settings-connector connected" title="Connected">
+          <i className="settings-connector-dot" />
           <span className="settings-connector-name">{c.name}</span>
-          {c.status === 'connected' ? (
-            <span className="settings-connector-state">Connected</span>
-          ) : (
+        </span>
+      ))}
+      {/* Not connected on this account: one quiet line until asked for, so
+          an account that does not use them is not a wall of Connect buttons. */}
+      {off.length > 0 && !open && (
+        <button className="settings-connectors-more" onClick={() => setOpen(true)}>
+          {on.length ? `+${off.length} not connected` : `${off.length} connectors not connected`}
+        </button>
+      )}
+      {open &&
+        off.map((c) => (
+          <span key={c.name} className={`settings-connector ${c.status}`}>
+            <i className="settings-connector-dot" />
+            <span className="settings-connector-name">{c.name}</span>
             <button
-              className="settings-account-action"
+              className="settings-connector-connect"
               disabled={!!busy}
               onClick={() => void connect(c.name)}
             >
               {busy === c.name ? 'Connecting…' : 'Connect'}
             </button>
-          )}
-        </span>
-      ))}
+          </span>
+        ))}
+      {open && off.length > 0 && (
+        <button className="settings-connectors-more" onClick={() => setOpen(false)}>
+          Hide
+        </button>
+      )}
       {error && <p className="settings-accounts-error">{error}</p>}
     </div>
   )
@@ -472,7 +490,12 @@ function AgentsPanel({
                           one click on any other. Only with a choice to make. */}
                       {(list?.[p]?.length ?? 0) > 1 &&
                         (a.isDefault ? (
-                          <span className="settings-account-default">Default for new chats</span>
+                          <span
+                            className="settings-account-default"
+                            title="New chats start on this account"
+                          >
+                            Default
+                          </span>
                         ) : (
                           <button
                             className="settings-account-action"
@@ -502,7 +525,7 @@ function AgentsPanel({
                       <div className="settings-account-note">
                         <span>{TOKEN_NOTE}</span>
                         <button
-                          className="settings-account-action"
+                          className="settings-account-action strong"
                           disabled={!!upgrading}
                           onClick={() => void signInFully(a)}
                         >

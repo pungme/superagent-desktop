@@ -13723,15 +13723,15 @@ button {
 .settings-account {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 10px 0 4px;
+  gap: 2px;
+  padding: 12px 0 6px;
   border-top: 1px solid var(--border);
   font-size: 12px;
 }
 .settings-account-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 /* What is wrong with it, if anything: a small pill beside its name. */
 .settings-account-badge {
@@ -13756,6 +13756,8 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 .settings-account-state {
@@ -13835,11 +13837,12 @@ button {
    columns line up across every account in the card. */
 .settings-account-usage {
   display: grid;
-  grid-template-columns: minmax(56px, max-content) minmax(80px, 180px) 40px auto;
+  /* Fixed columns, so every account's meters line up with the others'. */
+  grid-template-columns: 84px minmax(80px, 200px) 34px auto;
   column-gap: 10px;
-  row-gap: 3px;
+  row-gap: 4px;
   align-items: center;
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 11.5px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
@@ -15885,8 +15888,12 @@ button {
    beside an account (Make default, Sign in fully, Connect). */
 .settings-account-default {
   flex: none;
-  font-size: 11px;
-  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--accent-fg);
+  background: var(--accent);
 }
 .settings-account-action {
   flex: none;
@@ -15902,6 +15909,15 @@ button {
 .settings-account-action:hover:not(:disabled) {
   text-decoration: underline;
 }
+.settings-account-action.strong {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+}
+.settings-account-action.strong:hover:not(:disabled) {
+  text-decoration: none;
+  background: var(--accent-soft);
+}
 .settings-account-action:disabled {
   color: var(--text-tertiary);
   cursor: default;
@@ -15914,29 +15930,47 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 8px;
+  align-items: center;
+  column-gap: 10px;
   row-gap: 2px;
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 11px;
   color: var(--text-tertiary);
 }
 .settings-account-note .settings-accounts-error {
   flex-basis: 100%;
 }
-/* Its claude.ai connectors: name, then Connected or Connect. */
+/* Its claude.ai connectors: a chip with a green dot for each connected one;
+   the rest folded into one line until opened, each then with Connect. */
 .settings-connectors {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 18px;
-  row-gap: 3px;
-  margin-top: 6px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
   font-size: 11px;
 }
 .settings-connector {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   min-width: 0;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+}
+.settings-connector-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34c759;
+}
+.settings-connector:not(.connected) .settings-connector-dot {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--text-tertiary);
 }
 .settings-connector-name {
   overflow: hidden;
@@ -15944,9 +15978,31 @@ button {
   white-space: nowrap;
   color: var(--text-secondary);
 }
-.settings-connector-state {
-  flex: none;
+.settings-connector-connect {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.settings-connector-connect:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.settings-connector-connect:disabled {
   color: var(--text-tertiary);
+}
+.settings-connectors-more {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.settings-connectors-more:hover {
+  color: var(--text-primary);
 }
 .settings-connectors .settings-accounts-error {
   flex-basis: 100%;

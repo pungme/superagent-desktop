@@ -166,16 +166,18 @@ test('the main login lists its connectors, and which need connecting', async () 
     .locator('.settings-accounts-provider', { hasText: 'Claude' })
     .locator('.settings-account')
     .first()
-  const connectors = login.locator('.settings-connector')
-  await expect(connectors).toHaveCount(3, { timeout: 20_000 })
-  await expect(login.locator('.settings-connector', { hasText: 'Gmail' })).toContainText(
-    'Connected'
-  )
+  // Connected ones as chips; the two that are not, folded into one line.
+  await expect(login.locator('.settings-connector')).toHaveCount(1, { timeout: 20_000 })
+  await expect(login.locator('.settings-connector.connected')).toHaveText('Gmail')
+  await login.getByRole('button', { name: '+2 not connected' }).click()
+  await expect(login.locator('.settings-connector')).toHaveCount(3)
   await expect(
     login.locator('.settings-connector', { hasText: 'Attio' }).getByRole('button', {
       name: 'Connect'
     })
   ).toBeVisible()
+  await login.getByRole('button', { name: 'Hide' }).click()
+  await expect(login.locator('.settings-connector')).toHaveCount(1)
 })
 
 test('closing the sign-in window adds nothing and leaves nothing behind', async () => {
@@ -277,7 +279,8 @@ test('a token account signed in fully takes its place, chats and default include
   expect(lstatSync(join(acct.configDir!, 'settings.json')).isSymbolicLink()).toBe(true)
   expect(lstatSync(join(acct.configDir!, 'projects')).isSymbolicLink()).toBe(true)
   // Its connectors, read as that account.
-  await expect(full.locator('.settings-connector')).toHaveCount(3, { timeout: 20_000 })
+  await expect(full.locator('.settings-connector')).toHaveCount(1, { timeout: 20_000 })
+  await expect(full.getByRole('button', { name: '+2 not connected' })).toBeVisible()
   await window
     .locator('.settings-accounts')
     .screenshot({ path: join(SHOTS, 'settings-agents.png') })

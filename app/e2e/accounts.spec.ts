@@ -146,16 +146,14 @@ test('one account is the default for new chats, and another can be made it', asy
   const spare = claude.locator('.settings-account', { hasText: 'Spare' })
   await expect(spare).toBeVisible()
   // The login is the default until another is chosen.
-  await expect(rows.first().locator('.settings-account-default')).toHaveText(
-    'Default for new chats'
-  )
+  await expect(rows.first().locator('.settings-account-default')).toHaveText('Default')
   // A token account says what it cannot do, and offers the way out.
   await expect(spare.locator('.settings-account-note')).toContainText(
-    'Signed in with a token: claude.ai connectors and Claude in Chrome are not available. Sign in fully to use them.'
+    'No claude.ai connectors or Claude in Chrome on a token.'
   )
   await expect(spare.getByRole('button', { name: 'Sign in fully' })).toBeVisible()
   await spare.getByRole('button', { name: 'Make default' }).click()
-  await expect(spare.locator('.settings-account-default')).toHaveText('Default for new chats')
+  await expect(spare.locator('.settings-account-default')).toHaveText('Default')
   await expect(rows.first().getByRole('button', { name: 'Make default' })).toBeVisible()
   const spareId = (
     JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')) as {
