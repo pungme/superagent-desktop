@@ -11,6 +11,7 @@ import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account, Connector } from '../../../preload'
+import { SkillsPanel } from './SkillsPanel'
 import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state'
 import { IconEditor } from './IconEditor'
 import type { IconPlace } from '../app-icon'
@@ -46,11 +47,11 @@ const AGENT_COPY: Record<AgentProvider, { signIn: string; terminal: string; inst
 }
 
 interface SettingsProps {
-  initialSection?: 'general' | 'connections'
+  initialSection?: 'general' | 'connections' | 'skills'
   onClose: () => void
 }
 
-type SectionId = 'general' | 'agents' | 'connections' | 'phone' | 'advanced' | 'about'
+type SectionId = 'general' | 'agents' | 'skills' | 'connections' | 'phone' | 'advanced' | 'about'
 
 /** Each section: its name in the list, and the line under its heading. */
 const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
@@ -59,6 +60,11 @@ const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
     id: 'agents',
     label: 'Agents',
     blurb: 'The coding agents on this Mac, the accounts they run on, and how new chats start.'
+  },
+  {
+    id: 'skills',
+    label: 'Skills',
+    blurb: 'What your agents know how to do, for this project and everywhere.'
   },
   { id: 'connections', label: 'Connections', blurb: 'The apps your agents can reach.' },
   { id: 'phone', label: 'Phone', blurb: 'Follow this Mac from your iPhone.' },
@@ -92,6 +98,7 @@ const NAV_ICONS: Record<SectionId, React.JSX.Element> = {
       <path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
     </>
   ),
+  skills: <path d="M10 2.7l2.2 4.8 5.1.5-3.9 3.5 1.2 5L10 13.9l-4.6 2.6 1.2-5-3.9-3.5 5.1-.5z" />,
   phone: (
     <>
       <rect x="6" y="2.5" width="8" height="15" rx="2" />
@@ -894,6 +901,11 @@ export function Settings({
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [section, setSection] = useState<SectionId>(initialSection)
+  // Skills belong to a project (or to all): the one you are in.
+  const skillsProject = useStore((s) => {
+    const id = s.activeWorkspaceId
+    return id ? s.tree.flatMap((g) => g.workspaces).find((w) => w.id === id) : undefined
+  })
   const [diagCopied, setDiagCopied] = useState(false)
   /** Measured on entering Advanced, not on every render — du walks gigabytes. */
   const [storage, setStorage] = useState<{ key: string; label: string; bytes: number }[] | null>(
@@ -1595,6 +1607,23 @@ export function Settings({
                   </button>
                 </div>
               </Row>
+            </section>
+          )}
+
+          {section === 'skills' && (
+            <section className="settings-section settings-skills">
+              {skillsProject ? (
+                <SkillsPanel
+                  embedded
+                  workspaceId={skillsProject.id}
+                  projectPath={skillsProject.path}
+                  onClose={() => {}}
+                />
+              ) : (
+                <p className="settings-agent-hint">
+                  Open a project first: skills are added to a project, or to all of them.
+                </p>
+              )}
             </section>
           )}
 

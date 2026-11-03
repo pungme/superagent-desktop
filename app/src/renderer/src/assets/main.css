@@ -16015,3 +16015,8 @@ button {
   font-weight: 500;
   color: var(--text-tertiary);
 }
+/* Settings → Skills: the Skills panel, in the column the other sections use. */
+.settings-skills .section-embedded {
+  padding: 0;
+  overflow: visible;
+}

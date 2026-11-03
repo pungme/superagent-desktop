@@ -87,9 +87,9 @@ function App(): React.JSX.Element {
   const startRoutinesListener = useStore((s) => s.startRoutinesListener)
   const startGuardrailListener = useStore((s) => s.startGuardrailListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
-  const [settingsInitialSection, setSettingsInitialSection] = useState<'general' | 'connections'>(
-    'general'
-  )
+  const [settingsInitialSection, setSettingsInitialSection] = useState<
+    'general' | 'connections' | 'skills'
+  >('general')
   const [connectionsOffered, setConnectionsOffered] = useState(
     () => localStorage.getItem('cove.connectionsOffered') === '1'
   )
@@ -487,7 +487,11 @@ function App(): React.JSX.Element {
       )
     }
     const open = openOnDesktop('dashboard')
-    const openSkills = openOnDesktop('skills')
+    // Skills live in Settings.
+    const openSkills = (): void => {
+      setSettingsInitialSection('skills')
+      setSettingsOpen(true)
+    }
     const openRoutines = openOnDesktop('routines')
     // Picking anything in the sidebar leaves every full-window surface — the
     // dashboard/computer overlays AND the Settings page (which is its own state,

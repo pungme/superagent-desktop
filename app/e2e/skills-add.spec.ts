@@ -90,6 +90,13 @@ const card = (name: string): ReturnType<Page['locator']> =>
     has: window.locator('.skill-name', { hasText: new RegExp(`^${name}$`) })
   })
 
+test('Skills is a section of Settings, opened from View › Skills', async () => {
+  await openSkills()
+  await expect(window.locator('.settings-nav-item.on')).toHaveText('Skills')
+  await expect(window.locator('.settings-page h2', { hasText: 'Skills' })).toBeVisible()
+  await window.locator('.settings-page').screenshot({ path: 'test-results/settings-skills.png' })
+})
+
 test('adds a skill from a folder, warning about its script', async () => {
   await openSkills()
   pick(join(root, 'src', 'deploy-check'))
