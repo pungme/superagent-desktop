@@ -41,12 +41,9 @@ test.afterAll(async () => {
 /** Put the slide's recording or its animations at a moment, so a picture of it means something. */
 async function at(seconds: number): Promise<void> {
   await window.evaluate(async (ms) => {
-    const video = document.querySelector<HTMLVideoElement>('.tour-frame video')
-    if (video) {
-      video.pause()
-      video.currentTime = Math.min(ms / 1000, video.duration - 0.05)
-      await new Promise((r) => video.addEventListener('seeked', r, { once: true }))
-    }
+    const gfx = document.querySelector('.tour-frame .gfx') as
+      (HTMLElement & { gfx?: { seek: (t: number) => void; end: number } }) | null
+    if (gfx?.gfx) gfx.gfx.seek(Math.min(ms, gfx.gfx.end))
     for (const a of document.querySelector('.tour-frame')!.getAnimations({ subtree: true })) {
       a.pause()
       a.currentTime = ms
@@ -66,9 +63,10 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
   await expect(tour).toBeVisible()
 
   const slides: [title: string, beta: boolean, moment: number][] = [
-    ['Every chat in one list.', false, 4.6],
-    ['It checks its own work.', false, 6],
-    ['Watch several chats at once.', false, 4],
+    ['Every chat in one list.', false, 6],
+    ['Claude, Codex, Gemini. Never stuck.', false, 9],
+    ['It checks its own work.', false, 7],
+    ['Watch several chats at once.', false, 7],
     ['It tells you when it needs you.', false, 6],
     ['Answer from your phone.', false, 3],
     ['Jobs that run on a schedule.', false, 4.5],
@@ -84,23 +82,16 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
       // The last page is a list, not a scene: the menu's own shortcuts.
       await expect(tour.locator('.tour-key')).toHaveCount(10)
       await expect(tour.locator('.tour-key', { hasText: 'Search everything' })).toContainText('K')
-    } else if (await tour.locator('.tour-frame video').count()) {
-      // A recording of the app: it loads, it plays, silently.
-      const video = tour.locator('.tour-frame video')
-      await expect(video).toBeVisible()
+    } else if (await tour.locator('.tour-frame .gfx').count()) {
+      // The website's drawing of the window: drawn, scaled to the frame, and playing.
+      const gfx = tour.locator('.tour-frame .gfx')
+      await expect(gfx.locator('.gfx-stage > *').first()).toBeAttached()
+      const t0 = await gfx.evaluate((g) => (g as unknown as { gfx: { time: number } }).gfx.time)
       await expect
-        .poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0.2), {
-          timeout: 10_000
-        })
-        .toBe(true)
-      expect(
-        await video.evaluate((v: HTMLVideoElement) => ({
-          muted: v.muted,
-          loop: v.loop,
-          width: v.videoWidth,
-          poster: !!v.poster
-        }))
-      ).toEqual({ muted: true, loop: true, width: 1920, poster: true })
+        .poll(() => gfx.evaluate((g) => (g as unknown as { gfx: { time: number } }).gfx.time))
+        .toBeGreaterThan(t0)
+      const box = await gfx.boundingBox()
+      expect(Math.abs(box!.width / box!.height - 960 / 600)).toBeLessThan(0.02)
     } else {
       // A drawn scene: it has the desk it sits on, and it is moving.
       await expect(tour.locator('.tour-scene .d7-desk')).toBeVisible()
@@ -115,6 +106,8 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
       await window.waitForTimeout(700)
       await at(moment)
       await tour.locator('.tour-card').screenshot({ path: `/tmp/sa-tour-${i + 1}.png` })
+      // And the whole window once, to judge the size of it all.
+      if (i === 0) await window.screenshot({ path: '/tmp/sa-tour-window.png' })
     }
     await tour
       .getByRole('button', { name: i === slides.length - 1 ? 'Get started' : 'Next' })
@@ -129,7 +122,7 @@ test('the keys work, the dot can be turned on on its own slide, and Esc leaves',
   await window.evaluate(() => window.dispatchEvent(new CustomEvent('cove:replay-tour')))
   const tour = window.getByRole('dialog', { name: 'How Superagent works' })
   await expect(tour.getByRole('heading', { name: 'Every chat in one list.' })).toBeVisible()
-  for (let i = 0; i < 6; i++) await window.keyboard.press('ArrowRight')
+  for (let i = 0; i < 7; i++) await window.keyboard.press('ArrowRight')
   await expect(tour.getByRole('heading', { name: 'Ask from any app.' })).toBeVisible()
   // Only this slide has the switch, and it says what the app has.
   const keep = tour.getByLabel('Show the dot on my screen')

@@ -1,20 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TOUR_SEEN_KEY } from './tour-keys'
-import homeClip from './clips/home.mp4'
-import homePoster from './clips/home.jpg'
-import buildClip from './clips/build.mp4'
-import buildPoster from './clips/build.jpg'
-import splitClip from './clips/split.mp4'
-import splitPoster from './clips/split.jpg'
-import routinesClip from './clips/routines.mp4'
-import routinesPoster from './clips/routines.jpg'
+import { mountGfx } from './gfx.generated.js'
 import './tour.css'
 import './tour-scenes.css'
+import './gfx.generated.css'
 
 /**
  * How Superagent works, shown rather than told. What happens in the window is
- * a short silent recording of the app itself; what happens outside it (a
- * notification, the phone, the dot, the Mac) is a small moving drawing. Part
+ * one of the website's animated drawings of the app (gfx.generated.js, taken
+ * from docs/index.html by scripts/sync-tour-gfx.mjs); what happens outside it
+ * (a notification, the phone, the dot, the Mac) is a small moving scene. Part
  * of setting up, and there to be played again from Settings.
  */
 
@@ -333,20 +328,14 @@ function KeysScene(): React.JSX.Element {
   )
 }
 
-/** A short silent recording of the real app (scripts/_tour-clips.mjs). */
-interface Clip {
-  video: string
-  poster: string
-}
-
 interface Slide {
   id: string
   kicker: string
   beta?: boolean
   title: string
   text: React.ReactNode
-  /** Filmed from the app where it can be; drawn where it happens outside it. */
-  clip?: Clip
+  /** One of the website's drawings of the window, by name; or a scene outside it. */
+  gfx?: string
   scene?: () => React.JSX.Element
 }
 
@@ -356,21 +345,28 @@ const TOUR_SLIDES: Slide[] = [
     kicker: 'Your chats',
     title: 'Every chat in one list.',
     text: 'Each project keeps its own chats, and several can work at once. A spinner means a chat is working. A dot means it is done and has something for you.',
-    clip: { video: homeClip, poster: homePoster }
+    gfx: 'home'
+  },
+  {
+    id: 'agents',
+    kicker: 'Every agent',
+    title: 'Claude, Codex, Gemini. Never stuck.',
+    text: 'Pick Claude Code, Codex or Antigravity for each chat. When an account runs out, the chat moves to your next one and keeps going.',
+    gfx: 'agents'
   },
   {
     id: 'build',
     kicker: 'Browser',
     title: 'It checks its own work.',
     text: 'The agent opens your site next to the chat, clicks through it and tries it at phone size. Press ⌘B to show or hide the browser.',
-    clip: { video: buildClip, poster: buildPoster }
+    gfx: 'build'
   },
   {
     id: 'split',
     kicker: 'Split view',
     title: 'Watch several chats at once.',
     text: '⌘-click a chat in the sidebar to open it beside the one you are in. Up to eight fit in the window. Click one to type to it.',
-    clip: { video: splitClip, poster: splitPoster }
+    gfx: 'split'
   },
   {
     id: 'knock',
@@ -391,7 +387,7 @@ const TOUR_SLIDES: Slide[] = [
     kicker: 'Routines',
     title: 'Jobs that run on a schedule.',
     text: 'Tell a chat “do this every morning”, or add a job in View › Routines. Routines run while Superagent is open.',
-    clip: { video: routinesClip, poster: routinesPoster }
+    gfx: 'routines'
   },
   {
     id: 'dot',
@@ -426,20 +422,23 @@ const TOUR_SLIDES: Slide[] = [
 const reducedMotion = (): boolean =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
-/** A recording in the window's shape. With reduced motion, its still. */
-function ClipView({ clip }: { clip: Clip }): React.JSX.Element {
-  if (reducedMotion()) return <img className="tour-clip" src={clip.poster} alt="" />
+/**
+ * A drawing of the window, playing from its start. With reduced motion the
+ * engine shows its last moment and holds still.
+ */
+function GfxView({ name }: { name: string }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const api = mountGfx(el, name)
+    if (!reducedMotion()) api.play()
+    return () => api.pause()
+  }, [name])
   return (
-    <video
-      className="tour-clip"
-      src={clip.video}
-      poster={clip.poster}
-      autoPlay
-      muted
-      playsInline
-      loop
-      disablePictureInPicture
-    />
+    <div className="gfx tour-gfx" ref={ref}>
+      <div className="gfx-stage" />
+    </div>
   )
 }
 
@@ -500,9 +499,13 @@ export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
       <div className="tour-card">
         {/* Keyed by slide, so each one's animation starts from its beginning. */}
         <div className="tour-slide" key={slide.id}>
-          <div className="tour-frame" aria-hidden="true" ref={frameRef}>
-            {slide.clip ? (
-              <ClipView clip={slide.clip} />
+          <div
+            className={`tour-frame ${slide.gfx ? 'drawn' : ''}`}
+            aria-hidden="true"
+            ref={frameRef}
+          >
+            {slide.gfx ? (
+              <GfxView name={slide.gfx} />
             ) : (
               Scene && (
                 <div className="tour-scene">

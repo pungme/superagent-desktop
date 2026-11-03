@@ -10,11 +10,15 @@
   background: var(--bg-content);
   overflow: auto;
 }
-/* The picture is most of the window: as wide as 84% of it, or as tall as
-   leaves room for the words and the buttons under it, whichever is less. */
+/* The picture is a comfortable size, not the whole window: at most 760px
+   wide or 64% of the window, and never taller than leaves room for the words
+   and the buttons under it. */
 .tour-card {
   --tour-words: 212px;
-  --tour-w: max(320px, min(84vw, calc((100vh - var(--tour-words)) * 960 / 565)));
+  --tour-w: max(
+    320px,
+    min(760px, 64vw, calc((100vh - var(--tour-words) - 80px) * 960 / 565))
+  );
   width: var(--tour-w);
   display: flex;
   flex-direction: column;
@@ -29,14 +33,9 @@
   /* Set from the frame's width (Tour.tsx): the drawn scenes scale with it. */
   --tour-zoom: 0.62;
 }
-/* A recording of the app's window: its corners, nothing else around it. */
-.tour-clip {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
-  background: #ececee;
+/* The website's drawings of the window are 960 × 600. */
+.tour-frame.drawn {
+  aspect-ratio: 960 / 600;
 }
 .tour-kicker {
   margin-top: 20px;
@@ -250,4 +249,8 @@
   font-size: 21px;
   font-weight: 500;
   color: #1d1d1f;
+}
+/* The drawing fills the frame (the website gives it an aspect-ratio inline). */
+.tour-gfx {
+  height: 100%;
 }
