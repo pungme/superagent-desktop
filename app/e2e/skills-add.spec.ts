@@ -50,6 +50,14 @@ test.beforeAll(async () => {
     cwd: join(root, 'zipsrc')
   })
 
+  // A skill on the claude.ai account, as Claude Code syncs it.
+  const synced = join(home, '.claude', 'skills', 'synced', 'org_user', 'instantly-outreach')
+  mkdirSync(synced, { recursive: true })
+  writeFileSync(
+    join(synced, 'SKILL.md'),
+    '---\nname: instantly-outreach\ndescription: Set up a creator campaign in Instantly\n---\n'
+  )
+
   app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
     env: {
@@ -94,6 +102,10 @@ test('Skills is a section of Settings, opened from View › Skills', async () =>
   await openSkills()
   await expect(window.locator('.settings-nav-item.on')).toHaveText('Skills')
   await expect(window.locator('.settings-page h2', { hasText: 'Skills' })).toBeVisible()
+  // The claude.ai account's skills are there already, marked so, and changed on claude.ai.
+  const synced = card('instantly-outreach')
+  await expect(synced.locator('.skill-scope')).toHaveText('claude.ai')
+  await expect(synced.getByRole('button', { name: 'Remove' })).toHaveCount(0)
   await window.locator('.settings-page').screenshot({ path: 'test-results/settings-skills.png' })
 })
 

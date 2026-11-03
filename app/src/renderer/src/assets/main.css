@@ -16020,3 +16020,9 @@ button {
   padding: 0;
   overflow: visible;
 }
+
+/* A skill from the claude.ai account, synced by Claude Code. */
+.skill-scope-claude {
+  background: rgba(217, 119, 87, 0.14);
+  color: #d97757;
+}

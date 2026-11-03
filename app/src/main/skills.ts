@@ -45,7 +45,8 @@ import {
 export interface Skill {
   name: string
   description: string
-  scope: 'global' | 'project'
+  /** claude.ai: on the account at claude.ai, synced here by Claude Code; managed there. */
+  scope: 'global' | 'project' | 'claude.ai'
   kind: 'skill' | 'command'
 }
 
@@ -114,6 +115,27 @@ function readCommandsDir(dir: string, scope: Skill['scope']): Skill[] {
   return out
 }
 
+/**
+ * The skills of the claude.ai accounts signed in here. Claude Code keeps them in
+ * sync itself, one folder per organisation and user under ~/.claude/skills/synced
+ * (read from 2.1.314), and loads them in every session: nothing to import, only
+ * to show. They are changed on claude.ai, so they are not removed from here.
+ */
+function readSyncedSkills(home: string): Skill[] {
+  const root = join(home, '.claude', 'skills', 'synced')
+  if (!existsSync(root)) return []
+  const out: Skill[] = []
+  try {
+    for (const account of readdirSync(root)) {
+      if (account.startsWith('.')) continue
+      out.push(...readSkillsDir(join(root, account), 'claude.ai'))
+    }
+  } catch {
+    // unreadable: nothing to show
+  }
+  return out
+}
+
 export function discoverSkills(projectPath?: string, provider: AgentProvider = 'claude'): Skill[] {
   const home = homedir()
   const skills: Skill[] =
@@ -133,6 +155,8 @@ export function discoverSkills(projectPath?: string, provider: AgentProvider = '
             ...readSkillsDir(join(home, '.gemini', 'antigravity-cli', 'skills'), 'global')
           ]
         : [
+            // First, so a skill of your own by the same name wins.
+            ...readSyncedSkills(home),
             ...readSkillsDir(join(home, '.claude', 'skills'), 'global'),
             ...readCommandsDir(join(home, '.claude', 'commands'), 'global')
           ]

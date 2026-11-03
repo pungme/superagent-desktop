@@ -6,7 +6,7 @@ import { PROVIDER_PRODUCT } from '../../../shared/agent-provider'
 interface Skill {
   name: string
   description: string
-  scope: 'global' | 'project'
+  scope: 'global' | 'project' | 'claude.ai'
   kind: 'skill' | 'command'
 }
 
@@ -25,7 +25,8 @@ interface SkillsPanelProps {
 export const SKILLS_CHANGED = 'cove:skills-changed'
 
 /** Removable from here: the user's own folders, and a project's skills folder (not its other files). */
-const removable = (s: Skill): boolean => s.scope === 'global' || s.kind === 'skill'
+const removable = (s: Skill): boolean =>
+  s.scope !== 'claude.ai' && (s.scope === 'global' || s.kind === 'skill')
 
 export function SkillsPanel({
   workspaceId,
@@ -135,7 +136,8 @@ export function SkillsPanel({
   }
 
   const remove = async (): Promise<void> => {
-    if (!removing) return
+    // A claude.ai skill is changed on claude.ai: it never offers Remove.
+    if (!removing || removing.scope === 'claude.ai') return
     const result = await window.cove.skillsRemove(
       { name: removing.name, scope: removing.scope, kind: removing.kind },
       provider,
@@ -170,7 +172,16 @@ export function SkillsPanel({
               <button className="skill-item" onClick={() => run(s)}>
                 <div className="skill-item-top">
                   <span className="skill-name">{s.kind === 'command' ? `/${s.name}` : s.name}</span>
-                  <span className={`skill-scope skill-scope-${s.scope}`}>{s.scope}</span>
+                  <span
+                    className={`skill-scope skill-scope-${s.scope === 'claude.ai' ? 'claude' : s.scope}`}
+                    title={
+                      s.scope === 'claude.ai'
+                        ? 'From your claude.ai account, kept in sync by Claude Code. Change it on claude.ai.'
+                        : undefined
+                    }
+                  >
+                    {s.scope}
+                  </span>
                 </div>
                 {s.description && <span className="skill-desc">{s.description}</span>}
               </button>

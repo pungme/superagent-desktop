@@ -1160,12 +1160,20 @@ export interface CoveApi {
     projectPath?: string,
     provider?: AgentProvider
   ) => Promise<
-    { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
+    {
+      name: string
+      description: string
+      scope: 'global' | 'project' | 'claude.ai'
+      kind: 'skill' | 'command'
+    }[]
   >
-  skillsInstallStarters: (
-    provider?: AgentProvider
-  ) => Promise<
-    { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
+  skillsInstallStarters: (provider?: AgentProvider) => Promise<
+    {
+      name: string
+      description: string
+      scope: 'global' | 'project' | 'claude.ai'
+      kind: 'skill' | 'command'
+    }[]
   >
   /** Read and check a skill from a folder, a .zip/.skill/.md file or a link; nothing is written yet. Null when the picker was cancelled. */
   skillsAddPrepare: (

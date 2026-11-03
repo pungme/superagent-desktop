@@ -38,3 +38,38 @@ This runs the thing.`
     expect(parseDescription(`---\ndescription: ${long}\n---`).length).toBe(140)
   })
 })
+
+describe('skills from the claude.ai account', () => {
+  it('lists what Claude Code synced, once each, and your own skill of the same name wins', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('fs')
+    const { tmpdir } = await import('os')
+    const { join } = await import('path')
+    const home = mkdtempSync(join(tmpdir(), 'cove-synced-'))
+    const was = process.env.HOME
+    process.env.HOME = home
+    try {
+      const skill = (dir: string, name: string, desc: string): void => {
+        mkdirSync(join(dir, name), { recursive: true })
+        writeFileSync(
+          join(dir, name, 'SKILL.md'),
+          `---\nname: ${name}\ndescription: ${desc}\n---\n`
+        )
+      }
+      const synced = join(home, '.claude', 'skills', 'synced')
+      skill(join(synced, 'org1_user1'), 'instantly-outreach', 'From claude.ai')
+      skill(join(synced, 'org1_user1'), 'pdf', 'From claude.ai')
+      skill(join(synced, 'org2_user2'), 'pdf', 'From claude.ai too')
+      writeFileSync(join(synced, 'org1_user1', 'manifest.json'), '{}')
+      skill(join(home, '.claude', 'skills'), 'pdf', 'Mine')
+      const { discoverSkills } = await import('./skills')
+      const list = discoverSkills()
+      expect(list.map((s) => [s.name, s.scope, s.description])).toEqual([
+        ['instantly-outreach', 'claude.ai', 'From claude.ai'],
+        ['pdf', 'global', 'Mine']
+      ])
+    } finally {
+      process.env.HOME = was
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+})
