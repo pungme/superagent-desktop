@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification } from 'electron'
+import { app, BaseWindow, BrowserWindow, Notification } from 'electron'
 
 /**
  * Tests that must not disturb whoever is using the Mac (COVE_E2E_QUIET=1): the
@@ -22,6 +22,9 @@ if (QUIET) {
   BrowserWindow.prototype.focus = noop
   BrowserWindow.prototype.moveTop = noop
   BrowserWindow.prototype.maximize = noop
+  // The sign-in window is a BaseWindow (two views in one), which BrowserWindow's own don't cover.
+  BaseWindow.prototype.show = noop
+  BaseWindow.prototype.focus = noop
   Notification.prototype.show = noop
   app.focus = noop as typeof app.focus
   void app.whenReady().then(() => app.dock?.hide())

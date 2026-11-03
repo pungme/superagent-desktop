@@ -56,6 +56,19 @@ vi.mock('electron', () => ({
   shell: { openExternal: async (u: string) => void h.state.opened.push(u) }
 }))
 vi.mock('./browser', () => ({ applyBrowserIdentity: () => {} }))
+// The window with its address bar, as the fake window: the page is its contents.
+vi.mock('./auth-window', () => ({
+  openAuthWindow: (o: { partition: string }) => {
+    const w = new h.FakeWindow({ webPreferences: { partition: o.partition } })
+    return {
+      page: w.webContents,
+      loadURL: (u: string) => void w.loadURL(u),
+      isDestroyed: () => w.isDestroyed(),
+      close: () => w.destroy(),
+      onClosed: (fn: () => void) => w.on('closed', fn)
+    }
+  }
+}))
 vi.mock('./claude-cli', () => ({
   findClaude: () => h.state.bin,
   findCodex: () => 'codex',

@@ -144,15 +144,28 @@ describe('a turn that needed one', () => {
         tool(
           'This is a claude.ai MCP connector. Ask the user to run /mcp and select "claude.ai Superhuman Mail" to authenticate.'
         ),
-        []
+        ['Superhuman Mail']
       )
     ).toEqual(['Superhuman Mail'])
     expect(
       connectorsAskedFor(
         tool('Needs authentication (ask the user to run /mcp): claude.ai Attio, claude.ai Slack'),
-        []
+        ['Attio', 'Slack']
       )
     ).toEqual(['Attio', 'Slack'])
+  })
+
+  it('never from a file the agent read, or for a name the account does not have', () => {
+    // The agent read connectors.ts, which quotes these patterns.
+    const source = tool(
+      'matchAll(/run \\/mcp and select "([^"]+)" to authenticate/g)\n' +
+        "tool('Needs authentication (ask the user to run /mcp): X, A, B\")'\n" +
+        'Superhuman Mail is not connected'
+    )
+    expect(connectorsAskedFor(source, ['Superhuman Mail'])).toEqual([])
+    expect(
+      connectorsAskedFor(tool('Needs authentication (ask the user to run /mcp): X, A'), ['Attio'])
+    ).toEqual([])
   })
 
   it('and the agent’s, only for a connector known to need it', () => {

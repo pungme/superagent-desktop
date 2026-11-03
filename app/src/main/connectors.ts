@@ -4,6 +4,7 @@ import { readFileSync } from 'fs'
 import os from 'os'
 import { join } from 'path'
 import { accountEnv, claudeAccountPlace, claudeAccountToken, withAccountEnv } from './accounts'
+import { openAuthWindow } from './auth-window'
 import { applyBrowserIdentity } from './browser'
 import { agentEnv, findClaude } from './claude-cli'
 import { isGoogleSignInRejected } from './google-signin'
@@ -121,12 +122,18 @@ export function connectorsAskedFor(event: Record<string, unknown>, known: string
   if (!texts.length) return []
   const text = texts.join('\n')
   const bare = (n: string): string => n.trim().replace(/^claude\.ai /, '')
+  // Only a connector this account really has and that really needs signing in:
+  // a tool result can be anything (a file the agent read that quotes these very
+  // patterns once offered "Connect X", "Connect A", "Connect B\"").
+  const has = new Set(known)
   const found = new Set<string>()
   for (const m of text.matchAll(/run \/mcp and select "([^"]+)" to authenticate/g))
-    found.add(bare(m[1]))
+    if (has.has(bare(m[1]))) found.add(bare(m[1]))
   for (const m of text.matchAll(/Needs authentication \(ask the user to run \/mcp\): ([^\n]+)/g))
-    for (const n of m[1].split(',')) if (n.trim()) found.add(bare(n))
+    for (const n of m[1].split(',')) if (has.has(bare(n))) found.add(bare(n))
+  // The model's own words, never a tool's output.
   if (
+    event.type === 'assistant' &&
     /needs? (to )?(be )?(authenticat|sign|connect)|not (yet )?(authenticated|connected)|\/mcp/i.test(
       text
     )
@@ -240,24 +247,14 @@ export async function connectConnector(
     }
   const url = connectStartUrl(org, id)
   await new Promise<void>((resolve) => {
-    const win = new BrowserWindow({
+    const win = openAuthWindow({
+      title: `Connect ${name}`,
       width: 560,
       height: 760,
-      parent: parent && !parent.isDestroyed() ? parent : undefined,
-      modal: !!parent && !parent.isDestroyed(),
-      title: `Connect ${name}`,
-      show: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      webPreferences: {
-        partition: place.partition ?? 'persist:agent-signin',
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true
-      }
+      parent,
+      partition: place.partition ?? 'persist:agent-signin',
+      prepare: applyBrowserIdentity
     })
-    applyBrowserIdentity(win.webContents)
     const visited: string[] = []
     let handedOff = false
     const seen = (next: string): void => {
@@ -265,7 +262,7 @@ export async function connectConnector(
       if (!handedOff && isGoogleSignInRejected(next)) {
         handedOff = true
         void shell.openExternal(url)
-        void win.loadURL(
+        win.loadURL(
           'data:text/html;charset=utf-8,' +
             encodeURIComponent(
               `<!doctype html><meta charset="utf-8"><title>Connect</title><body style="font:14px -apple-system,system-ui;margin:0;display:grid;place-items:center;height:100vh;color:#333"><p style="max-width:360px;text-align:center;line-height:1.5">${CONNECT_BROWSER_NOTE}</p></body>`
@@ -273,17 +270,16 @@ export async function connectConnector(
         )
         return
       }
-      if (connectFinished(visited)) setTimeout(() => !win.isDestroyed() && win.close(), 800)
+      if (connectFinished(visited)) setTimeout(() => win.close(), 800)
     }
-    win.webContents.setWindowOpenHandler(({ url: next }) => {
-      if (/^https:/.test(next)) void win.loadURL(next)
+    win.page.setWindowOpenHandler(({ url: next }) => {
+      if (/^https:/.test(next)) win.loadURL(next)
       return { action: 'deny' }
     })
-    win.webContents.on('did-navigate', (_e, next) => seen(next))
-    win.webContents.on('will-redirect', (_e, next) => seen(next))
-    win.once('ready-to-show', () => win.show())
-    win.on('closed', () => resolve())
-    void win.loadURL(url)
+    win.page.on('did-navigate', (_e, next) => seen(next))
+    win.page.on('will-redirect', (_e, next) => seen(next))
+    win.onClosed(() => resolve())
+    win.loadURL(url)
   })
   const after = await listConnectors(accountId, true)
   const connector = after.find((c) => c.name === name)

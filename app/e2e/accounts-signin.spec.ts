@@ -127,12 +127,33 @@ async function openAccounts(): Promise<void> {
   await expect(window.locator('.settings-accounts')).toBeVisible()
 }
 
+/**
+ * The sign-in window the next click opens: its page and its address bar (two
+ * views in one window, each a page to Playwright).
+ */
+async function signInWindow(click: () => Promise<void>): Promise<{ page: Page; bar: Page }> {
+  const before = new Set(app.windows())
+  await click()
+  let page: Page | undefined
+  let bar: Page | undefined
+  await expect
+    .poll(
+      () => {
+        const fresh = app.windows().filter((p) => !before.has(p))
+        page = fresh.find((p) => /^http:\/\/127\.0\.0\.1:\d+\//.test(p.url()))
+        bar = fresh.find((p) => p.url().startsWith('data:'))
+        return !!page && !!bar
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(true)
+  await page!.waitForLoadState('domcontentloaded')
+  return { page: page!, bar: bar! }
+}
+
 /** The sign-in window the next click opens, and its Allow pressed. */
 async function allowInWindow(click: () => Promise<void>, shot?: string): Promise<void> {
-  const opened = app.waitForEvent('window', { timeout: 20_000 })
-  await click()
-  const page = await opened
-  await page.waitForLoadState('domcontentloaded')
+  const { page } = await signInWindow(click)
   expect(page.url()).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/authorize/)
   await expect(page.locator('h1')).toHaveText('Sign in')
   if (shot) await page.screenshot({ path: join(SHOTS, shot) })
@@ -166,17 +187,48 @@ test('closing the sign-in window adds nothing and leaves nothing behind', async 
   await claude
     .locator('.settings-accounts-add')
     .screenshot({ path: join(SHOTS, 'add-account.png') })
-  const opened = app.waitForEvent('window')
-  await claude.getByRole('button', { name: 'Sign in…' }).click()
-  const page = await opened
-  await page.waitForLoadState('domcontentloaded')
-  await page.close()
+  const { page, bar } = await signInWindow(() =>
+    claude.getByRole('button', { name: 'Sign in…' }).click()
+  )
+  // The address is shown, and can be changed: the page goes where it is typed.
+  const address = bar.getByRole('textbox', { name: 'Address' })
+  await expect(address).toHaveValue(/^http:\/\/127\.0\.0\.1:\d+\/authorize/)
+  // (The stand-in only answers /authorize, so the typed address is another one there.)
+  const elsewhere = page.url().replace(/\/authorize.*$/, '/authorize?typed=1')
+  await address.fill(elsewhere)
+  await address.press('Enter')
+  await expect.poll(() => page.url()).toBe(elsewhere)
+  await expect(address).toHaveValue(elsewhere)
+  await bar.screenshot({ path: join(SHOTS, 'sign-in-bar.png') })
+  // Back, then its close button: the window goes, and the sign-in with it.
+  await bar.getByRole('button', { name: 'Back' }).click()
+  await expect.poll(() => page.url()).toMatch(/\/authorize\?redirect_uri=/)
+  await bar.getByRole('button', { name: 'Close' }).click()
+  await expect.poll(() => page.isClosed()).toBe(true)
   await expect(claude.getByRole('button', { name: 'Sign in…' })).toBeEnabled({ timeout: 10_000 })
   await expect(claude.locator('.settings-accounts-error')).toHaveCount(0)
   await claude.getByRole('button', { name: 'Cancel' }).click()
   await expect(claude.locator('.settings-account')).toHaveCount(1)
   const root = join(userDataDir, 'claude-accounts')
   expect(existsSync(root) ? readdirSync(root) : []).toEqual([])
+})
+
+test('Esc closes the sign-in window', async () => {
+  const claude = window.locator('.settings-accounts-provider', { hasText: 'Claude' })
+  await claude.getByRole('button', { name: 'Add account…' }).click()
+  const { page } = await signInWindow(() =>
+    claude.getByRole('button', { name: 'Sign in…' }).click()
+  )
+  // Esc from the page, delivered as the window's own input (not through the page's DOM).
+  const url = page.url()
+  await app.evaluate(({ webContents }, u) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL() === u)!
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+  }, url)
+  await expect.poll(() => page.isClosed()).toBe(true)
+  await expect(claude.getByRole('button', { name: 'Sign in…' })).toBeEnabled({ timeout: 10_000 })
+  await claude.getByRole('button', { name: 'Cancel' }).click()
+  await expect(claude.locator('.settings-account')).toHaveCount(1)
 })
 
 test('a token account signed in fully takes its place, chats and default included', async () => {

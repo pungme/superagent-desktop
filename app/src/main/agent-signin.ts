@@ -3,6 +3,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import os from 'os'
 import { join } from 'path'
+import { openAuthWindow, type AuthWindow } from './auth-window'
 import { applyBrowserIdentity } from './browser'
 import { isGoogleSignInRejected } from './google-signin'
 import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
@@ -102,7 +103,7 @@ export function signInAgent(
 ): Promise<SignInResult> {
   if (active) active.cancel()
   return new Promise<SignInResult>((resolve) => {
-    let win: BrowserWindow | null = null
+    let win: AuthWindow | null = null
     let proc: ChildProcess | null = null
     let done = false
     let poll: ReturnType<typeof setInterval> | null = null
@@ -125,7 +126,7 @@ export function signInAgent(
         // already gone
       }
       rmSync(file, { force: true })
-      if (win && !win.isDestroyed()) win.destroy()
+      if (win && !win.isDestroyed()) win.close()
       resolve(result)
     }
     const limit = setTimeout(
@@ -138,31 +139,22 @@ export function signInAgent(
     const show = (url: string): void => {
       if (done) return
       if (win && !win.isDestroyed()) {
-        void win.loadURL(url)
+        win.loadURL(url)
         return
       }
-      win = new BrowserWindow({
+      const w = openAuthWindow({
+        title: `Sign in to ${PROVIDER_PRODUCT[provider]}`,
         width: 520,
         height: 740,
-        parent: parent && !parent.isDestroyed() ? parent : undefined,
-        modal: !!parent && !parent.isDestroyed(),
-        title: `Sign in to ${PROVIDER_PRODUCT[provider]}`,
-        show: false,
-        minimizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        webPreferences: {
-          // Its own jar: a sign-in here is the agent's, not the browser pane's.
-          partition: opts.partition ?? 'persist:agent-signin',
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true
-        }
+        parent,
+        // Its own jar: a sign-in here is the agent's, not the browser pane's.
+        partition: opts.partition ?? 'persist:agent-signin',
+        prepare: applyBrowserIdentity
       })
-      applyBrowserIdentity(win.webContents)
+      win = w
       // "Continue with Google" and the like open a popup; keep it in this window.
-      win.webContents.setWindowOpenHandler(({ url: next }) => {
-        if (/^https:/.test(next)) void win?.loadURL(next)
+      w.page.setWindowOpenHandler(({ url: next }) => {
+        if (/^https:/.test(next)) w.loadURL(next)
         return { action: 'deny' }
       })
       const seen = (next: string): void => {
@@ -177,27 +169,26 @@ export function signInAgent(
         if (handedOff || !isGoogleSignInRejected(next) || !returning) return
         handedOff = true
         void shell.openExternal(returning)
-        void win?.loadURL(
+        w.loadURL(
           'data:text/html;charset=utf-8,' +
             encodeURIComponent(
               `<!doctype html><meta charset="utf-8"><title>Sign in</title><body style="font:14px -apple-system,system-ui;margin:0;display:grid;place-items:center;height:100vh;color:#333"><p style="max-width:340px;text-align:center;line-height:1.5">${BROWSER_FALLBACK_NOTE}</p></body>`
             )
         )
       }
-      win.webContents.on('will-redirect', (_e, next) => {
+      w.page.on('will-redirect', (_e, next) => {
         seen(next)
         refused(next)
       })
-      win.webContents.on('did-navigate', (_e, next) => {
+      w.page.on('did-navigate', (_e, next) => {
         seen(next)
         refused(next)
       })
-      win.once('ready-to-show', () => win?.show())
-      win.on('closed', () => {
+      w.onClosed(() => {
         win = null
         finish({ ok: false, cancelled: true, error: 'Cancelled.' })
       })
-      void win.loadURL(url)
+      w.loadURL(url)
     }
 
     const env: NodeJS.ProcessEnv = {
