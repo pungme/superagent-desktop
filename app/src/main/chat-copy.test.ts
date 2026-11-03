@@ -468,7 +468,8 @@ describe('keep', () => {
       detail: 'new.txt'
     })
     expect(readFileSync(join(web, 'new.txt'), 'utf8')).toBe('mine, never added')
-  })
+    // Several real git repos: about 1-2 s here, past 5 s on a busy release runner.
+  }, 30_000)
 
   it('lands on the branch each copy was cut from, even when the project has moved off it', async () => {
     const api = repo('api')
