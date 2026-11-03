@@ -1,0 +1,3 @@
+# Superagent 2.1.0-beta.26
+
+**Add skills from anywhere.** The Skills panel has "+ Add skill": pick a folder (one skill or a folder of them), a .zip or .skill file, or paste a link to a GitHub repo, a folder in one, or a SKILL.md. Choose All projects or This project, and it is installed in the right place for Claude Code, Codex or Antigravity; "/" offers it straight away. Every skill is checked before anything is written (no paths that climb out, size limits), nothing in it runs, a skill that contains scripts says so before you install it, and a name already taken asks Replace, Keep both or Cancel. Each skill can be removed to the Trash.
