@@ -4318,10 +4318,10 @@
       const fuzzy = (q, s) => { let i = 0; for (const ch of s.toLowerCase()) if (ch === q[i]) i++; return i === q.length; };
       const HAG = [0, "claude", "codex", "claude", "antigravity"], HPJ = [0, "landing-page", "mobile-app", "design-system", "notes-app"];
       const heroTile = (k, n, name, r) => tile(k, r, TH(n, name, HPJ[n], HAG[n]) + `<div class="g-body"><div class="g-chatc"><div class="g-stream"><div class="g-u">${ln(120 + n * 20 + "px")}</div><div class="g-steps">${ic.right}<b>${n + 1} steps</b><span>· Reading · Editing</span></div><div class="g-a">${ln(300 - n * 20 + "px")}${ln(200 + n * 10 + "px")}</div></div>${COMP("", HAG[n])}</div></div>`, "in");
-      // Steps at or after the first send happen `ms` earlier (the typing before it is already early).
-      const sooner = (ms, steps) => steps.map((s, i) => (i === 0 ? s : { ...s, at: Math.max(0, s.at - ms) }));
+      // Every step `ms` earlier.
+      const sooner = (ms, steps) => steps.map((s) => ({ ...s, at: Math.max(0, s.at - ms) }));
       scenes.hero = {
-        w: 1200, h: 750, end: 15700, once: true,
+        w: 1200, h: 750, end: 14600, once: true,
         html: () => side(seg(false) + row("Computer", { icon: ic.monitor }) + Hd("Splits", "sh", true) + row(`<span${K("sn")}>Two chats</span>`, { icon: ic.split, k: "sr", hide: true }) + Hd("Projects") +
             row("landing-page", { on: false }) + row("Pricing page", { sub: true, on: true, icon: ic.chat, k: "hs", agent: "claude" }) + row("mobile-app") + row("design-system") + row("notes-app"), 220) +
           tile("t1", HA, `<div class="g-bar"${K("bar")}>${PI("landing-page")}<span class="pj">landing-page</span><span class="sep">›</span><span class="tt">Pricing page</span>${chip(`${ic.branch}main`)}${LIVE("stripe.com", "site", true)}${AG("claude")}</div><div class="g-th g-hide"${K("th")}><span class="g-badge">1</span>${PI("landing-page")}<span class="nm">Pricing page</span>${AG("claude")}</div>` +
@@ -4329,10 +4329,9 @@
             `</div>`, "focus") +
           heroTile("t2", 2, "Fix the login test", [1200, 8, hw, 734]) + heroTile("t3", 3, "Dark mode", [220, 790, 972, hh]) + heroTile("t4", 4, "Export to Markdown", [1200, 379, hw, hh]) +
           `<div class="g-key"${K("key")} style="left:552px;top:640px"><kbd>⌘</kbd><kbd>K</kbd></div><div class="g-blur"${K("blur")}></div><div class="g-pal"${K("pal")} style="left:340px;top:118px"><div class="g-pin"><span class="tx"${K("q")}></span><span${K("qph")}>Search projects, chats and commands…</span></div><div class="g-plist">${PAL.map(([n, m, svg, a], i) => `<div class="g-pr${i ? "" : " sel"}"${K("r" + i)}>${svg}<span class="nm">${n}</span><span class="m">${m}</span>${AG(a)}</div>`).join("")}</div></div>`,
-        // The question is typed at once and quickly, so the first bubble is there in about a second;
-        // everything after it moves up by the time saved.
-        steps: () => sooner(1500, [
-          type(100, "in", "Open stripe.com on desktop and iPhone.", 40),
+        // The question is already sent when the page opens: no empty window while it is typed.
+        // Everything after it moves up to match.
+        steps: () => sooner(2600, [
           send(2600, "in", "u1"), html(2600, "hs-e", SPIN),
           show(3100, "a1"), show(3500, "w"), tick(3500, 4300, "w-s"),
           cls(3900, "t1", "pane"), show(4000, "site"),
@@ -4510,7 +4509,7 @@
       const g = document.getElementById("hero-film");
       if (!g || !g.gfx || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       if (!("IntersectionObserver" in window)) { g.gfx.play(); return; }
-      new IntersectionObserver((entries) => entries.forEach((e) => (e.isIntersecting ? g.gfx.play() : g.gfx.pause())), { threshold: 0.3 }).observe(g);
+      new IntersectionObserver((entries) => entries.forEach((e) => (e.isIntersecting ? g.gfx.play() : g.gfx.pause())), { threshold: 0 }).observe(g);
     })();
     // Every picture plays while it is on screen and pauses when it leaves. The round button in its
     // corner pauses or plays it, and a pause you chose sticks. With reduced motion nothing plays:
