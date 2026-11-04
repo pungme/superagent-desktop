@@ -37,6 +37,9 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    // Dictation's Whisper runs in a module worker (lib/asr.worker.ts), which
+    // loads the speech library in pieces.
+    worker: { format: 'es' }
   }
 })

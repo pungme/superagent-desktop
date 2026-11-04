@@ -26,3 +26,16 @@ if (app.isPackaged) {
     w.focus()
   })
 }
+
+/**
+ * A test of dictation hears a spoken file instead of the microphone (never in a
+ * packaged build: the variable is stripped above). Set here, before the app is
+ * ready, because Chromium reads these switches at start.
+ */
+if (!app.isPackaged && process.env.COVE_E2E_FAKE_AUDIO) {
+  app.commandLine.appendSwitch('use-fake-ui-for-media-stream')
+  app.commandLine.appendSwitch('use-fake-device-for-media-stream')
+  app.commandLine.appendSwitch('use-file-for-fake-audio-capture', process.env.COVE_E2E_FAKE_AUDIO)
+  // The audio service runs sandboxed in its own process, where it cannot open the file.
+  app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess,AudioServiceSandbox')
+}

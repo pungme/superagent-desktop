@@ -49,7 +49,7 @@ import { visibleTimeIds } from '../lib/message-time-groups'
 import { fmtTokens } from '../lib/format-tokens'
 import { newTokens, processedTokens } from '../lib/token-usage'
 import { useAnimatedNumber } from '../lib/animated-number'
-import { useDictation } from '../lib/dictation'
+import { dictatingInto, useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
 import {
   AGENT_PROVIDERS,
@@ -5141,10 +5141,14 @@ export function EasyChat({
   const handsFreeRef = useRef(false)
   const lastMicKeyRef = useRef(0)
 
+  /** Where the words go: the caret when dictation started. */
+  const dictateAtRef = useRef(0)
   const startDictation = useCallback((): void => {
     if (dictation.state !== 'idle') return
+    const el = inputRef.current
+    dictateAtRef.current = el ? (el.selectionStart ?? el.value.length) : input.length
     void dictation.start()
-  }, [dictation])
+  }, [dictation, input.length])
 
   // Insert at the caret rather than appending, so you can dictate into the
   // middle of something you already typed.
@@ -5153,7 +5157,7 @@ export function EasyChat({
     void dictation.stop().then((text) => {
       if (!text) return
       const el = inputRef.current
-      const at = el ? (el.selectionStart ?? el.value.length) : input.length
+      const at = Math.min(dictateAtRef.current, input.length)
       setInput((prev) => {
         const before = prev.slice(0, at)
         const after = prev.slice(at)
@@ -6385,7 +6389,8 @@ export function EasyChat({
           <textarea
             ref={inputRef}
             className={`easy-input${pillRuns.some((r) => r.pill) ? ' has-pills' : ''}`}
-            value={input}
+            value={dictatingInto(input, dictateAtRef.current, dictation.partial)}
+            readOnly={!!dictation.partial}
             placeholder={
               ready || suspended || restarting
                 ? narrowComposer

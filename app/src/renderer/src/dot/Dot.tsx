@@ -578,7 +578,13 @@ export function Dot(): React.JSX.Element {
                         ? 'Ask something else…'
                         : 'Ask, or tell it what to do…'
                   }
-                  value={text}
+                  // The words heard so far appear as you speak; they become real when you stop.
+                  value={
+                    dictation.partial
+                      ? `${text}${text && !/\s$/.test(text) ? ' ' : ''}${dictation.partial}`
+                      : text
+                  }
+                  readOnly={!!dictation.partial}
                   onChange={(e) => {
                     setText(e.target.value)
                     e.target.style.height = 'auto'
