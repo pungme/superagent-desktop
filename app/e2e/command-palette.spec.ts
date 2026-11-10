@@ -168,3 +168,37 @@ test('clicking the backdrop closes it without picking anything', async () => {
   await window.click('.cmdk-backdrop', { position: { x: 5, y: 5 } })
   await expect(window.locator('.cmdk-panel')).toHaveCount(0)
 })
+
+test('⌘K with many chats asks for each project icon once, and draws at most 50 results', async () => {
+  // Many chats in the one project, like a real setup with hundreds.
+  await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    for (let i = 0; i < 120; i++) await window.cove.chatCreate(ws.id)
+  })
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  // Count what the main process is asked for icons from here on.
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as { iconAsks?: number }
+    g.iconAsks = 0
+    ipcMain.removeHandler('project:icon')
+    ipcMain.handle('project:icon', () => {
+      g.iconAsks = (g.iconAsks ?? 0) + 1
+      return null
+    })
+  })
+  for (let round = 0; round < 3; round++) {
+    await openPalette()
+    // Every chat is "New chat": the query matches all 120.
+    await window.locator('.cmdk-input').fill('new chat')
+    await expect(window.locator('.cmdk-item').first()).toBeVisible()
+    expect(await window.locator('.cmdk-item').count()).toBeLessThanOrEqual(50)
+    await window.locator('.cmdk-input').press('Escape')
+    await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+  }
+  // One project: one question, not one per row per opening.
+  expect(
+    await app.evaluate(() => (globalThis as { iconAsks?: number }).iconAsks)
+  ).toBeLessThanOrEqual(1)
+})

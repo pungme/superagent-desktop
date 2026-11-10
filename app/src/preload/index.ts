@@ -837,7 +837,9 @@ export interface CoveApi {
   /** A manual override if one was set, else whatever's detected in the folder. */
   projectIcon: (
     workspaceId: string,
-    path: string
+    path: string,
+    /** Read the folder again instead of the answer main kept. */
+    force?: boolean
   ) => Promise<DetectedIcon | { source: 'custom'; dataUri: string } | null>
   /** Opens a file picker and sets it as the project's icon override. */
   setProjectIcon: (workspaceId: string) => Promise<string | null>
@@ -1616,7 +1618,8 @@ const cove: CoveApi = {
   storageByProject: () => ipcRenderer.invoke('app:storage-by-project'),
   clearWorkspaceChats: (workspaceId) =>
     ipcRenderer.invoke('app:clear-workspace-chats', workspaceId),
-  projectIcon: (workspaceId, path) => ipcRenderer.invoke('project:icon', workspaceId, path),
+  projectIcon: (workspaceId, path, force) =>
+    ipcRenderer.invoke('project:icon', workspaceId, path, force === true),
   setProjectIcon: (workspaceId) => ipcRenderer.invoke('project:set-icon', workspaceId),
   clearProjectIconOverride: (workspaceId) =>
     ipcRenderer.invoke('project:clear-icon-override', workspaceId),

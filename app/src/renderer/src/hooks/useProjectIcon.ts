@@ -47,6 +47,37 @@ function remember(key: string, icon: ProjectIconState): void {
   }
 }
 
+/**
+ * One request per project at a time, and one per session unless something
+ * changed. Every palette row and sidebar row used to ask main afresh on mount,
+ * and main reads the folder to answer: opening ⌘K with hundreds of chats queued
+ * hundreds of folder walks and froze the app.
+ */
+const inFlight = new Map<string, Promise<ProjectIconState>>()
+const fetched = new Set<string>()
+function fetchIcon(
+  key: string,
+  workspaceId: string,
+  path: string,
+  force: boolean
+): Promise<ProjectIconState> {
+  if (!force && fetched.has(key) && memory.has(key)) return Promise.resolve(memory.get(key) ?? null)
+  const running = inFlight.get(key)
+  if (running) return running
+  const p = window.cove
+    .projectIcon(workspaceId, path, force)
+    .then((d) => {
+      const before = memory.get(key)
+      if (JSON.stringify(before) !== JSON.stringify(d)) remember(key, d)
+      else memory.set(key, d)
+      fetched.add(key)
+      return d
+    })
+    .finally(() => inFlight.delete(key))
+  inFlight.set(key, p)
+  return p
+}
+
 export function useProjectIcon(workspaceId: string, path: string, kind: string): ProjectIconState {
   const key = `${workspaceId}|${path}`
   const [icon, setIcon] = useState<ProjectIconState>(() =>
@@ -60,18 +91,17 @@ export function useProjectIcon(workspaceId: string, path: string, kind: string):
   useEffect(() => {
     if (kind !== 'app') return
     let alive = true
-    const refresh = (): void => {
-      window.cove
-        .projectIcon(workspaceId, path)
+    const refresh = (force: boolean): void => {
+      fetchIcon(key, workspaceId, path, force)
         .then((d) => {
-          remember(key, d)
           if (alive) setIcon(d)
         })
         // A failed read keeps the icon that was there rather than blanking it.
         .catch(() => {})
     }
-    refresh()
-    const onIdle = idleFor(workspaceId, refresh)
+    refresh(false)
+    // The agent finished in this project: its files may have changed, read again.
+    const onIdle = idleFor(workspaceId, () => refresh(true))
     window.addEventListener('cove:workspace-idle', onIdle)
     return () => {
       alive = false

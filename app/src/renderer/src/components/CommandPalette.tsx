@@ -9,6 +9,9 @@ import type { Workspace } from '../../../preload'
 import type { SplitTile } from '../lib/split'
 import { cancelChatDrag, finishChatDrag, moveChatDrag } from '../lib/split-drag'
 
+/** The most results drawn for a query. */
+const MAX_RESULTS = 50
+
 interface PaletteItem {
   id: string
   label: string
@@ -381,10 +384,14 @@ export function CommandPalette({
       ].filter((g) => g.items.length > 0)
     }
     const ranked = fuzzyFilter(searchableItems, query, (i) => `${i.label} ${i.keywords ?? ''}`)
-    return ranked.length ? [{ title: 'Results', items: ranked }] : []
+    // The best matches only: a one-letter query matches hundreds of chats, and
+    // drawing every one of them is what you waited for.
+    return ranked.length ? [{ title: 'Results', items: ranked.slice(0, MAX_RESULTS) }] : []
   }, [query, recentItems, currentChatCommands, navigateCommands, searchableItems])
 
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  // Each row's place in the keyboard order, without searching the list per row.
+  const indexOf = useMemo(() => new Map(flat.map((item, i) => [item, i])), [flat])
   // Clamped at read time rather than written back with setState-in-an-effect:
   // the list shrinks on every keystroke that narrows the results, and state
   // that chases a derived value one render behind is exactly what a plain
@@ -446,7 +453,7 @@ export function CommandPalette({
             <div className="cmdk-section" key={g.title}>
               <div className="cmdk-section-label">{g.title}</div>
               {g.items.map((item) => {
-                const idx = flat.indexOf(item)
+                const idx = indexOf.get(item) ?? -1
                 return (
                   <button
                     key={item.id}

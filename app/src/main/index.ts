@@ -968,18 +968,26 @@ ipcMain.handle('app:clear-workspace-chats', (_e, workspaceId: string) => {
 
 // A project's own icon: a manual override if one was ever set, otherwise
 // whatever's actually IN the folder — a website's favicon, a native app's own
-// app icon. Cheap enough (a handful of file reads, no directory walk past
-// node_modules/dotfiles) to run on demand rather than caching in main.
+// app icon. Finding it walks the folder synchronously, so the answer is kept:
+// the ⌘K palette asks for every row it shows, and asking hundreds of times
+// blocked the main process (and so every window) for seconds. `force` reads
+// again (the agent just worked in the project); a new or cleared override is
+// seen at once, since it is checked before the cache.
+const detectedIcons = new Map<string, DetectedIcon | null>()
 ipcMain.handle(
   'project:icon',
   (
     _e,
     workspaceId: string,
-    path: string
+    path: string,
+    force?: boolean
   ): DetectedIcon | { source: 'custom'; dataUri: string } | null => {
     const override = kvGet(iconKvKey(workspaceId))
     if (override) return { source: 'custom', dataUri: override }
-    return detectProjectIcon(path)
+    if (!force && detectedIcons.has(path)) return detectedIcons.get(path) ?? null
+    const found = detectProjectIcon(path)
+    detectedIcons.set(path, found)
+    return found
   }
 )
 
