@@ -131,11 +131,21 @@ export function FloatChat(): React.JSX.Element {
   }, [!!st]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = useCallback((to: View = 'open'): void => {
-    setView(to)
-    setPeek(null)
-    setUnread(false)
-    setHover(false)
-    setTimeout(() => (to === 'full' ? fullInputRef : inputRef).current?.focus(), 60)
+    const show = (): void => {
+      setView(to)
+      setPeek(null)
+      setUnread(false)
+      setHover(false)
+      setTimeout(() => (to === 'full' ? fullInputRef : inputRef).current?.focus(), 60)
+    }
+    if (to === 'full' && viewRef.current !== 'full') {
+      // The view is made as tall as the page first, and the panel slides in once
+      // it is: slid in at once, its first moments were cut off by the view's
+      // old, small size.
+      sent.current = ROOM.full
+      window.cove.floatSize(ROOM.full)
+      setTimeout(show, 50)
+    } else show()
   }, [])
   const close = useCallback((): void => {
     setView('mark')

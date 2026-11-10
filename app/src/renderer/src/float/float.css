@@ -641,3 +641,25 @@ html.float-window body {
 .fl-mark.working.hover .fl-hint {
   opacity: 1;
 }
+
+/* Putting the box away: the frosted sheet goes at once with the box, not a beat after it
+   (it fades slowly on its own, and was seen as a pale shape after the box had shrunk). */
+.fl-panel.shut::before,
+.fl-panel.shut:hover::before {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+/* Opening the whole chat: the box is out of the way quickly, as one piece. Faded
+   child by child, its shadows stacked into grey bands beside the sliding panel. */
+.fl-root.view-full .fl-panel {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.1s ease,
+    visibility 0s 0.1s;
+}
+.fl-root.view-full .fl-panel *,
+.fl-root.view-full .fl-panel::before {
+  transition: none !important;
+}
