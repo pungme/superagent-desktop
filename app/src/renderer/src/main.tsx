@@ -105,6 +105,19 @@ void hydrateStorage().then(async () => {
     return
   }
 
+  // Browser first: the chat floating over the page, in a view of its own
+  // (main/float-chat.ts). Transparent, and only the chat's own parts.
+  if (location.hash === '#float') {
+    document.documentElement.classList.add('float-window')
+    const { FloatChat } = await import('./float/FloatChat')
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <FloatChat />
+      </StrictMode>
+    )
+    return
+  }
+
   const { default: App } = await import('./App')
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

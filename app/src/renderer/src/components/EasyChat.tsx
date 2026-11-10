@@ -1,3 +1,4 @@
+import { floatStatus, plainText } from '../../../shared/float-chat'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
@@ -570,6 +571,8 @@ interface EasyChatProps {
   focused?: boolean
   /** Changes when the header holding this chat's toolbar slot is a new one (split view). */
   slotKey?: string
+  /** Browser first: this chat is hidden behind the page and floats over it (FloatChat). */
+  floating?: boolean
   /** Where the chat sits relative to the pane, and how to flip it. */
 }
 
@@ -1663,7 +1666,8 @@ export function EasyChat({
   browserProject,
   visible = true,
   focused: focusedProp,
-  slotKey
+  slotKey,
+  floating = false
 }: EasyChatProps): React.JSX.Element {
   // Keys, paste, dictation and commands: the focused chat only (see the prop).
   const focused = focusedProp ?? visible
@@ -4733,6 +4737,51 @@ export function EasyChat({
     inputRef.current?.focus()
   }, [ready, suspended, visible])
   submitRef.current = (t, images, opts) => submit(t, images, opts)
+
+  // Browser first: what the floating chat shows (the last messages, whether it
+  // works and on what), sent up a few times a second at most; and what is typed
+  // there comes back here, to be sent like anything typed in this composer.
+  const floatNeedsYou = !!myGuardrailAsk || !!connectAsk || !!limitNotice
+  useEffect(() => {
+    if (!floating) return
+    const t = setTimeout(() => {
+      const messages = items
+        .filter((it): it is Extract<Item, { kind: 'msg' }> => it.kind === 'msg' && !it.msg.system)
+        .slice(-40)
+        .map((it) => ({
+          id: it.msg.id,
+          me: it.msg.role === 'user',
+          text: plainText(it.msg.text) || (it.msg.images?.length ? '[picture]' : '')
+        }))
+        .filter((m) => m.text)
+      const lastTool = [...items].reverse().find((it) => it.kind === 'tool')
+      const status =
+        lastTool && lastTool.kind === 'tool'
+          ? floatStatus(toolLabel(lastTool.tool.name).verb, lastTool.tool.detail)
+          : thinking
+            ? 'Thinking'
+            : 'Working'
+      window.cove.floatState({
+        chatId,
+        agent: agentName,
+        provider,
+        messages,
+        working: generating || thinking,
+        status,
+        needsYou: floatNeedsYou
+      })
+    }, 120)
+    return () => clearTimeout(t)
+  }, [floating, items, generating, thinking, chatId, agentName, provider, floatNeedsYou])
+  useEffect(() => {
+    if (!floating) return
+    const onSend = (e: Event): void => {
+      const d = (e as CustomEvent<{ chatId: string; text: string }>).detail
+      if (d?.chatId === chatId) submitRef.current?.(d.text, [], { keepComposer: true })
+    }
+    window.addEventListener('cove:float-send', onSend)
+    return () => window.removeEventListener('cove:float-send', onSend)
+  }, [floating, chatId])
 
   // Hold Send while the agent is working to send AFTER it finishes, instead of
   // interjecting mid-task. Captures the composer as-is and clears it; the pill

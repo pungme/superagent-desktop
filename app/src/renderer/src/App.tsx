@@ -641,12 +641,32 @@ function App(): React.JSX.Element {
         // In a split, ⌘W takes the focused window off screen (its chat keeps running).
         if (s.split) s.closeTile(s.split.focus)
         else if (ws?.kind === 'browser') void s.removeWorkspace(ws.id)
+      } else if (action === 'browser-first') {
+        const st = useStore.getState()
+        st.setBrowserFirst(!st.browserFirst)
       } else {
         // skills / routines / toggle-preview are workspace-scoped; forward via window event
         window.dispatchEvent(new CustomEvent(`cove:menu-${action}`))
       }
     })
   }, [addGroup, addWorkspace])
+
+  // Browser first: what the floating chat asks for (main/float-chat.ts), and
+  // ⌘\ pressed while there is none on screen, which turns it on.
+  useEffect(() => {
+    const offAction = window.cove.onFloatAction((a) => {
+      if (a.type === 'send')
+        window.dispatchEvent(
+          new CustomEvent('cove:float-send', { detail: { chatId: a.chatId, text: a.text } })
+        )
+      else if (a.type === 'side') useStore.getState().setBrowserFirst(false)
+    })
+    const offCmd = window.cove.onMenuFloatCommand(() => useStore.getState().setBrowserFirst(true))
+    return () => {
+      offAction()
+      offCmd()
+    }
+  }, [])
 
   const intro = tourOpen && <Tour onDone={() => setTourOpen(false)} />
 

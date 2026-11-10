@@ -16026,3 +16026,13 @@ button {
   background: rgba(217, 119, 87, 0.14);
   color: #d97757;
 }
+
+/* Side by side / Browser first, in the desk's toolbar: one line, compact. */
+.desk-mode-switch {
+  flex: none;
+}
+.desk-mode-switch .mode-switch-btn {
+  white-space: nowrap;
+  font-size: 11.5px;
+  padding: 3px 9px;
+}

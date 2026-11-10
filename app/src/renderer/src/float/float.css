@@ -1,0 +1,643 @@
+/* The floating chat (FloatChat.tsx), in a transparent view over the page.
+   Light glass whatever the app's theme: it sits on websites, which are mostly light. */
+html.float-window,
+html.float-window body,
+html.float-window #root {
+  background: transparent !important;
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+html.float-window body {
+  font:
+    13.5px -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'Helvetica Neue',
+    sans-serif;
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.fl-root {
+  --glide: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: cubic-bezier(0.2, 0.9, 0.25, 1.05);
+  --glass: rgba(255, 255, 255, 0.86);
+  position: fixed;
+  inset: 0;
+}
+.fl-glass,
+.fl-live,
+.fl-peek,
+.fl-box,
+.fl-drawer {
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.14),
+    0 14px 40px -14px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Superagent's icon, the agent's badge on its corner -------------------- */
+.fl-sa {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: #1d1d1f;
+}
+.fl-sa::after {
+  content: '';
+  width: 34%;
+  height: 34%;
+  border-radius: 28%;
+  background: #fff;
+}
+.fl-ag {
+  position: absolute;
+  left: -16%;
+  top: -16%;
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+  color: #1d1d1f;
+}
+
+/* --- The mark ------------------------------------------------------------- */
+.fl-mark {
+  position: absolute;
+  right: 14px;
+  bottom: 30px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  border-radius: 28px;
+  padding-right: 4px;
+  cursor: pointer;
+  isolation: isolate;
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s var(--glide);
+}
+.fl-mark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 28px;
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.14),
+    0 8px 22px -10px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: scaleX(0.4);
+  transform-origin: right center;
+  transition:
+    opacity 0.3s ease,
+    transform 0.45s var(--spring);
+}
+.fl-mark.gone {
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.3s var(--glide);
+}
+.fl-lbl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-weight: 500;
+  transition:
+    max-width 0.45s var(--glide),
+    opacity 0.3s ease,
+    padding 0.45s var(--glide);
+}
+.fl-keys {
+  display: flex;
+  gap: 4px;
+}
+.fl-keys b {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(0, 0, 0, 0.12);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  box-sizing: border-box;
+}
+.fl-mark.hover::before {
+  opacity: 1;
+  transform: none;
+}
+.fl-mark.hover .fl-lbl {
+  max-width: 260px;
+  opacity: 1;
+  padding-left: 16px;
+}
+.fl-ringwrap {
+  position: relative;
+  margin: 6px;
+}
+.fl-ringwrap .fl-sa {
+  box-shadow:
+    0 10px 24px -8px rgba(0, 0, 0, 0.45),
+    0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  transition: transform 0.35s var(--spring);
+}
+.fl-mark.hover .fl-sa {
+  transform: scale(0.82);
+}
+.fl-mark:active .fl-sa {
+  transform: scale(0.74);
+}
+.fl-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 17px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.fl-mark.working .fl-ring {
+  opacity: 1;
+  animation: fl-breathe 1.6s ease-in-out infinite;
+}
+@keyframes fl-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(10, 132, 255, 0.45),
+      0 0 0 4px rgba(10, 132, 255, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(10, 132, 255, 0.9),
+      0 0 0 7px rgba(10, 132, 255, 0.14);
+  }
+}
+.fl-badge {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #0a84ff;
+  box-shadow: 0 0 0 2px #fff;
+  transform: scale(0);
+  transition: transform 0.35s var(--spring);
+}
+.fl-mark.unread .fl-badge {
+  transform: scale(1);
+}
+.fl-hint {
+  position: absolute;
+  right: 4px;
+  width: 56px;
+  top: calc(100% + 3px);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6e6e73;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+  transition: opacity 0.25s;
+}
+.fl-mark.hover .fl-hint {
+  opacity: 0;
+}
+
+/* --- Working, and the answer peeking out ----------------------------------- */
+.fl-live {
+  position: absolute;
+  right: 82px;
+  bottom: 42px;
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+  max-width: 330px;
+  overflow: hidden;
+  transition:
+    transform 0.45s var(--spring),
+    opacity 0.3s;
+  transform-origin: right center;
+}
+.fl-live.gone,
+.fl-peek.gone {
+  opacity: 0;
+  transform: translateX(16px) scale(0.94);
+  pointer-events: none;
+}
+.fl-peek {
+  position: absolute;
+  right: 82px;
+  bottom: 30px;
+  width: 380px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  padding: 12px 15px;
+  line-height: 1.45;
+  cursor: pointer;
+  transition:
+    transform 0.55s var(--spring),
+    opacity 0.35s;
+  transform-origin: right bottom;
+}
+.fl-peek-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fl-peek small {
+  display: flex;
+  justify-content: space-between;
+  color: #8e8e93;
+  font-size: 11.5px;
+  margin-top: 7px;
+}
+.fl-bar {
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin-top: 9px;
+  overflow: hidden;
+}
+.fl-bar i {
+  display: block;
+  height: 100%;
+  background: #0a84ff;
+  animation: fl-count 5s linear forwards;
+}
+@keyframes fl-count {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
+.fl-spin {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-top-color: #1d1d1f;
+  animation: fl-spin 0.8s linear infinite;
+  flex: none;
+}
+@keyframes fl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Open: the conversation over the box ------------------------------------ */
+.fl-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 22px;
+  width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  isolation: isolate;
+}
+.fl-panel::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -10px;
+  border-radius: 30px;
+  background: rgba(246, 246, 248, 0.74);
+  backdrop-filter: blur(26px) saturate(1.5);
+  -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.12),
+    0 12px 28px -14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.fl-panel:hover::before {
+  opacity: 1;
+}
+.fl-panel.shut {
+  pointer-events: none;
+}
+.fl-stack {
+  max-height: 430px;
+  display: flex;
+  flex-direction: column;
+  -webkit-mask-image: linear-gradient(transparent 0, #000 64px);
+  mask-image: linear-gradient(transparent 0, #000 64px);
+  transition:
+    opacity 0.4s ease 0.16s,
+    transform 0.55s var(--glide) 0.12s;
+}
+.fl-panel.shut .fl-stack {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+  transform-origin: right bottom;
+  transition:
+    opacity 0.18s ease,
+    transform 0.3s var(--glide);
+}
+.fl-log {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 56px 8px 2px;
+  scrollbar-width: none;
+}
+.fl-log::-webkit-scrollbar {
+  width: 0;
+}
+.fl-m {
+  max-width: 86%;
+  padding: 10px 13px;
+  border-radius: 16px;
+  line-height: 1.45;
+  user-select: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: fl-in 0.45s var(--spring) backwards;
+  transition: opacity 0.35s ease;
+}
+.fl-m.me {
+  align-self: flex-end;
+  background: #1d1d1f;
+  color: #fff;
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.5);
+}
+.fl-m.ai {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.12),
+    0 10px 30px -14px rgba(0, 0, 0, 0.3);
+}
+.fl-stack:hover .fl-m {
+  opacity: 1 !important;
+}
+@keyframes fl-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+.fl-work {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  animation: fl-in 0.35s var(--glide) backwards;
+}
+.fl-shim {
+  background: linear-gradient(
+    90deg,
+    #8e8e93 0%,
+    #8e8e93 40%,
+    #1d1d1f 50%,
+    #8e8e93 60%,
+    #8e8e93 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: fl-shim 1.8s linear infinite;
+}
+@keyframes fl-shim {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+.fl-ask {
+  align-self: stretch;
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 13px;
+  text-align: left;
+  font: inherit;
+  background: #fff4e0;
+  color: #6b4200;
+  cursor: pointer;
+  box-shadow: 0 0 0 0.5px rgba(160, 100, 0, 0.25);
+}
+.fl-box {
+  border-radius: 22px;
+  padding: 8px 8px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  clip-path: inset(0 0 0 0 round 22px);
+  transition:
+    clip-path 0.55s var(--glide),
+    opacity 0.2s ease,
+    transform 0.55s var(--glide);
+}
+.fl-panel.shut .fl-box {
+  clip-path: inset(0 0 0 calc(100% - 56px) round 28px);
+  opacity: 0;
+  transform: translateY(5px);
+  transition:
+    clip-path 0.38s var(--glide),
+    opacity 0.25s ease 0.12s,
+    transform 0.38s var(--glide);
+}
+.fl-box > * {
+  transition: opacity 0.3s ease 0.18s;
+}
+.fl-panel.shut .fl-box > * {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.fl-box input,
+.fl-dcomp input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: #1d1d1f;
+  outline: none;
+  user-select: text;
+}
+.fl-box input::placeholder,
+.fl-dcomp input::placeholder {
+  color: #8e8e93;
+}
+.fl-esc {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #8e8e93;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.fl-xp {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: #6e6e73;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.fl-xp:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #111;
+}
+.fl-xp svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.fl-go {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: #c7c7cc;
+  color: #fff;
+  font-size: 15px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+.fl-go.ready {
+  background: #1d1d1f;
+}
+.fl-go:active {
+  transform: scale(0.9);
+}
+
+/* --- The whole chat ------------------------------------------------------------ */
+.fl-drawer {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  bottom: 14px;
+  width: 400px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    transform 0.55s var(--glide),
+    opacity 0.3s;
+}
+.fl-drawer.gone {
+  transform: translateX(calc(100% + 30px));
+  opacity: 0;
+  pointer-events: none;
+}
+.fl-dhd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.fl-dtitle {
+  font-weight: 600;
+}
+.fl-sp {
+  flex: 1;
+}
+.fl-hbtn {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+.fl-hbtn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+.fl-dbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.fl-dbody .fl-log {
+  flex: 1;
+  padding: 14px;
+}
+.fl-dbody .fl-m.ai {
+  background: rgba(0, 0, 0, 0.05);
+  box-shadow: none;
+}
+.fl-dcomp {
+  margin: 10px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px 8px 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* While it works the line beside the mark says what it does; the label stays folded. */
+.fl-mark.working.hover::before {
+  opacity: 0;
+}
+.fl-mark.working.hover .fl-lbl {
+  max-width: 0;
+  opacity: 0;
+  padding-left: 0;
+}
+.fl-mark.working.hover .fl-hint {
+  opacity: 1;
+}

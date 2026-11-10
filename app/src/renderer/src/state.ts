@@ -372,6 +372,9 @@ interface CoveState {
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   coldStart: boolean
+  /** Browser first: with a page open, it fills the desk and the chat floats over it (FloatChat). */
+  browserFirst: boolean
+  setBrowserFirst: (on: boolean) => void
   filesOpen: Record<string, boolean>
   // Absolute path of the text file open in the in-app viewer/editor, per workspace.
   openFile: Record<string, string | null>
@@ -1000,6 +1003,11 @@ export const useStore = create<CoveState>((set, get) => ({
   // browser-kind project shows its chat (not the auto-opened pane) so a fresh
   // launch never lands on a reloaded live page.
   coldStart: true,
+  browserFirst: localStorage.getItem('cove.browserFirst') === '1',
+  setBrowserFirst: (on) => {
+    localStorage.setItem('cove.browserFirst', on ? '1' : '0')
+    set({ browserFirst: on })
+  },
   filesOpen: {},
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't

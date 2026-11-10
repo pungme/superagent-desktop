@@ -1,3 +1,4 @@
+import { raiseOverlays } from './overlay-stack'
 import {
   isGoogleSignIn,
   isGoogleSignInRejected,
@@ -917,6 +918,8 @@ function agentLoadedRecently(paneId: string): boolean {
 function attachPaneView(pane: BrowserPane): void {
   if (pane.window.isDestroyed()) return
   pane.window.contentView.addChildView(pane.view)
+  // A page attached on top must not cover the floating chat (float-chat.ts).
+  raiseOverlays(pane.window)
   compositingHidden.delete(pane.id)
   pane.visible = true
 }
@@ -1487,6 +1490,7 @@ export function registerBrowserIpc(): void {
         sync()
       }
       pane.window.contentView.addChildView(twin.view)
+      raiseOverlays(pane.window)
       twin.view.setBounds(toWindowPixels(pane.window, bounds))
       twin.view.webContents.setZoomFactor(Math.max(0.2, zoom))
     }

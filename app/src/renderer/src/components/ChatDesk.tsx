@@ -510,6 +510,13 @@ export function ChatDesk({
   const zoomTile = useStore((s) => s.zoomTile)
   const setSplitOrient = useStore((s) => s.setSplitOrient)
   const inSplit = !!tile && tile.count > 1
+  // Browser first: with the page on the desk, it takes the whole desk and the
+  // chat floats over it (main/float-chat.ts). Only on the window you are in, and
+  // not in a split, where each window already has its page and chat side by side.
+  const browserFirst = useStore((s) => s.browserFirst)
+  const setBrowserFirst = useStore((s) => s.setBrowserFirst)
+  const overlayCount = useStore((s) => s.overlayCount)
+  const pageOnDesk = browserOpen && !external && !openFilePath && !boardOpen
   const projectIcon = useProjectIcon(ws.id, ws.path, ws.kind)
   const [ratio, setRatio] = useState(() => {
     const saved = localStorage.getItem(`split:${ws.id}`)
@@ -554,6 +561,60 @@ export function ChatDesk({
             : 0.55
     )
   }
+  const floating =
+    browserFirst &&
+    pageOnDesk &&
+    visible &&
+    focused &&
+    !hidden &&
+    !inSplit &&
+    !miniWanted &&
+    layout === 'side' &&
+    !!activeChat
+  // Where the page is, for the floating chat to sit in its corner; taken away
+  // while something of the app is drawn over the desk (a menu, a dialog), which
+  // the floating chat would otherwise cover.
+  const deskSideRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const id = activeChat?.id
+    if (!floating || !id || overlayCount > 0) {
+      window.cove.floatPlace(null)
+      return
+    }
+    const el = deskSideRef.current
+    if (!el) return
+    let raf = 0
+    const send = (): void => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // Over the page itself, below its address bar (which floats inside the
+        // pane's host, above the native view).
+        const host = el.querySelector('[data-pane-id]') ?? el
+        const h = host.getBoundingClientRect()
+        const bar = el.querySelector('.browser-toolbar')?.getBoundingClientRect()
+        const top = bar && bar.bottom > h.top && bar.bottom < h.bottom ? bar.bottom + 8 : h.top
+        const r = { left: h.left, top, width: h.width, height: h.bottom - top }
+        if (r.width < 200 || r.height < 160) window.cove.floatPlace(null)
+        else
+          window.cove.floatPlace({
+            chatId: id,
+            rect: { x: r.left, y: r.top, w: r.width, h: r.height }
+          })
+      })
+    }
+    send()
+    const ro = new ResizeObserver(send)
+    ro.observe(el)
+    window.addEventListener('resize', send)
+    window.addEventListener('cove:layout-moved', send)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+      window.removeEventListener('resize', send)
+      window.removeEventListener('cove:layout-moved', send)
+      window.cove.floatPlace(null)
+    }
+  }, [floating, activeChat?.id, overlayCount])
   // Width of the file tree, draggable at its right edge and remembered per project.
   const [filesWidth, setFilesWidth] = useState(() => {
     const saved = Number(localStorage.getItem(`filesWidth:${ws.id}`))
@@ -748,7 +809,9 @@ export function ChatDesk({
               <button
                 className="toolbar-btn toolbar-icon"
                 title={tile.orient === 'col' ? 'Side by side' : 'Stack'}
-                aria-label={tile.orient === 'col' ? 'Put the windows side by side' : 'Stack the windows'}
+                aria-label={
+                  tile.orient === 'col' ? 'Put the windows side by side' : 'Stack the windows'
+                }
                 onClick={() => setSplitOrient(tile.orient === 'col' ? 'row' : 'col')}
               >
                 <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
@@ -784,208 +847,226 @@ export function ChatDesk({
           </button>
         </div>
       ) : plain ? null : (
-      <div className="workspace-toolbar">
-        {/* Leads the toolbar because the pane it opens is the leftmost column. */}
-        {ws.kind !== 'browser' && (
-          <button
-            className={`toolbar-btn toolbar-icon tile-files-btn ${filesOpen ? 'on' : ''}`}
-            onClick={() => toggleFiles(ws.id, chatId)}
-            title="Files"
-          >
-            <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z" />
-            </svg>
-            <span className="toolbar-label">Files</span>
-          </button>
-        )}
-        {/* Sits next to Files, top-left: both open a left-hand surface for this
+        <div className="workspace-toolbar">
+          {/* Leads the toolbar because the pane it opens is the leftmost column. */}
+          {ws.kind !== 'browser' && (
+            <button
+              className={`toolbar-btn toolbar-icon tile-files-btn ${filesOpen ? 'on' : ''}`}
+              onClick={() => toggleFiles(ws.id, chatId)}
+              title="Files"
+            >
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z" />
+              </svg>
+              <span className="toolbar-label">Files</span>
+            </button>
+          )}
+          {/* Sits next to Files, top-left: both open a left-hand surface for this
             project, so they read as a pair. */}
-        <button
-          className={`toolbar-btn toolbar-icon tile-todo-btn ${boardOpen ? 'on' : ''}`}
-          onClick={() =>
-            setBoardOpen((v) => {
-              if (!v) widenForBoard()
-              localStorage.setItem(`boardOpen:${deskKey}`, v ? '0' : '1')
-              return !v
-            })
-          }
-          title="Todo: what's left, and what the agent finished"
-        >
-          <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2.2 4.3l1.3 1.3 2.2-2.4M8 4.5h5.8M2.2 10.3l1.3 1.3 2.2-2.4M8 10.5h5.8" />
-          </svg>
-          <span className="toolbar-label">Todo</span>
-        </button>
-        {/* The third of the pair: the browser, without waiting for the agent to
-            open a page. A browser project's own toggle is on the right. */}
-        {ws.kind !== 'browser' && (
           <button
-            className={`toolbar-btn toolbar-icon ${browserOpen ? 'on' : ''}`}
-            onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
-            title={browserOpen ? 'Hide the browser' : 'Browser'}
+            className={`toolbar-btn toolbar-icon tile-todo-btn ${boardOpen ? 'on' : ''}`}
+            onClick={() =>
+              setBoardOpen((v) => {
+                if (!v) widenForBoard()
+                localStorage.setItem(`boardOpen:${deskKey}`, v ? '0' : '1')
+                return !v
+              })
+            }
+            title="Todo: what's left, and what the agent finished"
           >
             <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-              <circle cx="8" cy="8" r="6.2" />
-              <path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z" />
+              <path d="M2.2 4.3l1.3 1.3 2.2-2.4M8 4.5h5.8M2.2 10.3l1.3 1.3 2.2-2.4M8 10.5h5.8" />
             </svg>
-            <span className="toolbar-label">Browser</span>
+            <span className="toolbar-label">Todo</span>
           </button>
-        )}
-        {ws.kind === 'browser' ? (
-          <>
-            <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>
-            <span className="workspace-path">{site.url}</span>
-          </>
-        ) : (
-          <>
-            {/* Whose desk this is, at a glance — the project's own icon. */}
-            <span className="tile-project-icon" title={ws.name}>
-              <ProjectIcon icon={projectIcon} kind={ws.kind} size={18} />
-            </span>
-            <span className="workspace-title">{ws.name}</span>
-            {/* Which conversation is on screen, so a glance at the top says
-                where you are, not only which project. */}
-            {activeChat && (
-              <>
-                <span className="workspace-crumb" aria-hidden="true">
-                  ›
-                </span>
-                <span className="workspace-chat" title={activeChat.title || 'New chat'}>
-                  {activeChat.title || 'New chat'}
-                </span>
-              </>
-            )}
-            <span className="workspace-path" title={ws.path}>
-              {ws.path}
-            </span>
-            {branch && (
-              <span className="workspace-branch-wrap">
-                <button
-                  ref={branchChipRef}
-                  className="workspace-branch"
-                  title={`On git branch ${branch} — click to switch`}
-                  onClick={() => {
-                    setBranchErr(null)
-                    setBranchMenu((v) => !v)
-                  }}
-                >
-                  ⎇ {branch}
-                  <span className="workspace-branch-caret">▾</span>
-                </button>
-                {branchMenu && (
-                  <BranchMenu
-                    cwd={ws.path}
-                    anchor={branchChipRef.current}
-                    pickDisabledInWorktree
-                    onClose={() => setBranchMenu(false)}
-                    onPick={async (b) => {
-                      const r = await window.cove.gitCheckout(ws.path, b)
-                      if (r.ok) {
-                        setBranchMenu(false)
-                        setBranchErr(null)
-                        refreshBranch()
-                      } else {
-                        setBranchErr(r.error || 'Could not switch branch')
-                      }
-                    }}
-                  />
-                )}
-                {branchErr && <span className="workspace-branch-err">{branchErr}</span>}
+          {/* The third of the pair: the browser, without waiting for the agent to
+            open a page. A browser project's own toggle is on the right. */}
+          {ws.kind !== 'browser' && (
+            <button
+              className={`toolbar-btn toolbar-icon ${browserOpen ? 'on' : ''}`}
+              onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
+              title={browserOpen ? 'Hide the browser' : 'Browser'}
+            >
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" />
+                <path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z" />
+              </svg>
+              <span className="toolbar-label">Browser</span>
+            </button>
+          )}
+          {ws.kind === 'browser' ? (
+            <>
+              <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>
+              <span className="workspace-path">{site.url}</span>
+            </>
+          ) : (
+            <>
+              {/* Whose desk this is, at a glance — the project's own icon. */}
+              <span className="tile-project-icon" title={ws.name}>
+                <ProjectIcon icon={projectIcon} kind={ws.kind} size={18} />
               </span>
-            )}
-          </>
-        )}
-        {/* A site attached to this project that is not one of our dev servers —
+              <span className="workspace-title">{ws.name}</span>
+              {/* Which conversation is on screen, so a glance at the top says
+                where you are, not only which project. */}
+              {activeChat && (
+                <>
+                  <span className="workspace-crumb" aria-hidden="true">
+                    ›
+                  </span>
+                  <span className="workspace-chat" title={activeChat.title || 'New chat'}>
+                    {activeChat.title || 'New chat'}
+                  </span>
+                </>
+              )}
+              <span className="workspace-path" title={ws.path}>
+                {ws.path}
+              </span>
+              {branch && (
+                <span className="workspace-branch-wrap">
+                  <button
+                    ref={branchChipRef}
+                    className="workspace-branch"
+                    title={`On git branch ${branch} — click to switch`}
+                    onClick={() => {
+                      setBranchErr(null)
+                      setBranchMenu((v) => !v)
+                    }}
+                  >
+                    ⎇ {branch}
+                    <span className="workspace-branch-caret">▾</span>
+                  </button>
+                  {branchMenu && (
+                    <BranchMenu
+                      cwd={ws.path}
+                      anchor={branchChipRef.current}
+                      pickDisabledInWorktree
+                      onClose={() => setBranchMenu(false)}
+                      onPick={async (b) => {
+                        const r = await window.cove.gitCheckout(ws.path, b)
+                        if (r.ok) {
+                          setBranchMenu(false)
+                          setBranchErr(null)
+                          refreshBranch()
+                        } else {
+                          setBranchErr(r.error || 'Could not switch branch')
+                        }
+                      }}
+                    />
+                  )}
+                  {branchErr && <span className="workspace-branch-err">{branchErr}</span>}
+                </span>
+              )}
+            </>
+          )}
+          {/* A site attached to this project that is not one of our dev servers —
             the chip was only ever about localhost, so a project sitting on a
             real site said nothing at all up here. */}
-        {/* Showing a local document (PDF/image): name the file so you know what's
+          {/* Showing a local document (PDF/image): name the file so you know what's
             in the pane, not a bare "page". Shown regardless of a dev server. */}
-        {/* An opened PDF/image is a file:// page in the native pane, which paints
+          {/* An opened PDF/image is a file:// page in the native pane, which paints
             OVER the pane's own ✕ — so the doc chip in the toolbar (which the native
             view can never cover) is the reliable control. The NAME opens the pane
             AND navigates it to this document (never "whatever the pane last
             showed" — that opened localhost while the chip named a PDF); the ✕
             closes the pane. */}
-        {ws.kind !== 'browser' && docName && (
-          <span className="workspace-server attached workspace-doc">
-            <button
-              className="workspace-doc-open"
-              title={`Show ${docName}`}
-              onClick={() => openUrl(ws.id, docUrl, false, chatId)}
-            >
-              <span className="workspace-doc-icon">📄</span>
-              <span className="workspace-doc-name">{docName}</span>
-            </button>
-            {browserOpen && (
+          {ws.kind !== 'browser' && docName && (
+            <span className="workspace-server attached workspace-doc">
               <button
-                className="workspace-doc-close"
-                title={`Close ${docName}`}
-                onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
+                className="workspace-doc-open"
+                title={`Show ${docName}`}
+                onClick={() => openUrl(ws.id, docUrl, false, chatId)}
               >
-                ✕
+                <span className="workspace-doc-icon">📄</span>
+                <span className="workspace-doc-name">{docName}</span>
               </button>
-            )}
-          </span>
-        )}
-        {ws.kind !== 'browser' && !docName && ports.length === 0 && attachedUrl && (
-          <span className="workspace-server attached" title={attachedUrl}>
-            <span className="workspace-server-dot" />
-            {hostOf(attachedUrl) || 'page'}
-          </span>
-        )}
-        {ws.kind !== 'browser' && ports.length > 0 && (
-          <button
-            className="workspace-server"
-            title={`Open localhost:${ports[ports.length - 1]} in the preview`}
-            onClick={() => openPreview(ws.id, ports[ports.length - 1], chatId)}
-          >
-            <span className="workspace-server-dot" />
-            localhost:{ports[ports.length - 1]}
-            <span className="workspace-server-open">Open preview</span>
-          </button>
-        )}
-        <div className="workspace-toolbar-spacer" />
-        {/* What the conversation on screen puts up here: its Images button
+              {browserOpen && (
+                <button
+                  className="workspace-doc-close"
+                  title={`Close ${docName}`}
+                  onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          )}
+          {ws.kind !== 'browser' && !docName && ports.length === 0 && attachedUrl && (
+            <span className="workspace-server attached" title={attachedUrl}>
+              <span className="workspace-server-dot" />
+              {hostOf(attachedUrl) || 'page'}
+            </span>
+          )}
+          {ws.kind !== 'browser' && ports.length > 0 && (
+            <button
+              className="workspace-server"
+              title={`Open localhost:${ports[ports.length - 1]} in the preview`}
+              onClick={() => openPreview(ws.id, ports[ports.length - 1], chatId)}
+            >
+              <span className="workspace-server-dot" />
+              localhost:{ports[ports.length - 1]}
+              <span className="workspace-server-open">Open preview</span>
+            </button>
+          )}
+          <div className="workspace-toolbar-spacer" />
+          {/* What the conversation on screen puts up here: its Images button
             (EasyChat fills this through a portal). */}
-        <div className="toolbar-chat-slot" data-chat-slot={chatId ?? ws.id} />
-        {/* ✂ Snip lives ON the pane now (browser omnibar / simulator chrome), not
+          <div className="toolbar-chat-slot" data-chat-slot={chatId ?? ws.id} />
+          {/* ✂ Snip lives ON the pane now (browser omnibar / simulator chrome), not
             here — closer to what you're snipping and more intuitive. */}
-        {/* A code project's preview reveals itself when the agent navigates, and
+          {/* A code project's preview reveals itself when the agent navigates, and
             normally closes from the pane's own ✕. But the native page paints
             ABOVE all HTML, so a mis-bounded agent-opened view can cover its own
             toolbar — leaving no way to close it. This close lives up here in the
             workspace toolbar, which the native view can never reach, so there is
             always a way out. Shown only when the browser is the visible surface. */}
-        {/* The preview pane's close ✕ lives ON the pane, in its own omnibar
+          {/* The preview pane's close ✕ lives ON the pane, in its own omnibar
             (BrowserPane) — where a close belongs and where you look for it. No
             duplicate up here. The omnibar always renders (web pages and PDFs
             alike), and the settle re-sync keeps the native view from ever painting
             over it, so that ✕ is always present and clickable. */}
-        {ws.kind === 'browser' && (
-          <button
-            className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
-            onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
-          >
-            {browserOpen ? 'Hide preview' : 'Show preview'}
-          </button>
-        )}
-        {/* Where the chat sits is a view control, so it belongs here with the
+          {ws.kind === 'browser' && (
+            <button
+              className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
+              onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
+            >
+              {browserOpen ? 'Hide preview' : 'Show preview'}
+            </button>
+          )}
+          {/* Where the chat sits is a view control, so it belongs here with the
             others rather than among the New chat pills. The glyph shows the
             arrangement you would move to; no label, it is not worth a word. */}
-        {paneOpen && !mini && (
-          <button
-            className="toolbar-btn toolbar-icon tile-layout-toggle"
-            onClick={toggleLayout}
-            title={
-              layout === 'side'
-                ? 'Move the chat below the page (full-width preview)'
-                : 'Move the chat beside the page'
-            }
-          >
-            {layout === 'side' ? '⬓' : '◨'}
-          </button>
-        )}
-      </div>
+          {pageOnDesk && !inSplit && !mini && layout === 'side' && (
+            <div className="mode-switch desk-mode-switch" role="group" aria-label="Chat layout">
+              <button
+                className={`mode-switch-btn ${!browserFirst ? 'active' : ''}`}
+                onClick={() => setBrowserFirst(false)}
+                title="The chat beside the page (⌘⇧B)"
+              >
+                Side by side
+              </button>
+              <button
+                className={`mode-switch-btn ${browserFirst ? 'active' : ''}`}
+                onClick={() => setBrowserFirst(true)}
+                title="The page fills the window, the chat floats over it (⌘⇧B)"
+              >
+                Browser first
+              </button>
+            </div>
+          )}
+          {paneOpen && !mini && !floating && (
+            <button
+              className="toolbar-btn toolbar-icon tile-layout-toggle"
+              onClick={toggleLayout}
+              title={
+                layout === 'side'
+                  ? 'Move the chat below the page (full-width preview)'
+                  : 'Move the chat beside the page'
+              }
+            >
+              {layout === 'side' ? '⬓' : '◨'}
+            </button>
+          )}
+        </div>
       )}
       {/* The chat stays mounted (stable position) whether or not the browser is
           open, so toggling the preview never disturbs the conversation. */}
@@ -1008,7 +1089,11 @@ export function ChatDesk({
                 the file you opened — and the simulator is a second card beside
                 it rather than something that pushes the first one out. The
                 painting behind them shows wherever a card doesn't reach. */}
-              <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+              <div
+                className="split-side desk"
+                ref={deskSideRef}
+                style={{ flexBasis: floating ? '100%' : `${(1 - ratio) * 100}%` }}
+              >
                 {surface && (
                   <div
                     className="desk-card"
@@ -1052,16 +1137,23 @@ export function ChatDesk({
                   </div>
                 )}
               </div>
-              <div
-                className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
-                onPointerDown={onDividerDown}
-                role="separator"
-              />
+              {!floating && (
+                <div
+                  className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
+                  onPointerDown={onDividerDown}
+                  role="separator"
+                />
+              )}
             </>
           )}
           <div
-            className="split-side split-side-chat"
-            style={{ flexBasis: paneOpen && !hidden && !mini ? `${ratio * 100}%` : '100%' }}
+            className={`split-side split-side-chat ${floating ? 'floating' : ''}`}
+            style={
+              floating
+                ? // Still mounted (its agent lives here), out of the way.
+                  { flexBasis: 0, width: 0, minWidth: 0, overflow: 'hidden' }
+                : { flexBasis: paneOpen && !hidden && !mini ? `${ratio * 100}%` : '100%' }
+            }
           >
             {/* Each chat keeps its own mounted <EasyChat> (and its agent). Only the
               active one is shown; busy siblings stay mounted but hidden so their
@@ -1078,6 +1170,7 @@ export function ChatDesk({
                   visible={visible}
                   focused={focused}
                   slotKey={inSplit ? 'tile' : 'desk'}
+                  floating={floating}
                 />
               </div>
             )}

@@ -1,6 +1,13 @@
 const transcriptFlushers = new Set<() => Promise<void>>()
 import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
 import type { MailConnectionStatus } from '../shared/mail'
+import type {
+  FloatAction,
+  FloatCommand,
+  FloatPlace,
+  FloatSize,
+  FloatState
+} from '../shared/float-chat'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
@@ -1087,6 +1094,19 @@ export interface CoveApi {
   dotAway: () => Promise<boolean>
   /** Asked, from the dot, to switch to a project: the dot's target moves there. */
   onDotSwitchProject: (cb: (workspaceId: string) => void) => () => void
+  /** Browser first (main/float-chat.ts): where the chat floats, or null to take it down. */
+  floatPlace: (place: FloatPlace | null) => void
+  /** Browser first: what the floating chat shows. */
+  floatState: (state: FloatState) => void
+  /** The floating chat's view: the room it needs now. */
+  floatSize: (size: FloatSize) => void
+  /** The floating chat's view: something for the app's page to do. */
+  floatAction: (action: FloatAction) => void
+  onFloatState: (cb: (state: FloatState) => void) => () => void
+  onFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
+  onFloatAction: (cb: (action: FloatAction) => void) => () => void
+  /** ⌘\ or ⌘⇧\ with no floating chat on screen. */
+  onMenuFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
   onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
@@ -1636,6 +1656,7 @@ const cove: CoveApi = {
       'menu:reload-page',
       'menu:reload-page-hard',
       'menu:toggle-preview',
+      'menu:browser-first',
       'menu:close-tab'
     ]
     const listeners = actions.map((action) => {
@@ -1761,6 +1782,14 @@ const cove: CoveApi = {
   onDotTalk: (cb) => subscribe('dot:talk', () => cb()),
   micAccess: () => ipcRenderer.invoke('mic:access'),
   micOpenSettings: () => ipcRenderer.invoke('mic:open-settings'),
+  floatPlace: (place) => ipcRenderer.send('float:place', place),
+  floatState: (state) => ipcRenderer.send('float:state', state),
+  floatSize: (size) => ipcRenderer.send('float:size', size),
+  floatAction: (action) => ipcRenderer.send('float:action', action),
+  onFloatState: (cb) => subscribe('float:state', (p) => cb(p as FloatState)),
+  onFloatCommand: (cb) => subscribe('float:command', (p) => cb(p as FloatCommand)),
+  onFloatAction: (cb) => subscribe('float:action', (p) => cb(p as FloatAction)),
+  onMenuFloatCommand: (cb) => subscribe('menu:float-command', (p) => cb(p as FloatCommand)),
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),

@@ -71,6 +71,7 @@ import {
   pushChats
 } from './companion'
 import { startTray, refreshTray } from './tray'
+import { registerFloatChatIpc } from './float-chat'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
@@ -354,6 +355,7 @@ app.whenReady().then(async () => {
   // Must attach before any session starts: it is what the phone reads from.
   startCompanionLog()
   registerSkillsIpc()
+  registerFloatChatIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerOpenRequests()

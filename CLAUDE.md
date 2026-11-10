@@ -76,6 +76,32 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
 - A window narrower than `MINI_BELOW` shows its browser or simulator as a mini
   inside that window (`MiniPane`); the page is the desktop layout zoomed to fit.
 
+## Browser first (2.1.3)
+
+The page fills the desk and the chat floats over it, in the bottom-right corner
+(`src/main/float-chat.ts`, `src/renderer/src/float/FloatChat.tsx`,
+`src/shared/float-chat.ts`). Turned on with the Side by side / Browser first
+switch in the desk toolbar or ⌘⇧B; ⌘\ opens the box, ⌘⇧\ the whole chat.
+
+- The page is a native view, above all of the window's HTML, so the floating
+  chat is a view of its own (`#float`, transparent), kept above every page view
+  by `overlay-stack.ts`: whoever attaches a page view calls `raiseOverlays`.
+- A view takes every click in its rectangle, transparent or not, so the float
+  view is only as big as what it shows: FloatChat asks for its size
+  (`float:size`), growing before an opening animation and shrinking after a
+  closing one. Main anchors it in the page's bottom-right (`floatBounds`).
+- The agent stays in the chat's `<EasyChat>`, which stays mounted (its column is
+  0 wide). It sends what to show (`float:state`: plain-text messages, working,
+  one line of status, whether it waits on the user); typed text comes back as
+  `float:action` → `cove:float-send` → `submitRef`. A permission or question the
+  float cannot answer shows "asking you something" with a way to side by side.
+- ChatDesk sends where (`float:place`, the page below its address bar) and takes
+  it down while anything of the app is over the desk (`overlayCount`), in a
+  split, or when the surface is not a page.
+- e2e: `browser-first.spec.ts` (SHOT=1 saves the layers;
+  `scripts/_compose-layers.py` stacks them into one picture: a page screenshot
+  alone shows none of the native views).
+
 ## Computer use
 
 `src/main/computer-use.ts` (permissions, screenshots, consent, ⌥Esc),

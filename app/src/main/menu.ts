@@ -1,4 +1,6 @@
 import { app, Menu, BrowserWindow, shell } from 'electron'
+import { sendFloatCommand } from './float-chat'
+import type { FloatCommand } from '../shared/float-chat'
 
 /**
  * A proper native macOS menu bar — one of the biggest "feels native" signals.
@@ -22,6 +24,13 @@ function setZoom(dir: 'in' | 'out' | 'reset'): void {
 
 function send(channel: string): void {
   BrowserWindow.getFocusedWindow()?.webContents.send(channel)
+}
+
+/** ⌘\ and ⌘⇧\ go to the floating chat when there is one; otherwise they turn browser first on. */
+function floatCommand(cmd: FloatCommand): void {
+  const win = BrowserWindow.getFocusedWindow()
+  if (!win) return
+  if (!sendFloatCommand(win, cmd)) win.webContents.send('menu:float-command', cmd)
 }
 
 export function buildMenu(): void {
@@ -126,6 +135,22 @@ export function buildMenu(): void {
           label: 'Toggle Preview',
           accelerator: 'CmdOrCtrl+B',
           click: () => send('menu:toggle-preview')
+        },
+        // Browser first: the page fills the window and the chat floats over it.
+        {
+          label: 'Browser First',
+          accelerator: 'CmdOrCtrl+Shift+B',
+          click: () => send('menu:browser-first')
+        },
+        {
+          label: 'Ask Superagent',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => floatCommand('toggle')
+        },
+        {
+          label: 'Show the Whole Chat',
+          accelerator: 'CmdOrCtrl+Shift+\\',
+          click: () => floatCommand('full')
         },
         { type: 'separator' },
         // Not the built-in roles: those zoom the window without telling anything
