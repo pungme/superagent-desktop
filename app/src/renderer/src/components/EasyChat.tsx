@@ -1,3 +1,5 @@
+import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
+import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
@@ -219,8 +221,10 @@ function needsLines(el: HTMLTextAreaElement): boolean {
   if (!measure) return false
   const cs = getComputedStyle(el)
   measure.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
-  // The single-line box: 12px on the left, 74px kept clear for attach and mic.
-  return measure.measureText(el.value).width > el.clientWidth - 86
+  // The single-line box: 12px on the left, 74px kept clear for attach and mic
+  // (and 32 more for Save for later, shown once something is typed).
+  const save = el.parentElement?.querySelector('.easy-save-later') ? 32 : 0
+  return measure.measureText(el.value).width > el.clientWidth - 86 - save
 }
 
 function fitInput(el: HTMLTextAreaElement): void {
@@ -2792,6 +2796,47 @@ export function EasyChat({
   const inputNowRef = useRef(input)
   inputNowRef.current = input
   const draftText = (text: string): string => (text.trim() ? expandMentions(text, mentionMap) : '')
+
+  // Save for later (⌘S): what is being written is set aside for this chat, the
+  // box is cleared for another prompt, and "N saved" above the box brings it back.
+  const savedPrompts = useSavedPrompts(chatId)
+  const setAside = (): boolean => {
+    const t = draftText(inputNowRef.current)
+    if (!t) return false
+    savedPrompts.add(t)
+    setInput('')
+    return true
+  }
+  const restoreSaved = (p: SavedPrompt): void => {
+    savedPrompts.remove(p.id)
+    // Whatever is in the box now is set aside in its place, not lost.
+    const now = draftText(inputNowRef.current)
+    if (now) savedPrompts.add(now)
+    setInput(p.text)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+    })
+  }
+  const sendSaved = (p: SavedPrompt): void => {
+    savedPrompts.remove(p.id)
+    submitRef.current?.(p.text, [], { keepComposer: true })
+  }
+  const restoreSavedRef = useRef(restoreSaved)
+  restoreSavedRef.current = restoreSaved
+  // Picked in ⌘K: the palette has opened this chat; put the prompt back in its box.
+  useEffect(() => {
+    const on = (e: Event): void => {
+      const d = (e as CustomEvent<{ chatId: string; id: string }>).detail
+      if (d?.chatId !== chatId) return
+      const p = savedPrompts.saved.find((x) => x.id === d.id)
+      if (p) restoreSavedRef.current(p)
+    }
+    window.addEventListener('cove:use-saved-prompt', on)
+    return () => window.removeEventListener('cove:use-saved-prompt', on)
+  }, [chatId, savedPrompts.saved])
   const writeDraft = (): void => {
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
@@ -6322,6 +6367,12 @@ export function EasyChat({
           )}
         </div>
       )}
+      <SavedPromptsBar
+        saved={savedPrompts.saved}
+        onUse={restoreSaved}
+        onSend={sendSaved}
+        onRemove={(p) => savedPrompts.remove(p.id)}
+      />
       <div className="easy-input-row">
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
@@ -6461,6 +6512,11 @@ export function EasyChat({
               if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop
             }}
             onKeyDown={(e) => {
+              if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
+                e.preventDefault()
+                setAside()
+                return
+              }
               if (e.key === 'Backspace' && !e.metaKey && !e.altKey) {
                 const el = e.currentTarget
                 if (el.selectionStart === el.selectionEnd) {
@@ -6560,6 +6616,26 @@ export function EasyChat({
               e.target.value = '' // allow re-picking the same file
             }}
           />
+          {input.trim() && (
+            <button
+              className="easy-attach easy-save-later"
+              onClick={() => setAside()}
+              title="Save for later (⌘S): set this aside and write another"
+              aria-label="Save for later"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              >
+                <path d="M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z" />
+              </svg>
+            </button>
+          )}
           <button
             className="easy-attach"
             onClick={() => fileInputRef.current?.click()}

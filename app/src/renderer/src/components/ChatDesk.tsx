@@ -571,6 +571,18 @@ export function ChatDesk({
     !miniWanted &&
     layout === 'side' &&
     !!activeChat
+  // While the floating chat is open the page moves over to make room for it
+  // (FloatChat sends how much); the floating chat itself stays where it is.
+  const [floatInset, setFloatInset] = useState(0)
+  useEffect(() => {
+    if (!floating) {
+      setFloatInset(0)
+      return
+    }
+    const on = (e: Event): void => setFloatInset(Number((e as CustomEvent<number>).detail) || 0)
+    window.addEventListener('cove:float-inset', on)
+    return () => window.removeEventListener('cove:float-inset', on)
+  }, [floating])
   // Where the page is, for the floating chat to sit in its corner; taken away
   // while something of the app is drawn over the desk (a menu, a dialog), which
   // the floating chat would otherwise cover.
@@ -1043,25 +1055,25 @@ export function ChatDesk({
                 className={`toolbar-btn toolbar-icon ${!browserFirst ? 'on' : ''}`}
                 onClick={() => setBrowserFirst(false)}
                 aria-pressed={!browserFirst}
+                aria-label="Side by side"
                 title="Side by side: the chat beside the page (⌘⇧B)"
               >
                 <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
                   <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
                   <path d="M10 2.8v10.4" />
                 </svg>
-                <span className="toolbar-label">Side by side</span>
               </button>
               <button
                 className={`toolbar-btn toolbar-icon ${browserFirst ? 'on' : ''}`}
                 onClick={() => setBrowserFirst(true)}
                 aria-pressed={browserFirst}
+                aria-label="Browser first"
                 title="Browser first: the page fills the window, the chat floats over it (⌘⇧B)"
               >
                 <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
                   <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
                   <rect x="9.2" y="8.6" width="3.4" height="3" rx="1" className="toolbar-ic-fill" />
                 </svg>
-                <span className="toolbar-label">Browser first</span>
               </button>
             </div>
           )}
@@ -1104,7 +1116,15 @@ export function ChatDesk({
               <div
                 className="split-side desk"
                 ref={deskSideRef}
-                style={{ flexBasis: floating ? '100%' : `${(1 - ratio) * 100}%` }}
+                style={
+                  floating
+                    ? {
+                        flexBasis: '100%',
+                        paddingRight: floatInset,
+                        transition: 'padding-right 0.45s cubic-bezier(0.32, 0.72, 0, 1)'
+                      }
+                    : { flexBasis: `${(1 - ratio) * 100}%` }
+                }
               >
                 {surface && (
                   <div

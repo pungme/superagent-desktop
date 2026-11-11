@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useStore, useOverlayLock } from '../state'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { fuzzyFilter } from '../lib/fuzzy'
+import { allSaved, readSaved } from '../lib/saved-prompts'
 import { ProjectIcon } from './ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import type { Workspace } from '../../../preload'
@@ -340,6 +341,40 @@ export function CommandPalette({
       .map((e) => e.item)
   }, [allChats, workspaces, projectRecency, projectNames, openChat, projectTile])
 
+  // Prompts set aside with ⌘S, in every chat: picking one opens its chat with
+  // the prompt back in the box. Read when the palette opens (they live in storage).
+  const savedItems = useMemo<PaletteItem[]>(() => {
+    if (!open) return []
+    const chatById = new Map(allChats.map((c) => [c.id, c]))
+    return allSaved().flatMap(({ chatId, prompt }) => {
+      const c = chatById.get(chatId)
+      if (!c) return []
+      return [
+        {
+          id: `saved.${chatId}.${prompt.id}`,
+          label: prompt.text.length > 90 ? prompt.text.slice(0, 89) + '…' : prompt.text,
+          subtitle: `Saved · ${c.title || 'New chat'}`,
+          keywords: `saved for later ${prompt.text}`,
+          workspace: workspaces.find((w) => w.id === c.workspaceId),
+          thenType: true,
+          run: () => {
+            openChat(c.workspaceId, c.id)
+            // Its chat may still be mounting: ask a few times.
+            let tries = 0
+            const ask = (): void => {
+              window.dispatchEvent(
+                new CustomEvent('cove:use-saved-prompt', { detail: { chatId, id: prompt.id } })
+              )
+              if (++tries < 4 && readSaved(chatId).some((p) => p.id === prompt.id))
+                setTimeout(ask, 250)
+            }
+            setTimeout(ask, 120)
+          }
+        } as PaletteItem
+      ]
+    })
+  }, [open, allChats, workspaces, openChat])
+
   // Everything, for search — a project or chat you haven't touched recently
   // still has to be reachable by typing its name.
   const searchableItems = useMemo<PaletteItem[]>(() => {
@@ -364,8 +399,9 @@ export function CommandPalette({
         : undefined,
       tile: projectNames.has(c.workspaceId) ? { ws: c.workspaceId, chat: c.id } : undefined
     }))
-    return [...currentChatCommands, ...navigateCommands, ...projects, ...chatItems]
+    return [...currentChatCommands, ...navigateCommands, ...projects, ...chatItems, ...savedItems]
   }, [
+    savedItems,
     currentChatCommands,
     navigateCommands,
     workspaces,
@@ -379,6 +415,7 @@ export function CommandPalette({
     if (!query.trim()) {
       return [
         { title: 'Recent', items: recentItems },
+        { title: 'Saved for later', items: savedItems.slice(0, 5) },
         { title: 'Current chat', items: currentChatCommands },
         { title: 'Navigate', items: navigateCommands }
       ].filter((g) => g.items.length > 0)
@@ -387,7 +424,7 @@ export function CommandPalette({
     // The best matches only: a one-letter query matches hundreds of chats, and
     // drawing every one of them is what you waited for.
     return ranked.length ? [{ title: 'Results', items: ranked.slice(0, MAX_RESULTS) }] : []
-  }, [query, recentItems, currentChatCommands, navigateCommands, searchableItems])
+  }, [query, recentItems, savedItems, currentChatCommands, navigateCommands, searchableItems])
 
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups])
   // Each row's place in the keyboard order, without searching the list per row.

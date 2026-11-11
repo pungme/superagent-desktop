@@ -168,6 +168,35 @@ test('clicking the mark opens the box, which stays open; what is typed goes to t
     .toBeLessThan(470)
 })
 
+test('while the chat is open the page moves over beside it, and the card can be dragged wider', async () => {
+  const fl = await floatPage()
+  const pageWidth = async (): Promise<number> =>
+    (await window.locator('.split-side.desk [data-pane-id]').boundingBox())!.width
+  const full = await pageWidth()
+  await fl.locator('.fl-mark').click()
+  await expect(fl.locator('.fl-panel')).not.toHaveClass(/shut/)
+  // The page gives up the card's width (470) and a little more, and stops short of the card.
+  await expect.poll(pageWidth).toBeLessThan(full - 450)
+  const card = (await fl.locator('.fl-card').boundingBox())!
+  const view = (await floatView())!.bounds
+  const page = (await window.locator('.split-side.desk [data-pane-id]').boundingBox())!
+  expect(page.x + page.width).toBeLessThanOrEqual(view.x + card.x + 2)
+  // Drag the card's left edge 100 px to the left: wider card, narrower page, remembered.
+  const handle = (await fl.locator('.fl-resize').boundingBox())!
+  const before = await pageWidth()
+  await fl.mouse.move(handle.x + 5, handle.y + handle.height / 2)
+  await fl.mouse.down()
+  await fl.mouse.move(handle.x - 95, handle.y + handle.height / 2, { steps: 5 })
+  await fl.mouse.up()
+  const stored = Number(await fl.evaluate(() => localStorage.getItem('cove.floatCardWidth')))
+  expect(stored).toBeGreaterThan(520)
+  await expect.poll(pageWidth).toBeLessThan(before - 40)
+  // Put away: the page has its whole width back.
+  await fl.locator('.fl-card input').press('Escape')
+  await expect.poll(pageWidth).toBeGreaterThan(full - 4)
+  await fl.evaluate(() => localStorage.removeItem('cove.floatCardWidth'))
+})
+
 test('the whole chat, then back to side by side', async () => {
   const fl = await floatPage()
   await fl.locator('.fl-mark').click()
@@ -223,6 +252,34 @@ test('SHOT: the three layers put together, to look at', async () => {
     .locator('.desk-mode-switch:visible')
     .getByRole('button', { name: 'Browser first' })
     .click()
+  // A conversation like a real one, straight to the floating chat (the test runs no agent).
+  await fl.waitForSelector('.fl-mark')
+  await app.evaluate(({ webContents }) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL().endsWith('#float'))!
+    const say = (id: string, me: boolean, text: string): unknown => ({ id, me, text })
+    wc.send('float:state', {
+      chatId: 'x',
+      agent: 'Claude',
+      provider: 'claude',
+      working: true,
+      status: 'Terminal cd wepush',
+      needsYou: false,
+      messages: [
+        say('1', true, 'Can you check the add-social change on Hetzner dev?'),
+        say(
+          '2',
+          false,
+          "DELETE /user is the self-delete, confirmed by password. I'll use it on the three test accounts, then log in again to confirm they're gone."
+        ),
+        say(
+          '3',
+          false,
+          "The backend change is live on Hetzner dev, Ingenia dev and Ingenia test, but I couldn't run the full flow on Ingenia and I haven't touched the apps yet. /add-social now also accepts a creator who hasn't verified their email yet."
+        ),
+        say('4', true, 'is it good on dev hetzner now?')
+      ]
+    })
+  })
   await shoot('mark')
   await fl.locator('.fl-mark').hover()
   await shoot('hover')

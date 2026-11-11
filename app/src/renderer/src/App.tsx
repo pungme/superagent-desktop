@@ -660,6 +660,8 @@ function App(): React.JSX.Element {
           new CustomEvent('cove:float-send', { detail: { chatId: a.chatId, text: a.text } })
         )
       else if (a.type === 'side') useStore.getState().setBrowserFirst(false)
+      else if (a.type === 'inset')
+        window.dispatchEvent(new CustomEvent('cove:float-inset', { detail: a.px }))
     })
     const offCmd = window.cove.onMenuFloatCommand(() => useStore.getState().setBrowserFirst(true))
     return () => {

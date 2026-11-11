@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { FloatCommand, FloatState } from '../../../shared/float-chat'
+import { CARD_W, DRAWER_W, type FloatCommand, type FloatState } from '../../../shared/float-chat'
 import { ProviderLogo } from '../components/ProviderLogo'
 import './float.css'
 
@@ -27,8 +27,15 @@ const ROOM = {
   hover: { w: 330, h: 108 },
   busy: { w: 440, h: 108 },
   peek: { w: 500, h: 190 },
-  full: { w: 440, h: 4000 },
-  openW: 512
+  full: { w: DRAWER_W + 40, h: 4000 }
+}
+/** The view around the card: the card's right margin and room for its shadow. */
+const CARD_ROOM = 42
+/** Between the page, moved over, and the card. */
+const PAGE_GAP = 16
+const savedWidth = (): number => {
+  const w = Number(localStorage.getItem('cove.floatCardWidth'))
+  return w >= CARD_W.min && w <= CARD_W.max ? w : CARD_W.initial
 }
 /** How long a closing animation runs before the view shrinks. */
 const CLOSE_MS = 420
@@ -58,6 +65,10 @@ export function FloatChat(): React.JSX.Element {
   const [unread, setUnread] = useState(false)
   const [draft, setDraft] = useState('')
   const [panelH, setPanelH] = useState(140)
+  /** The card's width, dragged at its left edge and remembered. */
+  const [cardW, setCardW] = useState(savedWidth)
+  /** Open shows the last exchange; the earlier messages come with this. */
+  const [expanded, setExpanded] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const fullInputRef = useRef<HTMLInputElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
@@ -103,7 +114,7 @@ export function FloatChat(): React.JSX.Element {
     view === 'full'
       ? ROOM.full
       : view === 'open'
-        ? { w: ROOM.openW, h: panelH + 56 }
+        ? { w: cardW + CARD_ROOM, h: panelH + 56 }
         : peek || needsYou
           ? ROOM.peek
           : st?.working
@@ -126,17 +137,53 @@ export function FloatChat(): React.JSX.Element {
     return () => clearTimeout(t)
   }, [want.w, want.h]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The page moves over while the chat is open, so the chat is beside it and
+  // covers nothing; back when it is put away. Its width follows the card's.
+  const inset =
+    view === 'open' ? cardW + 14 + PAGE_GAP : view === 'full' ? DRAWER_W + 14 + PAGE_GAP : 0
+  useEffect(() => {
+    window.cove.floatAction({ type: 'inset', px: inset })
+  }, [inset])
+
+  /** Drag the card's left edge: wider to the left, narrower to the right. */
+  const onResizeDown = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    const startX = e.screenX
+    const startW = cardW
+    // The view grows first, to the widest the card may be, so the drag never runs off it.
+    sent.current = { w: CARD_W.max + CARD_ROOM, h: panelH + 56 }
+    window.cove.floatSize(sent.current)
+    let raf = 0
+    let next = startW
+    const move = (ev: PointerEvent): void => {
+      next = Math.round(Math.max(CARD_W.min, Math.min(CARD_W.max, startW + (startX - ev.screenX))))
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => setCardW(next))
+    }
+    const up = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      localStorage.setItem('cove.floatCardWidth', String(next))
+      document.documentElement.classList.remove('fl-resizing')
+    }
+    document.documentElement.classList.add('fl-resizing')
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   // The open panel's height, so the view is no taller than it.
   useLayoutEffect(() => {
     const el = panelRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setPanelH(Math.ceil(el.getBoundingClientRect().height)))
+    // Its laid-out height, not its drawn one: shut, the card is scaled down.
+    const ro = new ResizeObserver(() => setPanelH(el.offsetHeight))
     ro.observe(el)
     return () => ro.disconnect()
   }, [!!st]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = useCallback((to: View = 'open'): void => {
     const show = (): void => {
+      if (viewRef.current === 'mark') setExpanded(false)
       setView(to)
       setPeek(null)
       setUnread(false)
@@ -200,9 +247,24 @@ export function FloatChat(): React.JSX.Element {
   const msgs = st.messages
   const n = msgs.length
   const status = st.status || 'Working'
-  const list = (ref: React.RefObject<HTMLDivElement | null>, fade: boolean): React.JSX.Element => (
-    <div className="fl-log" ref={ref}>
-      {msgs.map((m, i) => {
+  // The last exchange: from your last message on (or the last two, if none).
+  const lastMine = msgs.map((m) => m.me).lastIndexOf(true)
+  const startShort = lastMine >= 0 ? lastMine : Math.max(0, n - 2)
+  const list = (
+    ref: React.RefObject<HTMLDivElement | null>,
+    fade: boolean,
+    from = 0
+  ): React.JSX.Element => (
+    <div
+      className="fl-log"
+      ref={ref}
+      onWheel={(e) => {
+        // Scrolling up past the last exchange brings the earlier messages in.
+        if (from > 0 && e.deltaY < 0 && (ref.current?.scrollTop ?? 0) <= 0) setExpanded(true)
+      }}
+    >
+      {msgs.slice(from).map((m, j) => {
+        const i = from + j
         const age = n - 1 - i
         const opacity = !fade || age < 3 ? 1 : Math.max(0.3, 1 - (age - 2) * 0.17)
         return (
@@ -278,15 +340,39 @@ export function FloatChat(): React.JSX.Element {
       </div>
 
       {/* Open: the conversation stacked over the box */}
-      <div className={`fl-panel ${view === 'open' ? '' : 'shut'}`} ref={panelRef}>
-        <div className="fl-stack">{list(logRef, true)}</div>
+      <div
+        className={`fl-panel fl-card ${view === 'open' ? '' : 'shut'}`}
+        ref={panelRef}
+        style={{ width: cardW }}
+      >
+        <div
+          className="fl-resize"
+          onPointerDown={onResizeDown}
+          title="Drag to make the chat wider or narrower"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Chat width"
+        />
+        <div className="fl-chd">
+          <SaMark provider={st.provider} size={18} />
+          <b>Superagent</b>
+          <span>· {st.agent}</span>
+          <span className="fl-sp" />
+          {startShort > 0 && (
+            <button className="fl-earlier" onClick={() => setExpanded((x) => !x)}>
+              {expanded ? 'Latest only' : `${startShort} earlier`}
+            </button>
+          )}
+        </div>
+        <div className={`fl-stack ${expanded ? 'expanded' : ''}`}>
+          {list(logRef, expanded, expanded ? 0 : startShort)}
+        </div>
         {st.needsYou && (
           <button className="fl-ask" onClick={side}>
             {st.agent} is asking you something. <u>Answer in the chat</u>
           </button>
         )}
         <div className="fl-box">
-          <SaMark provider={st.provider} size={26} />
           <input
             ref={inputRef}
             value={draft}
@@ -328,11 +414,27 @@ export function FloatChat(): React.JSX.Element {
           <SaMark provider={st.provider} size={22} />
           <span className="fl-dtitle">{st.agent}</span>
           <span className="fl-sp" />
-          <button className="fl-hbtn" onClick={side} title="Put the chat beside the page (⌘⇧B)">
-            Put beside the page
+          {/* Glyphs, like the box's own buttons; the words are in the tooltip. */}
+          <button
+            className="fl-xp"
+            onClick={side}
+            aria-label="Put beside the page"
+            title="Put the chat beside the page (⌘⇧B)"
+          >
+            <svg viewBox="0 0 16 16">
+              <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
+              <path d="M10 2.8v10.4" />
+            </svg>
           </button>
-          <button className="fl-hbtn" onClick={() => open('open')}>
-            Hide
+          <button
+            className="fl-xp"
+            onClick={() => open('open')}
+            aria-label="Hide"
+            title="Back to the small box (⌘⇧\)"
+          >
+            <svg viewBox="0 0 16 16">
+              <path d="M13.5 2.5 9 7M9 3.5V7h3.5M2.5 13.5 7 9M7 12.5V9H3.5" />
+            </svg>
           </button>
         </div>
         <div className="fl-dbody">{list(fullLogRef, false)}</div>

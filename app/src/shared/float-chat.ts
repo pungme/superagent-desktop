@@ -42,9 +42,16 @@ export type FloatAction =
   | { type: 'side' }
   /** Give the keyboard back to the app's page. */
   | { type: 'focus-app' }
+  /** How much of the page's right side the open chat takes: the page moves over by it (0: none). */
+  | { type: 'inset'; px: number }
 
 /** From the menu: open the box (⌘\), the whole chat (⌘⇧\), or back to the mark. */
 export type FloatCommand = 'toggle' | 'full' | 'close'
+
+/** The open card's width: what it starts at, and how far it can be dragged. */
+export const CARD_W = { initial: 470, min: 360, max: 760 }
+/** The whole chat's width. */
+export const DRAWER_W = 400
 
 /** Margin between the chat and the edge of the page it floats over. */
 export const FLOAT_MARGIN = 18
