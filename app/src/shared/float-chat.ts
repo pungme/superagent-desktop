@@ -86,7 +86,12 @@ export function plainText(md: string, max = 600): string {
  * else to its first line.
  */
 export function floatStatus(verb: string, detail: string): string {
-  const d = detail.trim().split('\n')[0].trim()
+  // A command's leading NAME=value settings say nothing about what it does.
+  const d = detail
+    .trim()
+    .split('\n')[0]
+    .trim()
+    .replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, '')
   const what = /^[^\s]+\/[^\s]+$/.test(d) ? (d.split('/').pop() ?? d) : d
   const line = what ? `${verb} ${what}` : verb
   return line.length > 48 ? line.slice(0, 47) + '…' : line

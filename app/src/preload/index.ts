@@ -1102,6 +1102,8 @@ export interface CoveApi {
   floatSize: (size: FloatSize) => void
   /** The floating chat's view: something for the app's page to do. */
   floatAction: (action: FloatAction) => void
+  /** The floating chat's view, once listening: send me what to show. */
+  floatHello: () => void
   onFloatState: (cb: (state: FloatState) => void) => () => void
   onFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
   onFloatAction: (cb: (action: FloatAction) => void) => () => void
@@ -1786,6 +1788,7 @@ const cove: CoveApi = {
   floatState: (state) => ipcRenderer.send('float:state', state),
   floatSize: (size) => ipcRenderer.send('float:size', size),
   floatAction: (action) => ipcRenderer.send('float:action', action),
+  floatHello: () => ipcRenderer.send('float:hello'),
   onFloatState: (cb) => subscribe('float:state', (p) => cb(p as FloatState)),
   onFloatCommand: (cb) => subscribe('float:command', (p) => cb(p as FloatCommand)),
   onFloatAction: (cb) => subscribe('float:action', (p) => cb(p as FloatAction)),

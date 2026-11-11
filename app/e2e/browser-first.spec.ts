@@ -178,7 +178,7 @@ test('the whole chat, then back to side by side', async () => {
   await expect.poll(async () => (await floatView())?.visible).toBe(false)
   await expect(
     window.locator('.desk-mode-switch:visible').getByRole('button', { name: 'Side by side' })
-  ).toHaveClass(/active/)
+  ).toHaveAttribute('aria-pressed', 'true')
   await window.screenshot({ path: 'test-results/browser-first-side.png' })
 })
 

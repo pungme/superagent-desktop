@@ -138,6 +138,13 @@ export function registerFloatChatIpc(): void {
     f.state = state
     if (f.ready) f.view.webContents.send('float:state', state)
   })
+  // From the float view, once it is listening: what to show (it may have been
+  // sent before the page had finished loading, and missed).
+  ipcMain.on('float:hello', (e) => {
+    const win = windowOfFloat(e.sender)
+    const f = win && floats.get(win.id)
+    if (f?.state) e.sender.send('float:state', f.state)
+  })
   // From the float view: how much room it needs now.
   ipcMain.on('float:size', (e, size: FloatSize) => {
     const win = windowOfFloat(e.sender)

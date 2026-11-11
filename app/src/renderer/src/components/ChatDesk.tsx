@@ -587,13 +587,13 @@ export function ChatDesk({
     const send = (): void => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // Over the page itself, below its address bar (which floats inside the
-        // pane's host, above the native view).
-        const host = el.querySelector('[data-pane-id]') ?? el
-        const h = host.getBoundingClientRect()
+        // Over the whole desk (the page, and the simulator beside it if there
+        // is one), in its bottom-right corner; from below the page's address
+        // bar down, so the whole chat never covers it.
+        const d = el.getBoundingClientRect()
         const bar = el.querySelector('.browser-toolbar')?.getBoundingClientRect()
-        const top = bar && bar.bottom > h.top && bar.bottom < h.bottom ? bar.bottom + 8 : h.top
-        const r = { left: h.left, top, width: h.width, height: h.bottom - top }
+        const top = bar && bar.bottom > d.top && bar.bottom < d.bottom ? bar.bottom + 8 : d.top
+        const r = { left: d.left, top, width: d.width, height: d.bottom - top }
         if (r.width < 200 || r.height < 160) window.cove.floatPlace(null)
         else
           window.cove.floatPlace({
@@ -1036,20 +1036,32 @@ export function ChatDesk({
             others rather than among the New chat pills. The glyph shows the
             arrangement you would move to; no label, it is not worth a word. */}
           {pageOnDesk && !inSplit && !mini && layout === 'side' && (
-            <div className="mode-switch desk-mode-switch" role="group" aria-label="Chat layout">
+            <div className="desk-mode-switch" role="group" aria-label="Chat layout">
+              {/* Two glyphs, like the other toolbar buttons: the chat in a column
+                  beside the page, or a small chat floating on a page that fills it. */}
               <button
-                className={`mode-switch-btn ${!browserFirst ? 'active' : ''}`}
+                className={`toolbar-btn toolbar-icon ${!browserFirst ? 'on' : ''}`}
                 onClick={() => setBrowserFirst(false)}
-                title="The chat beside the page (⌘⇧B)"
+                aria-pressed={!browserFirst}
+                title="Side by side: the chat beside the page (⌘⇧B)"
               >
-                Side by side
+                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
+                  <path d="M10 2.8v10.4" />
+                </svg>
+                <span className="toolbar-label">Side by side</span>
               </button>
               <button
-                className={`mode-switch-btn ${browserFirst ? 'active' : ''}`}
+                className={`toolbar-btn toolbar-icon ${browserFirst ? 'on' : ''}`}
                 onClick={() => setBrowserFirst(true)}
-                title="The page fills the window, the chat floats over it (⌘⇧B)"
+                aria-pressed={browserFirst}
+                title="Browser first: the page fills the window, the chat floats over it (⌘⇧B)"
               >
-                Browser first
+                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6" />
+                  <rect x="9.2" y="8.6" width="3.4" height="3" rx="1" className="toolbar-ic-fill" />
+                </svg>
+                <span className="toolbar-label">Browser first</span>
               </button>
             </div>
           )}

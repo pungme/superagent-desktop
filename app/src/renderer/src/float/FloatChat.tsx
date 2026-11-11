@@ -68,7 +68,12 @@ export function FloatChat(): React.JSX.Element {
     viewRef.current = view
   }, [view])
 
-  useEffect(() => window.cove.onFloatState(setSt), [])
+  useEffect(() => {
+    const off = window.cove.onFloatState(setSt)
+    // Asked once listening: what was sent before this page loaded is not lost.
+    window.cove.floatHello()
+    return off
+  }, [])
 
   // An answer while only the mark shows: it peeks out, and leaves a dot.
   const lastAnswer = useRef<string | null>(null)

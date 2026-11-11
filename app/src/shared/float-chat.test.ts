@@ -17,6 +17,9 @@ describe('the floating chat', () => {
     expect(floatStatus('Editing', '/Users/me/site/src/index.html')).toBe('Editing index.html')
     expect(floatStatus('Terminal', 'npm test -- --run\nmore')).toBe('Terminal npm test -- --run')
     expect(floatStatus('Reading', '')).toBe('Reading')
+    expect(floatStatus('Terminal', 'U=90A321FB-4D64 CI=1 xcrun simctl boot')).toBe(
+      'Terminal xcrun simctl boot'
+    )
     expect(floatStatus('Terminal', 'x'.repeat(100)).length).toBe(48)
   })
   it('shows a message as plain words', () => {
