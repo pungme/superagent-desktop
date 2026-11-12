@@ -10,6 +10,7 @@ import { draftOf, saveDraft } from '../drafts'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
+import { noteBattery, readWireBattery } from './battery'
 import { openSimulators, deviceLabel } from '../simulator'
 import {
   handleRemoteRpc,
@@ -289,6 +290,11 @@ export class ClientConn {
       }
       // Remote control, when this Mac has it on: where it stands for this phone.
       if (remoteControlOn()) this.send({ t: 'remote', remote: remoteWire(this.id) })
+      // The Mac's battery, for the phone to show beside its name.
+      void readWireBattery().then((b) => {
+        noteBattery(b)
+        if (b) this.send({ t: 'battery', battery: b })
+      })
       this.onAuthed(this)
       return
     }

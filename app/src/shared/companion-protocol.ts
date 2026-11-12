@@ -223,6 +223,14 @@ export interface WireLoop {
   needsUser?: boolean
 }
 
+/** The Mac's battery; the Mac leaves it out when it has none. */
+export interface WireBattery {
+  /** 0 to 100. */
+  percent: number
+  /** On the charger (the battery may still be filling). */
+  pluggedIn: boolean
+}
+
 export interface WireMachine {
   name: string
   appVersion: string
@@ -286,6 +294,8 @@ export type ServerFrame =
   | { t: 'simulator'; simulator: WireSimulator }
   /** Remote control: where the session stands. Sent on every change (see WireRemote). */
   | { t: 'remote'; remote: WireRemote }
+  /** The Mac's battery, after welcome and whenever it changes; null: this Mac has none. */
+  | { t: 'battery'; battery: WireBattery | null }
   /** Remote control: a piece of the Mac's screen, while a session is running. */
   | { t: 'screen'; frame: WireScreenFrame }
   | { t: 'res'; id: string; ok: true; result?: unknown }

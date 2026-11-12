@@ -21,6 +21,7 @@ import {
 } from '../store'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL, type AgentProvider } from '../../shared/agent-provider'
 import { broadcastToWindows } from '../util'
+import { watchBattery } from './battery'
 import { listDevices, removeDevice } from './devices'
 import {
   startPairing,
@@ -80,6 +81,13 @@ export function startCompanion(): void {
   })
   watchStatuses()
   startReaper()
+  // The Mac's battery, told to every phone when it changes.
+  watchBattery(
+    () => [...conns.values()].filter((c) => c.authenticated).length,
+    (battery) => {
+      for (const c of conns.values()) if (c.authenticated) c.send({ t: 'battery', battery })
+    }
+  )
 
   relay.on('open', ({ conn }: { conn: string }) => {
     conns.set(
