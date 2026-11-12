@@ -26,7 +26,7 @@ function send(channel: string): void {
   BrowserWindow.getFocusedWindow()?.webContents.send(channel)
 }
 
-/** ⌘\ and ⌘⇧\ go to the floating chat when there is one; otherwise they turn browser first on. */
+/** ⌘J and ⌘⇧J go to the floating chat when there is one; otherwise they turn browser first on. */
 function floatCommand(cmd: FloatCommand): void {
   const win = BrowserWindow.getFocusedWindow()
   if (!win) return
@@ -144,12 +144,12 @@ export function buildMenu(): void {
         },
         {
           label: 'Ask Superagent',
-          accelerator: 'CmdOrCtrl+\\',
+          accelerator: 'CmdOrCtrl+J',
           click: () => floatCommand('toggle')
         },
         {
           label: 'Show the Whole Chat',
-          accelerator: 'CmdOrCtrl+Shift+\\',
+          accelerator: 'CmdOrCtrl+Shift+J',
           click: () => floatCommand('full')
         },
         { type: 'separator' },

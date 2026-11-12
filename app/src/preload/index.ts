@@ -1107,7 +1107,7 @@ export interface CoveApi {
   onFloatState: (cb: (state: FloatState) => void) => () => void
   onFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
   onFloatAction: (cb: (action: FloatAction) => void) => () => void
-  /** ⌘\ or ⌘⇧\ with no floating chat on screen. */
+  /** ⌘J or ⌘⇧J with no floating chat on screen. */
   onMenuFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void

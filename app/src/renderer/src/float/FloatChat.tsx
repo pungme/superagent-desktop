@@ -7,13 +7,13 @@ import './float.css'
  * Browser first: the chat floating over the page (main/float-chat.ts says why
  * it is a view of its own). Three ways to be:
  *
- *  - the mark: Superagent's icon with the agent's badge and ⌘\ under it; hovered,
- *    "Ask Superagent ⌘\" unrolls beside it. While it works a glow breathes round
+ *  - the mark: Superagent's icon with the agent's badge and ⌘J under it; hovered,
+ *    "Ask Superagent ⌘J" unrolls beside it. While it works a glow breathes round
  *    it with one line of what it is doing; an answer peeks out for a few seconds
  *    and leaves a blue dot.
  *  - open: the message box, with the conversation stacked above it, older
- *    messages fading. Stays until put away (⌄, ⌘\ or Esc).
- *  - the whole chat: a panel down the right of the page (⤢ or ⌘⇧\).
+ *    messages fading. Stays until put away (⌄, ⌘J or Esc).
+ *  - the whole chat: a panel down the right of the page (⤢ or ⌘⇧J).
  *
  * The view is only as large as what it shows (a view takes every click in its
  * rectangle): it grows before an opening animation and shrinks after a closing one.
@@ -31,8 +31,6 @@ const ROOM = {
 }
 /** The view around the card: the card's right margin and room for its shadow. */
 const CARD_ROOM = 42
-/** Between the page, moved over, and the card. */
-const PAGE_GAP = 16
 const savedWidth = (): number => {
   const w = Number(localStorage.getItem('cove.floatCardWidth'))
   return w >= CARD_W.min && w <= CARD_W.max ? w : CARD_W.initial
@@ -136,14 +134,6 @@ export function FloatChat(): React.JSX.Element {
     const t = setTimeout(apply, CLOSE_MS)
     return () => clearTimeout(t)
   }, [want.w, want.h]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The page moves over while the chat is open, so the chat is beside it and
-  // covers nothing; back when it is put away. Its width follows the card's.
-  const inset =
-    view === 'open' ? cardW + 14 + PAGE_GAP : view === 'full' ? DRAWER_W + 14 + PAGE_GAP : 0
-  useEffect(() => {
-    window.cove.floatAction({ type: 'inset', px: inset })
-  }, [inset])
 
   /** Drag the card's left edge: wider to the left, narrower to the right. */
   const onResizeDown = (e: React.PointerEvent): void => {
@@ -291,13 +281,13 @@ export function FloatChat(): React.JSX.Element {
         onMouseLeave={() => setHover(false)}
         onClick={() => open('open')}
         role="button"
-        aria-label="Ask Superagent (⌘\)"
+        aria-label="Ask Superagent (⌘J)"
       >
         <span className="fl-lbl">
           Ask Superagent
           <span className="fl-keys">
             <b>⌘</b>
-            <b>\</b>
+            <b>J</b>
           </span>
         </span>
         <span className="fl-ringwrap">
@@ -305,7 +295,7 @@ export function FloatChat(): React.JSX.Element {
           <span className="fl-ring" />
           <span className="fl-badge" />
         </span>
-        <span className="fl-hint">⌘ \</span>
+        <span className="fl-hint">⌘ J</span>
       </div>
       <div className={`fl-live ${view === 'mark' && st.working && !peek ? '' : 'gone'}`}>
         <span className="fl-spin" />
@@ -330,7 +320,7 @@ export function FloatChat(): React.JSX.Element {
             <div className="fl-peek-text">{peek}</div>
             <small>
               <span>Click to reply</span>
-              <span>⌘ \</span>
+              <span>⌘ J</span>
             </small>
             <div className="fl-bar">
               <i key={peek ?? ''} />
@@ -388,12 +378,12 @@ export function FloatChat(): React.JSX.Element {
           <span className="fl-esc" title="Make it small again">
             esc
           </span>
-          <button className="fl-xp" title="Make it small again (⌘\ or Esc)" onClick={close}>
+          <button className="fl-xp" title="Make it small again (⌘J or Esc)" onClick={close}>
             <svg viewBox="0 0 16 16">
               <path d="M4 6.5 8 10.5l4-4" />
             </svg>
           </button>
-          <button className="fl-xp" title="Show the whole chat (⌘⇧\)" onClick={() => open('full')}>
+          <button className="fl-xp" title="Show the whole chat (⌘⇧J)" onClick={() => open('full')}>
             <svg viewBox="0 0 16 16">
               <path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" />
             </svg>
@@ -430,7 +420,7 @@ export function FloatChat(): React.JSX.Element {
             className="fl-xp"
             onClick={() => open('open')}
             aria-label="Hide"
-            title="Back to the small box (⌘⇧\)"
+            title="Back to the small box (⌘⇧J)"
           >
             <svg viewBox="0 0 16 16">
               <path d="M13.5 2.5 9 7M9 3.5V7h3.5M2.5 13.5 7 9M7 12.5V9H3.5" />

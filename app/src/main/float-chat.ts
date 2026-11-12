@@ -104,7 +104,7 @@ export function floatViewOf(win: BrowserWindow): WebContentsView | null {
   return floats.get(win.id)?.view ?? null
 }
 
-/** A menu command (⌘\, ⌘⇧\) for the window's floating chat, if it has one on screen. */
+/** A menu command (⌘J, ⌘⇧J) for the window's floating chat, if it has one on screen. */
 export function sendFloatCommand(win: BrowserWindow, cmd: FloatCommand): boolean {
   const f = floats.get(win.id)
   if (!f?.place || win.isDestroyed()) return false

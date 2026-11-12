@@ -652,7 +652,7 @@ function App(): React.JSX.Element {
   }, [addGroup, addWorkspace])
 
   // Browser first: what the floating chat asks for (main/float-chat.ts), and
-  // ⌘\ pressed while there is none on screen, which turns it on.
+  // ⌘J pressed while there is none on screen, which turns it on.
   useEffect(() => {
     const offAction = window.cove.onFloatAction((a) => {
       if (a.type === 'send')

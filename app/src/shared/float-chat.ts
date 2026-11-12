@@ -45,7 +45,7 @@ export type FloatAction =
   /** How much of the page's right side the open chat takes: the page moves over by it (0: none). */
   | { type: 'inset'; px: number }
 
-/** From the menu: open the box (⌘\), the whole chat (⌘⇧\), or back to the mark. */
+/** From the menu: open the box (⌘J), the whole chat (⌘⇧J), or back to the mark. */
 export type FloatCommand = 'toggle' | 'full' | 'close'
 
 /** The open card's width: what it starts at, and how far it can be dragged. */

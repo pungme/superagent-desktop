@@ -113,7 +113,7 @@ test('Browser first: the page takes the whole desk, the chat floats in its corne
     .toBeGreaterThan(before!.width + 100)
   const fl = await floatPage()
   await expect(fl.locator('.fl-mark')).toBeVisible()
-  await expect(fl.locator('.fl-hint')).toHaveText('⌘ \\')
+  await expect(fl.locator('.fl-hint')).toHaveText('⌘ J')
   await expect.poll(async () => (await floatView())?.visible).toBe(true)
   const v = (await floatView())!
   expect(v.onTop).toBe(true)
@@ -168,39 +168,32 @@ test('clicking the mark opens the box, which stays open; what is typed goes to t
     .toBeLessThan(470)
 })
 
-test('while the chat is open the page moves over beside it, and the card can be dragged wider', async () => {
+test('while the chat is open it floats over the page, which keeps its place and size; the card can be dragged wider', async () => {
   const fl = await floatPage()
-  const pageWidth = async (): Promise<number> =>
-    (await window.locator('.split-side.desk [data-pane-id]').boundingBox())!.width
-  const full = await pageWidth()
+  const page = async (): Promise<{ x: number; width: number }> =>
+    (await window.locator('.split-side.desk [data-pane-id]').boundingBox())!
+  const before = await page()
   await fl.locator('.fl-mark').click()
   await expect(fl.locator('.fl-panel')).not.toHaveClass(/shut/)
-  // The page gives up the card's width (470) and a little more, and stops short of the card.
-  await expect.poll(pageWidth).toBeLessThan(full - 450)
-  const card = (await fl.locator('.fl-card').boundingBox())!
-  const view = (await floatView())!.bounds
-  const page = (await window.locator('.split-side.desk [data-pane-id]').boundingBox())!
-  expect(page.x + page.width).toBeLessThanOrEqual(view.x + card.x + 2)
-  // Drag the card's left edge 100 px to the left: wider card, narrower page, remembered.
+  await window.waitForTimeout(600)
+  expect(await page()).toEqual(before)
+  // Drag the card's left edge 100 px to the left: a wider card, remembered; the page stays put.
   const handle = (await fl.locator('.fl-resize').boundingBox())!
-  const before = await pageWidth()
   await fl.mouse.move(handle.x + 5, handle.y + handle.height / 2)
   await fl.mouse.down()
   await fl.mouse.move(handle.x - 95, handle.y + handle.height / 2, { steps: 5 })
   await fl.mouse.up()
   const stored = Number(await fl.evaluate(() => localStorage.getItem('cove.floatCardWidth')))
   expect(stored).toBeGreaterThan(520)
-  await expect.poll(pageWidth).toBeLessThan(before - 40)
-  // Put away: the page has its whole width back.
+  expect(await page()).toEqual(before)
   await fl.locator('.fl-card input').press('Escape')
-  await expect.poll(pageWidth).toBeGreaterThan(full - 4)
   await fl.evaluate(() => localStorage.removeItem('cove.floatCardWidth'))
 })
 
 test('the whole chat, then back to side by side', async () => {
   const fl = await floatPage()
   await fl.locator('.fl-mark').click()
-  await fl.getByTitle('Show the whole chat (⌘⇧\\)').click()
+  await fl.getByTitle('Show the whole chat (⌘⇧J)').click()
   await expect(fl.locator('.fl-drawer')).not.toHaveClass(/gone/)
   await fl.getByRole('button', { name: 'Put beside the page' }).click()
   await expect(window.locator('.split-side-chat.floating')).toHaveCount(0)
@@ -285,6 +278,6 @@ test('SHOT: the three layers put together, to look at', async () => {
   await shoot('hover')
   await fl.locator('.fl-mark').click()
   await shoot('open')
-  await fl.getByTitle('Show the whole chat (⌘⇧\\)').click()
+  await fl.getByTitle('Show the whole chat (⌘⇧J)').click()
   await shoot('full')
 })

@@ -81,7 +81,7 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
 The page fills the desk and the chat floats over it, in the bottom-right corner
 (`src/main/float-chat.ts`, `src/renderer/src/float/FloatChat.tsx`,
 `src/shared/float-chat.ts`). Turned on with the Side by side / Browser first
-switch in the desk toolbar or ⌘⇧B; ⌘\ opens the box, ⌘⇧\ the whole chat.
+switch in the desk toolbar or ⌘⇧B; ⌘J opens the box, ⌘⇧J the whole chat.
 
 - The page is a native view, above all of the window's HTML, so the floating
   chat is a view of its own (`#float`, transparent), kept above every page view
