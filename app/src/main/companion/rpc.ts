@@ -1,4 +1,6 @@
 import { frameWanted, mirrorShotWidth } from '../../shared/mirror-shot'
+import { discoverSkills } from '../skills'
+import { addSavedPrompt, listSaved, removeSavedPrompt } from '../saved-prompts'
 import { z } from 'zod'
 import {
   getTree,
@@ -189,6 +191,12 @@ const backgroundStop = z.object({ chatId: z.string().min(1), toolUseId: z.string
 // first message. Older phones send neither, and a phone's "+ New chat" is the
 // common case, so absent means new.
 const chatCreate = z.object({ workspaceId: z.string().min(1), root: z.boolean().optional() })
+const skillsList = z.object({
+  provider: z.enum(['claude', 'codex', 'antigravity']).optional(),
+  workspaceId: z.string().min(1).optional()
+})
+const savedAdd = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(200_000) })
+const savedRemove = z.object({ chatId: z.string().min(1), id: z.string().min(1) })
 const approvalAnswer = z.object({
   id: z.string().min(1),
   approve: z.boolean(),
@@ -441,6 +449,30 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           return fail('unavailable', 'Letting an agent use your Mac is allowed at the Mac itself.')
         const done = resolveGate(a.id, a.approve, a.trustRest ?? false, 'ios')
         return done ? { ok: true } : fail('gone', 'that approval is no longer waiting')
+      }
+      // Save for later: the same list as the Mac's composer.
+      case 'saved.list': {
+        const p = chatId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        return { ok: true, result: listSaved(p.data.chatId) }
+      }
+      case 'saved.add': {
+        const p = savedAdd.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        return { ok: true, result: addSavedPrompt(p.data.chatId, p.data.text) }
+      }
+      case 'saved.remove': {
+        const p = savedRemove.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        return { ok: true, result: removeSavedPrompt(p.data.chatId, p.data.id) }
+      }
+      // Settings → Skills on the phone: what the Mac's agent can run.
+      case 'skills.list': {
+        const p = skillsList.safeParse(params ?? {})
+        if (!p.success) return fail('bad-params', p.error.message)
+        const ws = p.data.workspaceId ? getWorkspace(p.data.workspaceId) : undefined
+        return { ok: true, result: discoverSkills(ws?.path, p.data.provider ?? 'claude') }
       }
       case 'routines.list':
         return { ok: true, result: listRoutines() }

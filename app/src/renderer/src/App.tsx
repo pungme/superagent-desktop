@@ -1,4 +1,5 @@
 import { goBack, visited, type Visit } from '../../shared/visit-history'
+import { applySavedFromMac } from './lib/saved-prompts'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView, type WorkspaceTile } from './components/WorkspaceView'
@@ -650,6 +651,13 @@ function App(): React.JSX.Element {
       }
     })
   }, [addGroup, addWorkspace])
+
+  // Save for later, changed on a phone: the composer and ⌘K show it at once.
+  useEffect(
+    () =>
+      window.cove.onSavedPromptsChanged?.(({ chatId, json }) => applySavedFromMac(chatId, json)),
+    []
+  )
 
   // Browser first: what the floating chat asks for (main/float-chat.ts), and
   // ⌘J pressed while there is none on screen, which turns it on.

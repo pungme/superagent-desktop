@@ -223,6 +223,23 @@ export interface WireLoop {
   needsUser?: boolean
 }
 
+/** A skill or slash command an agent on the Mac can run (`skills.list`). */
+export interface WireSkill {
+  name: string
+  description: string
+  /** claude.ai: synced from the account at claude.ai, managed there. */
+  scope: 'global' | 'project' | 'claude.ai'
+  kind: 'skill' | 'command'
+}
+
+/** A prompt set aside with Save for later, newest first in a chat's list. */
+export interface WireSavedPrompt {
+  id: string
+  text: string
+  /** When it was set aside, ms since 1970. */
+  at: number
+}
+
 /** The Mac's battery; the Mac leaves it out when it has none. */
 export interface WireBattery {
   /** 0 to 100. */
@@ -296,6 +313,8 @@ export type ServerFrame =
   | { t: 'remote'; remote: WireRemote }
   /** The Mac's battery, after welcome and whenever it changes; null: this Mac has none. */
   | { t: 'battery'; battery: WireBattery | null }
+  /** Save for later: a chat's prompts set aside, whenever they change (on the Mac or a phone). */
+  | { t: 'saved'; chatId: string; prompts: WireSavedPrompt[] }
   /** Remote control: a piece of the Mac's screen, while a session is running. */
   | { t: 'screen'; frame: WireScreenFrame }
   | { t: 'res'; id: string; ok: true; result?: unknown }
@@ -428,6 +447,10 @@ export type RpcMethod =
   | 'fs.dirs'
   | 'screenshot.take'
   | 'device.presence'
+  | 'saved.list'
+  | 'saved.add'
+  | 'saved.remove'
+  | 'skills.list'
 
 export type RpcErrorCode = 'bad-params' | 'not-found' | 'gone' | 'unavailable' | 'internal'
 

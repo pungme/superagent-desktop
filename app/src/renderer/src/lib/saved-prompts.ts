@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import {
+  MAX_SAVED,
+  SAVED_PROMPTS_PREFIX,
+  parseSaved,
+  withSaved,
+  withoutSaved,
+  type SavedPrompt
+} from '../../../shared/saved-prompts'
 
 /**
  * Save for later: a prompt set aside so another can be written first (⌘S in the
@@ -6,25 +14,15 @@ import { useCallback, useEffect, useState } from 'react'
  * app keeps across restarts, see main.tsx); the ⌘K palette lists every chat's.
  */
 
-export interface SavedPrompt {
-  id: string
-  text: string
-  at: number
-}
+export type { SavedPrompt }
 
-const PREFIX = 'cove.savedPrompts:'
+const PREFIX = SAVED_PROMPTS_PREFIX
 /** Told to every composer and the palette when a list changes. */
 export const SAVED_PROMPTS_CHANGED = 'cove:saved-prompts-changed'
-/** The most kept per chat; past it the oldest goes. */
-export const MAX_SAVED = 20
+export { MAX_SAVED }
 
 export function readSaved(chatId: string): SavedPrompt[] {
-  try {
-    const list = JSON.parse(localStorage.getItem(PREFIX + chatId) ?? '[]') as SavedPrompt[]
-    return Array.isArray(list) ? list.filter((p) => p && typeof p.text === 'string') : []
-  } catch {
-    return []
-  }
+  return parseSaved(localStorage.getItem(PREFIX + chatId))
 }
 
 function writeSaved(chatId: string, list: SavedPrompt[]): void {
@@ -35,20 +33,27 @@ function writeSaved(chatId: string, list: SavedPrompt[]): void {
 
 /** Set a prompt aside. Returns the list as it is now. */
 export function addSaved(chatId: string, text: string, now = Date.now()): SavedPrompt[] {
-  const t = text.trim()
-  if (!t) return readSaved(chatId)
-  const list = [
-    { id: `${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`, text: t, at: now },
-    ...readSaved(chatId).filter((p) => p.text !== t)
-  ].slice(0, MAX_SAVED)
-  writeSaved(chatId, list)
+  const list = withSaved(readSaved(chatId), text, now)
+  if (text.trim()) writeSaved(chatId, list)
   return list
 }
 
 export function removeSaved(chatId: string, id: string): SavedPrompt[] {
-  const list = readSaved(chatId).filter((p) => p.id !== id)
+  const list = withoutSaved(readSaved(chatId), id)
   writeSaved(chatId, list)
   return list
+}
+
+/**
+ * Changed by a phone: the Mac's database has the new list; put it here too and
+ * tell the composer. (Written straight through, not mirrored back.)
+ */
+export function applySavedFromMac(chatId: string, json: string | null): void {
+  const key = PREFIX + chatId
+  if ((localStorage.getItem(key) ?? null) === json) return
+  if (json === null) localStorage.removeItem(key)
+  else localStorage.setItem(key, json)
+  window.dispatchEvent(new CustomEvent(SAVED_PROMPTS_CHANGED, { detail: chatId }))
 }
 
 /** Every chat's saved prompts, newest first, for the palette. */

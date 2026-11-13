@@ -22,6 +22,7 @@ import {
 import { DEFAULT_PROVIDER, PROVIDER_LABEL, type AgentProvider } from '../../shared/agent-provider'
 import { broadcastToWindows } from '../util'
 import { watchBattery } from './battery'
+import { listSaved, noteSavedKey, savedPromptsBus } from '../saved-prompts'
 import { listDevices, removeDevice } from './devices'
 import {
   startPairing,
@@ -78,6 +79,12 @@ export function startCompanion(): void {
   // whenever the chat list is pushed).
   watchKv((key) => {
     if (key === 'cove.splits') schedulePushChats()
+    noteSavedKey(key)
+  })
+  // Save for later: every phone hears a chat's new list.
+  savedPromptsBus.on('changed', (chatId: string) => {
+    const prompts = listSaved(chatId)
+    for (const c of conns.values()) if (c.authenticated) c.send({ t: 'saved', chatId, prompts })
   })
   watchStatuses()
   startReaper()

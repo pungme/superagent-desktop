@@ -2224,6 +2224,7 @@ function registerStoreIpcTail(): void {
     if (isMainOwnedKey(String(key))) return
     try {
       db.prepare('DELETE FROM kv WHERE key = ?').run(String(key))
+      kvWatcher?.(String(key))
     } catch {
       /* ditto */
     }

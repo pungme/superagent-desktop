@@ -81,3 +81,23 @@ test('the save button does the same, and ⌘K lists saved prompts and puts one b
   await expect(box).toHaveValue('Check the sign-up form on a phone', { timeout: 5_000 })
   await expect(window.locator('.saved-chip:visible')).toHaveCount(0)
 })
+
+test('a prompt saved on the phone shows in the composer at once', async () => {
+  const chatId = await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    return (await window.cove.chatList(ws.id))[0].id
+  })
+  const json = JSON.stringify([{ id: 'p1', text: 'Saved on the iPhone', at: Date.now() }])
+  await app.evaluate(
+    ({ BrowserWindow }, p) =>
+      BrowserWindow.getAllWindows()[0]?.webContents.send('saved-prompts:changed', p),
+    { chatId, json }
+  )
+  const chip = window.locator('.saved-chip:visible')
+  await expect(chip).toHaveText('1 saved')
+  await chip.click()
+  await expect(window.locator('.saved-menu .saved-text')).toHaveText(['Saved on the iPhone'])
+  await window.locator('.saved-menu').getByRole('button', { name: 'Remove' }).click()
+  await expect(chip).toHaveCount(0)
+})

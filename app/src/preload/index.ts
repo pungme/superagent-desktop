@@ -1109,6 +1109,8 @@ export interface CoveApi {
   onFloatAction: (cb: (action: FloatAction) => void) => () => void
   /** ⌘J or ⌘⇧J with no floating chat on screen. */
   onMenuFloatCommand: (cb: (cmd: FloatCommand) => void) => () => void
+  /** Save for later: a phone changed a chat's list (json null: none left). */
+  onSavedPromptsChanged: (cb: (p: { chatId: string; json: string | null }) => void) => () => void
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
   onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
@@ -1793,6 +1795,8 @@ const cove: CoveApi = {
   onFloatCommand: (cb) => subscribe('float:command', (p) => cb(p as FloatCommand)),
   onFloatAction: (cb) => subscribe('float:action', (p) => cb(p as FloatAction)),
   onMenuFloatCommand: (cb) => subscribe('menu:float-command', (p) => cb(p as FloatCommand)),
+  onSavedPromptsChanged: (cb) =>
+    subscribe('saved-prompts:changed', (p) => cb(p as { chatId: string; json: string | null })),
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),

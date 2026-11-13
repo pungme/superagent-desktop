@@ -172,6 +172,7 @@ vi.mock('../store', () => ({
   renameWorkspace: () => true,
   moveChatToWorkspace: () => false,
   kvSet: (k: string, v: string) => h.kv.set(k, v),
+  kvDel: (k: string) => h.kv.delete(k),
   isPendingBranch: (id: string) => h.kv.get(`pendingBranch:${id}`) === '1',
   markPendingBranch: (id: string) => h.kv.set(`pendingBranch:${id}`, '1'),
   takePendingBranch: (id: string) => h.kv.delete(`pendingBranch:${id}`),
@@ -291,6 +292,17 @@ vi.mock('../hooks', () => ({
     })
     return true
   }
+}))
+vi.mock('../skills', () => ({
+  discoverSkills: (projectPath?: string, provider = 'claude') => [
+    { name: 'pdf', description: 'Read PDFs', scope: 'claude.ai', kind: 'skill' },
+    {
+      name: `mine-${provider}`,
+      description: projectPath ?? 'no project',
+      scope: 'global',
+      kind: 'skill'
+    }
+  ]
 }))
 vi.mock('../routines', () => ({ listRoutines: () => [], runRoutine: async () => {} }))
 vi.mock('../files', () => ({
@@ -666,6 +678,65 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     // Sent from the Mac: the composer there empties, and the phone hears it.
     saveDraft('c1', '', null)
     expect(await phone.until((f) => f.t === 'draft')).toMatchObject({ chatId: 'c1', text: '' })
+    phone.ws.close()
+  })
+
+  it("saved for later: the phone sees the Mac's list, adds and removes, and every phone hears it", async () => {
+    h.kv.set('cove.savedPrompts:c1', JSON.stringify([{ id: 'a1', text: 'from the Mac', at: 1 }]))
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    phone.send({ t: 'req', id: 's1', method: 'saved.list', params: { chatId: 'c1' } })
+    expect(await phone.until((f) => f.t === 'res')).toMatchObject({
+      id: 's1',
+      ok: true,
+      result: [{ id: 'a1', text: 'from the Mac' }]
+    })
+    phone.send({
+      t: 'req',
+      id: 's2',
+      method: 'saved.add',
+      params: { chatId: 'c1', text: ' on the phone ' }
+    })
+    const pushed = await phone.until((f) => f.t === 'saved')
+    expect(pushed).toMatchObject({
+      chatId: 'c1',
+      prompts: [{ text: 'on the phone' }, { id: 'a1' }]
+    })
+    expect(await phone.until((f) => f.t === 'res')).toMatchObject({ id: 's2', ok: true })
+    expect(JSON.parse(h.kv.get('cove.savedPrompts:c1')!)).toHaveLength(2)
+    phone.send({ t: 'req', id: 's3', method: 'saved.remove', params: { chatId: 'c1', id: 'a1' } })
+    expect(await phone.until((f) => f.t === 'saved')).toMatchObject({
+      prompts: [{ text: 'on the phone' }]
+    })
+    const newest = (pushed as { prompts: { id: string }[] }).prompts[0].id
+    phone.send({ t: 'req', id: 's4', method: 'saved.remove', params: { chatId: 'c1', id: newest } })
+    expect(await phone.until((f) => f.t === 'saved')).toMatchObject({ prompts: [] })
+    expect(h.kv.has('cove.savedPrompts:c1')).toBe(false)
+    phone.send({ t: 'req', id: 's5', method: 'saved.add', params: { chatId: 'nope', text: 'x' } })
+    expect(await phone.until((f) => f.t === 'res' && f.id === 's5')).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' }
+    })
+    phone.ws.close()
+  })
+
+  it('lists the skills the Mac can run, claude.ai ones included', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    phone.send({ t: 'req', id: 'k1', method: 'skills.list', params: {} })
+    expect(await phone.until((f) => f.t === 'res')).toMatchObject({
+      id: 'k1',
+      ok: true,
+      result: [{ name: 'pdf', scope: 'claude.ai' }, { name: 'mine-claude' }]
+    })
+    phone.send({ t: 'req', id: 'k2', method: 'skills.list', params: { provider: 'codex' } })
+    expect(await phone.until((f) => f.t === 'res')).toMatchObject({
+      result: [{ name: 'pdf' }, { name: 'mine-codex' }]
+    })
     phone.ws.close()
   })
 
