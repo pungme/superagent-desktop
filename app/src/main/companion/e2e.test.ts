@@ -282,6 +282,7 @@ vi.mock('../hooks', () => ({
   hookBus: h.hookBus,
   notifyPrefs: { done: true, needsYou: true },
   gateIsMacOnly: () => false,
+  onPhoneAllowedMac: () => {},
   resolveGate: (id: string, approve: boolean) => {
     if (!h.gates.has(id)) return false
     h.gates.delete(id)

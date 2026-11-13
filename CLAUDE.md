@@ -122,6 +122,12 @@ switch in the desk toolbar or ⌘⇧B; ⌘J opens the box, ⌘⇧J the whole cha
   screen is in front (`offLimitsApp` in `shared/computer-use.ts`, asked through
   `lsappinfo`). A locked Mac reports `com.apple.loginwindow` in front, so a
   manual try from a locked machine is refused; that is the guard, not a bug.
+- **A phone's yes to "use your Mac"** (`approval.answer` with `faceId`) is taken only
+  when the phone ran Face ID or its passcode for that request (`phoneVerified` in
+  `resolveGate`); without it the Mac refuses (`gateIsMacOnly`). It cannot trust the rest
+  of the turn, and the Mac shows a notification that the phone allowed it. A flag the
+  phone sets itself is not proof (a compromised paired phone could send it): the check
+  stops an unlocked phone in someone else's hand, not a hostile one.
 - Its tools share the `computer_` prefix with the Computer chat's own (which
   arrange Superagent's windows, in `mcp.ts`). A name used twice stops that
   chat's tool server: `COMPUTER_TOOL_NAMES` and a test keep them apart.

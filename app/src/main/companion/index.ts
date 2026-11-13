@@ -1,4 +1,5 @@
-import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
+import { Notification, ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
+import { onPhoneAllowedMac } from '../hooks'
 import { RelayClient } from './relay-client'
 import { registerPairingIpc } from '../remote-control/guarded-ipc'
 import { ClientConn } from './session'
@@ -88,6 +89,14 @@ export function startCompanion(): void {
   })
   watchStatuses()
   startReaper()
+  // A phone, after its Face ID, let an agent use this Mac: say so here.
+  onPhoneAllowedMac(() => {
+    if (Notification.isSupported())
+      new Notification({
+        title: 'Your phone let Claude use this Mac',
+        body: 'It can see the screen and use the mouse and keyboard. ⌥Esc stops it at any time.'
+      }).show()
+  })
   // The Mac's battery, told to every phone when it changes.
   watchBattery(
     () => [...conns.values()].filter((c) => c.authenticated).length,

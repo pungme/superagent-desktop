@@ -101,6 +101,12 @@ const pendingGates = new Map<string, PendingGate>()
  */
 const MAC_ONLY_TOOLS = new Set(['mcp__cove-browser__computer_use'])
 
+/** Told whenever a paired phone (after its Face ID) lets an agent use this Mac. */
+let phoneAllowedMac: () => void = () => {}
+export function onPhoneAllowedMac(fn: () => void): void {
+  phoneAllowedMac = fn
+}
+
 /** Whether this waiting request can only be allowed at the Mac. */
 export function gateIsMacOnly(requestId: string): boolean {
   return pendingGates.get(requestId)?.macOnly ?? false
@@ -202,12 +208,16 @@ export function resolveGate(
   requestId: string,
   approve: boolean,
   trustRest: boolean,
-  by: 'desktop' | 'ios'
+  by: 'desktop' | 'ios',
+  /** The phone checked its owner (Face ID or passcode) for this very request. */
+  phoneVerified = false
 ): boolean {
   const p = pendingGates.get(requestId)
   if (!p) return false
-  // Left waiting: it can still be answered at the Mac.
-  if (p.macOnly && approve && by !== 'desktop') return false
+  // Left waiting: it can still be answered at the Mac. A paired phone may say yes
+  // too, but only after its own Face ID, and never to trust the rest of the turn.
+  if (p.macOnly && approve && by !== 'desktop' && !phoneVerified) return false
+  if (p.macOnly && by !== 'desktop') trustRest = false
   pendingGates.delete(requestId)
   clearTimeout(p.timer)
   if (approve && trustRest) trustTurn(p.sessionId)
@@ -215,6 +225,7 @@ export function resolveGate(
   // Whoever didn't answer sees it settle.
   broadcastToWindows('guardrail:resolved', { requestId })
   hookBus.emit('approval-end', { requestId, outcome: approve ? 'approved' : 'denied', by })
+  if (p.macOnly && approve && by !== 'desktop') phoneAllowedMac()
   return true
 }
 

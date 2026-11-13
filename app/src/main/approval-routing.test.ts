@@ -4,7 +4,7 @@ vi.mock('./store', () => ({
 }))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 import { broadcastToWindows } from './util'
-import { gateIsMacOnly, requestApproval, resolveGate } from './hooks'
+import { gateIsMacOnly, onPhoneAllowedMac, requestApproval, resolveGate } from './hooks'
 import { clearTurn, gateDecision, markTainted } from './guardrail'
 
 it('shows an approval under the chat while retaining trust under the provider session', async () => {
@@ -31,7 +31,7 @@ it('preserves callers already using a chat id, and returns denial', async () => 
   resolveGate((payload as { requestId: string }).requestId, false, false, 'desktop')
   expect(await pending).toBe(false)
 })
-it('lets only the Mac say yes to using the Mac, while a no can come from the phone', async () => {
+it('takes a yes to using the Mac from the Mac, or from a phone that checked Face ID, while a no can come from anywhere', async () => {
   const ask = (): { pending: Promise<boolean>; id: string } => {
     const pending = requestApproval(
       'ws',
@@ -50,6 +50,19 @@ it('lets only the Mac say yes to using the Mac, while a no can come from the pho
   expect(gateIsMacOnly(a.id)).toBe(true)
   expect(resolveGate(a.id, true, false, 'desktop')).toBe(true)
   expect(await a.pending).toBe(true)
+
+  // A phone that ran Face ID for this one may say yes, and it is told to the Mac
+  // (a notification), but it cannot wave the rest of the turn through.
+  const told = vi.fn()
+  onPhoneAllowedMac(told)
+  const f = ask()
+  expect(resolveGate(f.id, true, true, 'ios', true)).toBe(true)
+  expect(await f.pending).toBe(true)
+  expect(told).toHaveBeenCalledTimes(1)
+  // A phone's no needs nothing, and tells nobody.
+  const n = ask()
+  expect(resolveGate(n.id, false, false, 'ios', true)).toBe(true)
+  expect(told).toHaveBeenCalledTimes(1)
 
   // A no is always safe to take, from anywhere.
   const b = ask()

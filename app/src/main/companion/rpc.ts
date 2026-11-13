@@ -200,7 +200,9 @@ const savedRemove = z.object({ chatId: z.string().min(1), id: z.string().min(1) 
 const approvalAnswer = z.object({
   id: z.string().min(1),
   approve: z.boolean(),
-  trustRest: z.boolean().optional()
+  trustRest: z.boolean().optional(),
+  /** The phone ran Face ID (or the passcode) for this answer. */
+  faceId: z.boolean().optional()
 })
 const routineRun = z.object({ id: z.string().min(1) })
 const routineEnable = z.object({ id: z.string().min(1), enabled: z.boolean() })
@@ -445,9 +447,12 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const p = approvalAnswer.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
         const a: ApprovalAnswerParams = p.data
-        if (a.approve && gateIsMacOnly(a.id))
-          return fail('unavailable', 'Letting an agent use your Mac is allowed at the Mac itself.')
-        const done = resolveGate(a.id, a.approve, a.trustRest ?? false, 'ios')
+        if (a.approve && gateIsMacOnly(a.id) && !a.faceId)
+          return fail(
+            'unavailable',
+            'Letting an agent use your Mac needs Face ID on the phone, or a click at the Mac.'
+          )
+        const done = resolveGate(a.id, a.approve, a.trustRest ?? false, 'ios', !!a.faceId)
         return done ? { ok: true } : fail('gone', 'that approval is no longer waiting')
       }
       // Save for later: the same list as the Mac's composer.

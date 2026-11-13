@@ -477,6 +477,8 @@ export interface ApprovalAnswerParams {
   id: string
   approve: boolean
   trustRest?: boolean
+  /** The phone ran Face ID (or the passcode) for this answer; needed for a yes to "use your Mac". */
+  faceId?: boolean
 }
 
 // --- Pairing ---------------------------------------------------------------
