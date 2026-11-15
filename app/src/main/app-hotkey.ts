@@ -1,4 +1,4 @@
-import { app, globalShortcut, ipcMain, type BrowserWindow } from 'electron'
+import { app, globalShortcut, ipcMain, screen, type BrowserWindow } from 'electron'
 import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
@@ -7,6 +7,7 @@ import {
   NO_APP_HOTKEY,
   type AppHotkeyState
 } from '../shared/app-hotkey'
+import { bringOnto, offScreen } from '../shared/on-screen'
 
 /**
  * A shortcut that works from any app: it brings Superagent's window to the
@@ -36,6 +37,14 @@ export function bringAppForward(): BrowserWindow | null {
   // Asked for by the user, by name: not a focus to bounce back.
   host.wanted()
   if (w.isMinimized()) w.restore()
+  // Left on a display that is gone, the window is "shown" and nowhere to be seen.
+  try {
+    const areas = screen.getAllDisplays().map((d) => d.workArea)
+    if (offScreen(w.getBounds(), areas))
+      w.setBounds(bringOnto(w.getBounds(), screen.getPrimaryDisplay().workArea))
+  } catch {
+    // no display information: leave it where it is
+  }
   w.show()
   w.focus()
   app.focus({ steal: true })

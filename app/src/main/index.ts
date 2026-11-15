@@ -149,6 +149,9 @@ if (process.env.COVE_USER_DATA) {
   app.setPath('userData', process.env.COVE_USER_DATA)
 }
 
+/** The app's own window: not the dot, not the remote-control banner. */
+let appWindow: BrowserWindow | null = null
+
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1280,
@@ -233,6 +236,7 @@ function createWindow(): BrowserWindow {
   }
   mainWindow.on('minimize', sight(false))
   mainWindow.on('hide', sight(false))
+  appWindow = mainWindow
   mainWindow.on('restore', sight(true))
   mainWindow.on('show', sight(true))
   mainWindow.webContents.on('render-process-gone', (_e, d) => {
@@ -363,8 +367,7 @@ app.whenReady().then(async () => {
   registerDot()
   registerMicIpc()
   registerAppHotkey({
-    window: () =>
-      BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && !isDotWindow(w)) ?? null,
+    window: () => (appWindow && !appWindow.isDestroyed() ? appWindow : null),
     create: () => void createWindow(),
     wanted: allowUserFocus
   })
@@ -843,7 +846,7 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     // The dot is a window too, and is not the app's window: with only it left,
     // a Dock click still has to bring the app back.
-    if (BrowserWindow.getAllWindows().every((w) => isDotWindow(w))) createWindow()
+    if (!appWindow || appWindow.isDestroyed()) createWindow()
     // And with the app's window there but minimised, hidden or behind: macOS
     // brings an app's window back on a Dock click only when it has none
     // showing, and the dot is one showing. So the click did nothing at all
