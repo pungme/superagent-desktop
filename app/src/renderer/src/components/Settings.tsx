@@ -682,6 +682,51 @@ function Row({
   )
 }
 
+/**
+ * Keep Claude Code up to date (main/cli-updater.ts): the model picker is the
+ * CLI's own list, so a new model reaches the user once the CLI is new enough.
+ */
+function ClaudeCodeUpdates(): React.JSX.Element {
+  const [on, setOn] = useState(localStorage.getItem('cove.cliAutoUpdate') !== '0')
+  const [st, setSt] = useState<Awaited<ReturnType<typeof window.cove.cliStatus>> | null>(null)
+  const [checking, setChecking] = useState(false)
+  useEffect(() => {
+    void window.cove.cliStatus?.().then(setSt)
+  }, [])
+  const toggle = (v: boolean): void => {
+    localStorage.setItem('cove.cliAutoUpdate', v ? '1' : '0')
+    setOn(v)
+  }
+  const checkNow = async (): Promise<void> => {
+    setChecking(true)
+    try {
+      await window.cove.cliUpdateNow()
+      setSt(await window.cove.cliStatus())
+    } finally {
+      setChecking(false)
+    }
+  }
+  const line = st?.version
+    ? `Claude Code ${st.version}${st.updatedFrom ? `, updated from ${st.updatedFrom}` : ''}.`
+    : 'Claude Code.'
+  return (
+    <>
+      <GroupLabel>Claude Code</GroupLabel>
+      <Row
+        title="Keep it up to date"
+        desc={`${line} New models show up in the picker once Claude Code is new enough to list them. Chats already open keep the version they started with.${
+          st?.error ? ` ${st.error}` : ''
+        }`}
+      >
+        <button className="settings-cli-check" disabled={checking} onClick={() => void checkNow()}>
+          {checking ? 'Checking…' : 'Check now'}
+        </button>
+        <Toggle checked={on} onChange={toggle} />
+      </Row>
+    </>
+  )
+}
+
 function Toggle({
   checked,
   onChange
@@ -1567,6 +1612,7 @@ export function Settings({
           {section === 'agents' && (
             <section className="settings-section">
               <AgentsPanel env={env} envChecking={envChecking} onRecheck={checkAgents} />
+              <ClaudeCodeUpdates />
               <GroupLabel>New chats</GroupLabel>
               <Row
                 title="Agent"

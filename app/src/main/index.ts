@@ -1,4 +1,5 @@
 // Before everything: what the released app will not be started with.
+import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
 import './harden'
 import { registerMicIpc } from './mic'
 import { afterLastWindow } from '../shared/last-window'
@@ -417,6 +418,9 @@ app.whenReady().then(async () => {
   // The phone companion: an outbound relay connection that stays up.
   registerCompanionIpc((e) => fromMainWindow(e, isDotWindow))
   startCompanion()
+  // Claude Code is kept current: the model picker is only as new as the CLI.
+  registerCliUpdaterIpc()
+  startCliAutoUpdate()
   // Menu-bar presence while a phone is paired; follows pairing/relay changes.
   // Quiet tests leave the menu bar alone too.
   if (!QUIET) startTray()

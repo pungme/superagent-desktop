@@ -1131,6 +1131,19 @@ export interface CoveApi {
   /** False on a Mac with no lid to close (a desktop). */
   hasLid: () => Promise<boolean>
   batteryFloor: () => Promise<number>
+  /** Claude Code's version and the last automatic update (main/cli-updater.ts). */
+  cliStatus: () => Promise<{
+    version: string | null
+    checkedAt: number
+    updatedFrom: string | null
+    running: boolean
+    error: string | null
+  }>
+  cliUpdateNow: () => Promise<{
+    version: string | null
+    updatedFrom: string | null
+    error: string | null
+  }>
   setBatteryFloor: (floor: number) => Promise<number>
   setLidAwake: (
     on: boolean
@@ -1816,6 +1829,8 @@ const cove: CoveApi = {
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
   hasLid: () => ipcRenderer.invoke('power:has-lid'),
   batteryFloor: () => ipcRenderer.invoke('power:battery-floor'),
+  cliStatus: () => ipcRenderer.invoke('cli:status'),
+  cliUpdateNow: () => ipcRenderer.invoke('cli:update-now'),
   setBatteryFloor: (floor) => ipcRenderer.invoke('power:set-battery-floor', floor),
   setLidAwake: (on) => ipcRenderer.invoke('power:set-lid-awake', on),
   signInAgent: (provider) => ipcRenderer.invoke('env:sign-in', provider),

@@ -354,6 +354,16 @@ switch in the desk toolbar or ⌘⇧B; ⌘J opens the box, ⌘⇧J the whole cha
   (`accounts-signin.spec.ts`) runs a stand-in `claude` through
   `COVE_E2E_CLAUDE_BIN` with its own HOME.
 
+## Claude Code updates
+
+`src/main/cli-updater.ts` (+ `shared/cli-update.ts`) runs the CLI's own
+`claude update` 90 s after launch and every 12 h, unless Settings → Agents →
+"Keep it up to date" is off (`cove.cliAutoUpdate` = '0', default on). The
+picker's model list is the CLI's, so a new model (Fable 5.2…) reaches the user
+once the CLI is new enough; the CLI's background updater had sat two weeks
+behind (2.1.314 → 2.1.325). Running chats keep the version they started with.
+Skipped in a test run (`COVE_USER_DATA`, `COVE_E2E_CLAUDE_BIN`).
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and

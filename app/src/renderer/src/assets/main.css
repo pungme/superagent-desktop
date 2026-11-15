@@ -13697,6 +13697,25 @@ button {
 .settings-account-add:hover {
   color: var(--text-primary);
 }
+.settings-cli-check {
+  margin-right: 12px;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.settings-cli-check:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+.settings-cli-check:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .settings-accounts-provider {
   padding: 12px 16px;
   margin-bottom: 10px;
