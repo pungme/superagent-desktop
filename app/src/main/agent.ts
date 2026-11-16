@@ -213,10 +213,16 @@ function watchOwner(owner: WebContents): void {
  * companion RPC → main → agent, never through the window — arrived with no
  * history at all. It lives here now, on the one path both clients take.
  */
-const contextLost = new Set<string>()
+const contextLost = new Map<string, 'lost' | 'copied'>()
 
 export function markContextLost(chatId: string): void {
-  contextLost.add(chatId)
+  // A copy of another conversation says so, whichever way it is found out.
+  if (!contextLost.has(chatId)) contextLost.set(chatId, 'lost')
+}
+
+/** A duplicate of another conversation: it has the transcript, and its agent none of the memory. */
+export function markContextCopied(chatId: string): void {
+  contextLost.set(chatId, 'copied')
 }
 
 /**
@@ -230,12 +236,16 @@ export function markContextLost(chatId: string): void {
  * re-sent on every turn. Empty when there is nothing to catch up on.
  */
 export function takeRecap(chatId: string | undefined): string {
-  if (!chatId || !contextLost.delete(chatId)) return ''
+  const why = chatId ? contextLost.get(chatId) : undefined
+  if (!chatId || !why) return ''
+  contextLost.delete(chatId)
   const recap = buildRecap(chatId)
   if (!recap) return ''
   return (
-    '[The earlier session for this conversation was lost, so you have no memory of ' +
-    'it. Here is a recap of what was said before — treat it as the conversation so ' +
+    (why === 'copied'
+      ? '[This conversation is a copy of another one, so you have no memory of it. '
+      : '[The earlier session for this conversation was lost, so you have no memory of it. ') +
+    'Here is a recap of what was said before — treat it as the conversation so ' +
     'far and continue from it.]\n\n' +
     recap +
     '\n\n---\n\n'

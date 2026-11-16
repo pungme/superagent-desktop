@@ -398,6 +398,7 @@ export type RpcMethod =
   | 'chat.rename'
   | 'chat.draft'
   | 'chat.pin'
+  | 'chat.duplicate'
   | 'chat.reorderPinned'
   | 'chat.delete'
   | 'approval.answer'

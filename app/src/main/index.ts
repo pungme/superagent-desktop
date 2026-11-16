@@ -1,4 +1,5 @@
 // Before everything: what the released app will not be started with.
+import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
 import './harden'
 import { registerMicIpc } from './mic'
@@ -104,7 +105,7 @@ import { startCrashRelaunch } from './crash-relaunch'
 import { chatToken } from './mcp-token'
 import { appendChatEvent, kvByPrefix } from './store'
 import { appHotkey, bringAppForward, registerAppHotkey } from './app-hotkey'
-import { registerOpenRequests } from './open-request'
+import { askToOpen, registerOpenRequests } from './open-request'
 import {
   dotCovers,
   dotEnabled,
@@ -544,6 +545,24 @@ app.whenReady().then(async () => {
     return true
   })
 
+  /** Copy a chat, then show the copy. */
+  const duplicateAndShow = async (
+    win: BrowserWindow,
+    chatId: string
+  ): Promise<{ workspaceId: string; chatId: string } | null> => {
+    const copy = await duplicateChat(chatId)
+    if (!copy) return null
+    win.webContents.send('projects:changed', {})
+    pushChats()
+    // A quiet test run has no window to open the copy in.
+    if (process.env.COVE_E2E_QUIET !== '1') askToOpen(copy.workspaceId, copy.chatId)
+    return copy
+  }
+  ipcMain.handle('chat:duplicate', (e, chatId: string) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    return win ? duplicateAndShow(win, String(chatId)) : null
+  })
+
   ipcMain.on(
     'chat:menu',
     (e, chatId: string, workspaceId: string, cwd?: string | null, unread?: boolean) => {
@@ -585,6 +604,10 @@ app.whenReady().then(async () => {
         click: () => win.webContents.send('chat:mark', { chatId, unread: !unread })
       })
       const pinned = Boolean(getChat(chatId)?.pinned)
+      template.push({
+        label: 'Duplicate chat',
+        click: () => void duplicateAndShow(win, chatId)
+      })
       template.push({
         label: pinned ? 'Unpin chat' : 'Pin chat',
         click: () => {

@@ -1,4 +1,5 @@
 import { frameWanted, mirrorShotWidth } from '../../shared/mirror-shot'
+import { duplicateChat } from '../chat-duplicate'
 import { discoverSkills } from '../skills'
 import { addSavedPrompt, listSaved, removeSavedPrompt } from '../saved-prompts'
 import { z } from 'zod'
@@ -390,6 +391,16 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true, result: { chatId: id } }
+      }
+      // Duplicate a conversation (transcript, agent, model; pinned when it is).
+      case 'chat.duplicate': {
+        const p = chatId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const copy = await duplicateChat(p.data.chatId)
+        if (!copy) return fail('not-found', 'no such chat')
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true, result: copy }
       }
       // Move a conversation to the other agent, from the phone.
       //

@@ -305,6 +305,10 @@ vi.mock('../skills', () => ({
     }
   ]
 }))
+vi.mock('../chat-duplicate', () => ({
+  duplicateChat: async (id: string) =>
+    id === 'c1' ? { workspaceId: 'w1', chatId: 'c-copy' } : null
+}))
 vi.mock('../routines', () => ({ listRoutines: () => [], runRoutine: async () => {} }))
 vi.mock('../files', () => ({
   gitBranch: () => 'main',
@@ -737,6 +741,24 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     phone.send({ t: 'req', id: 'k2', method: 'skills.list', params: { provider: 'codex' } })
     expect(await phone.until((f) => f.t === 'res')).toMatchObject({
       result: [{ name: 'pdf' }, { name: 'mine-codex' }]
+    })
+    phone.ws.close()
+  })
+
+  it('the phone can duplicate a conversation', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    phone.send({ t: 'req', id: 'dup1', method: 'chat.duplicate', params: { chatId: 'c1' } })
+    expect(await phone.until((f) => f.t === 'res' && f.id === 'dup1')).toMatchObject({
+      ok: true,
+      result: { workspaceId: 'w1', chatId: 'c-copy' }
+    })
+    phone.send({ t: 'req', id: 'dup2', method: 'chat.duplicate', params: { chatId: 'nope' } })
+    expect(await phone.until((f) => f.t === 'res' && f.id === 'dup2')).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' }
     })
     phone.ws.close()
   })

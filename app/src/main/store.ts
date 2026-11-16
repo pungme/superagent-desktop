@@ -737,6 +737,12 @@ export function setChatPinned(chatId: string, pinned: boolean): void {
   )
 }
 
+/** Pin a chat so it sits right below another pinned one (the list is newest first). */
+export function setChatPinnedAfter(chatId: string, afterChatId: string): void {
+  const at = getChat(afterChatId)?.pinnedAt ?? Date.now()
+  db.prepare('UPDATE chats SET pinned = 1, pinnedAt = ? WHERE id = ?').run(at - 1, chatId)
+}
+
 /**
  * Put the Pinned list in the order given, top first. The list is sorted by
  * pinnedAt, newest first, so reordering is rewriting those stamps in

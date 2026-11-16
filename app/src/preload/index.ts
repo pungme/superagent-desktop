@@ -1131,6 +1131,8 @@ export interface CoveApi {
   /** False on a Mac with no lid to close (a desktop). */
   hasLid: () => Promise<boolean>
   batteryFloor: () => Promise<number>
+  /** Copy a conversation (transcript, agent, model; pinned when it is), and open the copy. */
+  chatDuplicate: (chatId: string) => Promise<{ workspaceId: string; chatId: string } | null>
   /** Claude Code's version and the last automatic update (main/cli-updater.ts). */
   cliStatus: () => Promise<{
     version: string | null
@@ -1829,6 +1831,7 @@ const cove: CoveApi = {
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
   hasLid: () => ipcRenderer.invoke('power:has-lid'),
   batteryFloor: () => ipcRenderer.invoke('power:battery-floor'),
+  chatDuplicate: (chatId) => ipcRenderer.invoke('chat:duplicate', chatId),
   cliStatus: () => ipcRenderer.invoke('cli:status'),
   cliUpdateNow: () => ipcRenderer.invoke('cli:update-now'),
   setBatteryFloor: (floor) => ipcRenderer.invoke('power:set-battery-floor', floor),
