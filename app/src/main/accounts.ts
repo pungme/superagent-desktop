@@ -108,6 +108,12 @@ export type LimitMode = 'ask' | 'auto'
 interface AccountsFile {
   accounts: StoredAccount[]
   mode: LimitMode
+  /**
+   * The user picked the mode themselves. Until then it is Automatic: asking on every
+   * limit was the default for a while, and a file from then says 'ask' without the
+   * user ever having chosen it.
+   */
+  modeChosen: boolean
   limits: Record<string, number>
   chats: Record<string, string>
   /** Accounts whose credentials the CLI last refused, with its reason. */
@@ -165,9 +171,11 @@ function load(): AccountsFile {
   if (file) return file
   try {
     const raw = JSON.parse(readFileSync(filePath(), 'utf8')) as Partial<AccountsFile>
+    const chosen = raw.modeChosen === true
     file = {
       accounts: Array.isArray(raw.accounts) ? raw.accounts : [],
-      mode: raw.mode === 'auto' ? 'auto' : 'ask',
+      mode: chosen && raw.mode !== 'auto' ? 'ask' : 'auto',
+      modeChosen: chosen,
       limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
@@ -175,7 +183,16 @@ function load(): AccountsFile {
       defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {}
     }
   } catch {
-    file = { accounts: [], mode: 'ask', limits: {}, chats: {}, auth: {}, usage: {}, defaults: {} }
+    file = {
+      accounts: [],
+      mode: 'auto',
+      modeChosen: false,
+      limits: {},
+      chats: {},
+      auth: {},
+      usage: {},
+      defaults: {}
+    }
   }
   return file
 }
@@ -261,7 +278,8 @@ export function limitMode(): LimitMode {
 }
 
 export function setLimitMode(mode: LimitMode): void {
-  load().mode = mode === 'auto' ? 'auto' : 'ask'
+  load().mode = mode === 'ask' ? 'ask' : 'auto'
+  load().modeChosen = true
   save()
 }
 

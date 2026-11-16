@@ -55,6 +55,7 @@ import {
   limitFromCodexRateLimits,
   LimitGate,
   limitFromEvent,
+  limitMode,
   linkCodexHome,
   listAccounts,
   LOGIN_ID,
@@ -208,11 +209,27 @@ describe('accounts', () => {
 
   it('in ask mode a limit tells the window and leaves the chat where it is', () => {
     const work = addClaudeToken('Work', TOKEN)
+    setLimitMode('ask')
     const notice = reportLimit('c1', 'claude', LOGIN_ID.claude, null)
     expect(notice.switchedTo).toBeNull()
     expect(notice.alternatives).toEqual([{ id: work.id, name: 'Work' }])
     expect(h.broadcasts).toEqual([{ ch: 'accounts:limit', p: notice }])
     expect(accountForChat('claude', 'c1').id).toBe(work.id) // the fallback, not a pin
+  })
+
+  it('is automatic until the user picks otherwise, whatever an older file says', () => {
+    expect(limitMode()).toBe('auto')
+    // A file from when Ask was the default: it says so without the user having chosen.
+    writeFileSync(join(dir, 'accounts.json'), JSON.stringify({ accounts: [], mode: 'ask' }))
+    _resetAccountsForTests()
+    expect(limitMode()).toBe('auto')
+    // Chosen at Settings → Agents, it stays.
+    setLimitMode('ask')
+    _resetAccountsForTests()
+    expect(limitMode()).toBe('ask')
+    setLimitMode('auto')
+    _resetAccountsForTests()
+    expect(limitMode()).toBe('auto')
   })
 
   it('in auto mode it moves the chat and says which account it is on now', () => {

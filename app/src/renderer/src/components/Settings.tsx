@@ -641,13 +641,13 @@ function AgentsPanel({
       <GroupLabel>When an account hits its limit</GroupLabel>
       <Row
         title="Switch accounts"
-        desc="Ask shows a card in the chat with the accounts that still have allowance. Automatic switches on its own and says so."
+        desc="Automatic moves the chat to an account that still has allowance and says so. Ask shows a card in the chat first."
       >
         <div className="mode-switch">
           {(['ask', 'auto'] as const).map((m) => (
             <button
               key={m}
-              className={`mode-switch-btn ${(list?.mode ?? 'ask') === m ? 'active' : ''}`}
+              className={`mode-switch-btn ${(list?.mode ?? 'auto') === m ? 'active' : ''}`}
               onClick={() => void setMode(m)}
             >
               {m === 'ask' ? 'Ask' : 'Automatic'}

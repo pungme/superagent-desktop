@@ -187,10 +187,18 @@ test('one account is the default for new chats, and another can be made it', asy
 
 test('the limit mode is a setting that sticks', async () => {
   const modes = window.locator('.settings-accounts .mode-switch')
+  // Automatic until the user says otherwise.
+  await expect(modes.locator('.mode-switch-btn.active')).toHaveText('Automatic')
+  await modes.getByRole('button', { name: 'Ask' }).click()
   await expect(modes.locator('.mode-switch-btn.active')).toHaveText('Ask')
+  await expect
+    .poll(() => JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).mode)
+    .toBe('ask')
   await modes.getByRole('button', { name: 'Automatic' }).click()
   await expect(modes.locator('.mode-switch-btn.active')).toHaveText('Automatic')
-  expect(JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).mode).toBe('auto')
+  await expect
+    .poll(() => JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).mode)
+    .toBe('auto')
 })
 
 test('the panel reads well', async () => {
