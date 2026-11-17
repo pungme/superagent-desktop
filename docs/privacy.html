@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Superagent</title>
+<meta name="description" content="What Superagent collects, and what it does not: nothing, because there is no Superagent server.">
+<link rel="icon" href="logo.png">
+<style>
+  :root { --ink:#1d1d1f; --ink-2:#6e6e73; --blue:#0071e3; --line:#d2d2d7; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:17px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif; color:var(--ink); background:#fff; }
+  header, main, footer { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+  header { display:flex; align-items:center; gap:10px; padding-top:28px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+  header img { width:28px; height:28px; border-radius:7px; }
+  header a { color:var(--ink); font-weight:600; text-decoration:none; letter-spacing:-0.02em; }
+  h1 { font-size:40px; line-height:1.1; letter-spacing:-0.03em; margin:44px 0 6px; }
+  .date { color:var(--ink-2); margin:0 0 28px; }
+  h2 { font-size:22px; letter-spacing:-0.02em; margin:34px 0 6px; }
+  p, li { color:#303033; }
+  ul { padding-left:22px; }
+  a { color:var(--blue); }
+  table { border-collapse:collapse; width:100%; margin:10px 0 4px; font-size:15.5px; }
+  th, td { text-align:left; vertical-align:top; padding:9px 10px 9px 0; border-bottom:1px solid var(--line); }
+  th { color:var(--ink-2); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase; }
+  footer { padding-top:36px; padding-bottom:60px; color:var(--ink-2); font-size:14px; }
+  footer a { color:var(--ink-2); margin-right:16px; }
+</style>
+</head>
+<body>
+<header><img src="logo.png" alt=""><a href="/">Superagent</a></header>
+<main>
+<h1>Privacy</h1>
+<p class="date">Updated 17 November 2026</p>
+<p>Superagent is an app for your Mac and an iPhone app that talks to it. There is no Superagent account and no Superagent server holding your work, so there is very little to say, and all of it is below.</p>
+
+<h2>What we collect</h2>
+<p><strong>Nothing.</strong> The iPhone app has no sign-up, no analytics, no advertising, no tracking and no third-party SDKs. We do not know who you are, and we cannot see your projects, your conversations or your files.</p>
+
+<h2>Where your data lives</h2>
+<p>On your Mac, and on your iPhone. Your conversations, projects, calendar and to-dos are stored on your Mac. The iPhone app keeps a copy of recent conversations on the phone so it opens quickly and works for a moment without a connection; you can remove it by removing the Mac in Settings or deleting the app.</p>
+
+<h2>How the phone reaches your Mac</h2>
+<p>You pair the phone with your Mac once, by scanning a code shown on the Mac. After that the two talk through a small relay, which both sides connect to. Everything that goes through it is end-to-end encrypted with a key only your Mac and your phone have. The relay forwards the encrypted messages and stores nothing; it cannot read them. Like any internet service it sees that a connection happened (an IP address and when), and the relay's host, Cloudflare, may keep ordinary connection logs. You can run your own relay: the code is public and it is one address to change in the Mac app.</p>
+
+<h2>Notifications</h2>
+<p>If you allow notifications, the phone gives your Mac its Apple push address. When an agent finishes or needs you, your Mac asks the relay to send a short push through Apple. Apple delivers it. Nothing is sent to anyone else.</p>
+
+<h2>What the iPhone app asks permission for</h2>
+<table>
+<tr><th>Permission</th><th>Why</th></tr>
+<tr><td>Camera</td><td>Only to scan the pairing code on your Mac.</td></tr>
+<tr><td>Microphone and speech recognition</td><td>Only while you hold the microphone button, to dictate a message. It is transcribed on the phone when the language supports that, and by Apple's speech recognition otherwise.</td></tr>
+<tr><td>Face ID</td><td>Before the phone starts controlling your Mac, as an extra check that it is you.</td></tr>
+<tr><td>Photos (add only)</td><td>Only when you tap Save on a picture.</td></tr>
+<tr><td>Notifications</td><td>To tell you when an agent is done or needs you.</td></tr>
+</table>
+<p>Pictures and files you choose to send go to your Mac, not to us.</p>
+
+<h2>The agents</h2>
+<p>Your Mac runs the coding agent you already use (Claude Code, Codex or Antigravity). What you ask them is handled by that provider under your own account and its terms. Superagent is not in between.</p>
+
+<h2>The demo</h2>
+<p>"Try the demo" in the iPhone app shows made-up sample data on the phone. It connects to nothing.</p>
+
+<h2>Children</h2>
+<p>Superagent is a tool for people who write software and is not directed at children.</p>
+
+<h2>Changes and questions</h2>
+<p>Changes to this page are public in <a href="https://github.com/pungme/superagent-desktop/commits/main/docs/privacy.html">its history</a>. Questions: open an <a href="https://github.com/pungme/superagent-desktop/issues">issue</a> on GitHub.</p>
+</main>
+<footer><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/support">Support</a><a href="https://github.com/pungme/superagent-ios">iPhone app source</a></footer>
+</body>
+</html>
