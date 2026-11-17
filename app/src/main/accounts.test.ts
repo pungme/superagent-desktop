@@ -55,6 +55,7 @@ import {
   limitFromCodexRateLimits,
   LimitGate,
   limitFromEvent,
+  CURRENT_MODEL,
   limitMode,
   linkCodexHome,
   listAccounts,
@@ -101,6 +102,21 @@ afterEach(() => {
 })
 
 describe('what the CLIs say when an account runs dry', () => {
+  it('"switch to another model" is the running model out, not the account', () => {
+    const synthetic = {
+      type: 'assistant',
+      message: {
+        model: '<synthetic>',
+        content: [{ text: "You're out of usage credits. Switch to another model to continue." }]
+      }
+    }
+    expect(limitFromEvent(synthetic)).toEqual({ until: null, model: CURRENT_MODEL })
+    // Without that sentence it is still the account.
+    expect(
+      limitFromEvent({ type: 'result', is_error: true, result: "You've hit your usage limit" })
+    ).toEqual({ until: null })
+  })
+
   it("reads Claude's rate_limit_event, reset time in epoch seconds", () => {
     expect(
       limitFromEvent({

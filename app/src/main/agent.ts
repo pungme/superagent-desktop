@@ -17,6 +17,7 @@ import {
   authFailureFrom,
   authFailureFromEvent,
   LimitGate,
+  CURRENT_MODEL,
   markAuth,
   markModelLimited,
   recordUsage,
@@ -24,7 +25,7 @@ import {
 } from './accounts'
 import { usageFromClaudeEvent } from './usage'
 import { connectorsAskedFor, knownConnectors } from './connectors'
-import { fallbackModelFor, modelFallbackFrom } from '../shared/model-fallback'
+import { fallbackModelFor, modelFallbackFrom, modelFamily } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import { startAntigravitySession, suggestTitleWithAntigravity } from './antigravity/session'
 import type {
@@ -340,6 +341,7 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   /** Connectors this run has already offered to connect: once each. */
   const offered = new Set<string>()
   const limits = new LimitGate()
+  let runningModel: string | null = opts.model ?? null
 
   const host: SessionHost = {
     ready(backend) {
@@ -409,6 +411,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
           })
         }
       }
+      // Which model this session really runs (Default resolves to one here).
+      if (event?.type === 'system' && event.subtype === 'init' && typeof event.model === 'string')
+        runningModel = event.model
       // Every Claude turn says how much of this account's allowance is used.
       const usage = usageFromClaudeEvent(event)
       if (usage) recordUsage(account.id, usage)
@@ -426,6 +431,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
           limitReported = true
           // Before the result goes to the window, so the card is what it shows
           // for this turn rather than the generic "hit an error" note.
+          // A limit that did not name its model is the one this session runs
+          // (Default is Fable where the account has it).
+          if (out.model === CURRENT_MODEL) out.model = modelFamily(runningModel) ?? 'fable'
           const fallback = out.model ? fallbackModelFor(out.model) : null
           if (out.model && fallback) {
             // One model is out, not the account: remember it until the reset

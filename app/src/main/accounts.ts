@@ -471,6 +471,9 @@ export interface Limit {
   model?: string
 }
 
+/** A model limit that does not name the model: the one the session is running. */
+export const CURRENT_MODEL = 'current'
+
 const MODEL_LIMIT_TYPES: Record<string, string> = {
   seven_day_opus: 'opus',
   seven_day_sonnet: 'sonnet',
@@ -499,6 +502,11 @@ export function limitFromEvent(event: Record<string, unknown>): Limit | null {
   if (!text) return null
   const model = /reached your (fable|mythos|opus|sonnet|haiku) limit/i.exec(text)?.[1]
   if (model) return { until: null, model: model.toLowerCase() }
+  // "You're out of usage credits. Switch to another model to continue.": the
+  // model the chat is on, not the account (which can be far from its limit).
+  // It does not say which; the session knows (CURRENT_MODEL).
+  if (/switch to (another|a different) model/i.test(text))
+    return { until: null, model: CURRENT_MODEL }
   if (/hit your (usage )?limit|usage limit|out of (usage|credits)|limit reached/i.test(text))
     return { until: null }
   return null
