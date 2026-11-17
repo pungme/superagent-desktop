@@ -135,6 +135,44 @@ test('a tab row shows the page it is on: its favicon and site name', async () =>
   }
 })
 
+test('the address bar completes a site you have been to, and puts it first', async () => {
+  await window.evaluate(() => {
+    for (let i = 0; i < 3; i++)
+      window.cove.historyRecord(
+        'https://appstoreconnect.apple.com/apps/1/distribution',
+        'App Store Connect'
+      )
+  })
+  const address = window.locator('.browser-address:visible').first()
+  await address.click()
+  await address.fill('')
+  // The start of the address: the bar fills in the rest, selected, and Enter would take it.
+  await address.pressSequentially('apps', { delay: 40 })
+  await expect(address).toHaveValue('appstoreconnect.apple.com')
+  expect(
+    await address.evaluate((el: HTMLInputElement) =>
+      el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0)
+    )
+  ).toBe('toreconnect.apple.com')
+  const first = window.locator('.omnibox-item').first()
+  await expect(first).toHaveClass(/active/)
+  await expect(first).toContainText('App Store Connect')
+  // Typing on replaces the selection.
+  await address.pressSequentially('t', { delay: 40 })
+  await expect(address).toHaveValue('appstoreconnect.apple.com')
+  // Inside the name, not its start: the bar keeps the words, the site is still first and chosen.
+  await address.fill('')
+  await address.pressSequentially('conn', { delay: 40 })
+  await expect(address).toHaveValue('conn')
+  await expect(first).toContainText('App Store Connect')
+  await expect(first).toHaveClass(/active/)
+  // Deleting takes the choice away: Enter would search for what is typed.
+  await address.press('Backspace')
+  await expect(address).toHaveValue('con')
+  await expect(window.locator('.omnibox-item.active')).toHaveCount(0)
+  await address.press('Escape')
+})
+
 test('only a browser tab row has a hover ×; a project is removed from its right-click menu', async () => {
   const project = window.locator('.sidebar-item', { hasText: 'e2e-project' })
   await project.hover()
@@ -245,7 +283,9 @@ test('Chats lives in the sidebar, above Projects, and opens a chat straight away
   // One click from the sidebar is the conversation, with no list in between.
   await window.click('.sidebar-item:has-text("e2e-project")')
   await rows.first().click()
-  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1, { timeout: 10_000 })
+  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1, {
+    timeout: 10_000
+  })
   await expect(window.locator('.chats-host .dchat-list:visible')).toHaveCount(0)
   await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1)
   await expect(rows.first()).toHaveClass(/active/)

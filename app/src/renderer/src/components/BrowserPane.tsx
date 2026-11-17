@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserState } from '../../../preload'
 import { useStore } from '../state'
-import { interpretOmnibox } from '../lib/omnibox'
+import { interpretOmnibox, topHit } from '../lib/omnibox'
 
 interface BrowserPaneProps {
   paneId: string
@@ -1043,10 +1043,22 @@ export function BrowserPane({
     inputRef.current?.blur()
   }
 
-  const refreshSuggestions = async (text: string): Promise<void> => {
+  /**
+   * `complete`: the user is typing forwards, so the site they most likely mean is
+   * put first and chosen (Enter goes there), and when what they typed starts its
+   * address the bar fills in the rest, selected, as every browser does. Deleting
+   * turns both off, so Backspace then Enter searches for exactly what is typed.
+   */
+  const refreshSuggestions = async (text: string, complete = false): Promise<void> => {
     const seq = ++suggestSeqRef.current
     const primary = interpretOmnibox(text)
     const out: Suggestion[] = []
+    const hist = text.trim() ? await window.cove.historySearch(text.trim()).catch(() => []) : []
+    // Drop results from a superseded keystroke so suggestions can't flicker back.
+    if (seq !== suggestSeqRef.current) return
+    const hit = complete ? topHit(text, hist) : null
+    if (hit)
+      out.push({ kind: 'url', target: hit.target, label: hit.title || hit.host, sub: hit.host })
     if (primary) {
       out.push(
         primary.kind === 'search'
@@ -1054,17 +1066,30 @@ export function BrowserPane({
           : { kind: 'url', target: primary.target, label: text.trim() }
       )
     }
-    const hist = text.trim() ? await window.cove.historySearch(text.trim()).catch(() => []) : []
-    // Drop results from a superseded keystroke so suggestions can't flicker back.
-    if (seq !== suggestSeqRef.current) return
     for (const h of hist) {
       if (out.some((s) => s.target === h.url)) continue
       out.push({ kind: 'url', target: h.url, label: h.title || h.url, sub: h.url })
       if (out.length >= 7) break
     }
     setSuggestions(out)
-    setSuggestIndex(-1)
+    setSuggestIndex(hit ? 0 : -1)
     setShowSuggest(out.length > 0)
+    // Fill in the rest of the address, selected: typing on replaces it, Enter takes it.
+    const input = inputRef.current
+    if (
+      hit?.kind === 'inline' &&
+      input &&
+      document.activeElement === input &&
+      input.value === text &&
+      hit.host.startsWith(text.toLowerCase())
+    ) {
+      const full = text + hit.host.slice(text.length)
+      // At once, not a frame later: the next key must find the rest selected, or
+      // fast typing lands after it ("appstoreconnect.apple.comps").
+      input.value = full
+      input.setSelectionRange(text.length, full.length)
+      setAddressInput(full)
+    }
   }
 
   const onAddressKeyDown = (e: React.KeyboardEvent): void => {
@@ -1195,7 +1220,9 @@ export function BrowserPane({
             }}
             onChange={(e) => {
               setAddressInput(e.target.value)
-              refreshSuggestions(e.target.value)
+              const kind = (e.nativeEvent as InputEvent).inputType ?? ''
+              // Completing while deleting would put back what was just removed.
+              void refreshSuggestions(e.target.value, !kind.startsWith('delete'))
             }}
             onKeyDown={onAddressKeyDown}
           />

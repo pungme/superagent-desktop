@@ -25,8 +25,15 @@ export function appHotkey(): AppHotkeyState {
   return { hotkey: appHotkeyFrom(kvGet(KEY)), ok }
 }
 
-/** Bring the app's window forward, making one if it was closed. */
-export function bringAppForward(): BrowserWindow | null {
+/**
+ * Bring the app's window forward, making one if it was closed.
+ *
+ * `hard`: the gentle way was just tried and the user asked again (a second Dock
+ * click), so the window is evidently still not in front of them. It may be on
+ * another Space, or behind a window that will not give way: it is pulled onto
+ * the Space they are looking at and put on top.
+ */
+export function bringAppForward(hard = false): BrowserWindow | null {
   if (!host) return null
   let w = host.window()
   if (!w) {
@@ -45,7 +52,19 @@ export function bringAppForward(): BrowserWindow | null {
   } catch {
     // no display information: leave it where it is
   }
+  if (hard) {
+    try {
+      // On every Space for a moment, then only this one: that moves it here.
+      // Without the process transform, which would take the Dock icon away.
+      w.setVisibleOnAllWorkspaces(true, { skipTransformProcessType: true })
+      w.setVisibleOnAllWorkspaces(false, { skipTransformProcessType: true })
+      if (app.isHidden?.()) app.show()
+    } catch {
+      // the ordinary way below still runs
+    }
+  }
   w.show()
+  if (hard) w.moveTop()
   w.focus()
   app.focus({ steal: true })
   return w

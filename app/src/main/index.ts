@@ -18,7 +18,8 @@ import {
   ipcMain,
   dialog,
   session,
-  nativeImage
+  nativeImage,
+  screen
 } from 'electron'
 import { basename } from 'path'
 import { rmSync, writeFileSync } from 'fs'
@@ -153,6 +154,9 @@ if (process.env.COVE_USER_DATA) {
 
 /** The app's own window: not the dot, not the remote-control banner. */
 let appWindow: BrowserWindow | null = null
+/** When the Dock icon was last clicked, and when the window last took focus (see 'activate'). */
+let lastDockClickAt = 0
+let lastWindowFocusAt = 0
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -200,6 +204,7 @@ function createWindow(): BrowserWindow {
   let focusSettleTimer: ReturnType<typeof setTimeout> | null = null
   mainWindow.on('focus', () => {
     paneLog('window-focus', 'window')
+    lastWindowFocusAt = Date.now()
     mainWindow.webContents.send('app:focus', true)
     // If this focus arrived during agent work, the user didn't ask for it —
     // this is separately guarded to fire at most once per guard cycle, so it's
@@ -877,7 +882,33 @@ app.whenReady().then(async () => {
     // showing, and the dot is one showing. So the click did nothing at all
     // ("I cannot open the app from the Dock, the dot prevents it"). Asked for
     // by name, the window comes forward whatever the dot is doing.
-    else if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
+    else if (process.env.COVE_E2E_QUIET !== '1') {
+      // Clicked again within a few seconds, and the window never took focus in
+      // between: the first click did not put it in front of them (seen in the
+      // log as runs of Dock clicks with no focus after). Pull harder this time.
+      const now = Date.now()
+      const again = now - lastDockClickAt < 4000 && lastWindowFocusAt < lastDockClickAt
+      lastDockClickAt = now
+      const w = appWindow
+      // What the window was like when the click arrived, to explain the next "it did not come".
+      paneLog(
+        'dock-click',
+        'window',
+        JSON.stringify({
+          again,
+          visible: w.isVisible(),
+          minimized: w.isMinimized(),
+          focused: w.isFocused(),
+          fullscreen: w.isFullScreen(),
+          hidden: app.isHidden?.() ?? false,
+          bounds: w.getBounds(),
+          displays: screen.getAllDisplays().map((d) => d.bounds),
+          focusedWindow: BrowserWindow.getFocusedWindow()?.id ?? null,
+          windows: BrowserWindow.getAllWindows().length
+        })
+      )
+      bringAppForward(again)
+    }
   })
 })
 
