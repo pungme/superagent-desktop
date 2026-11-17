@@ -16168,3 +16168,338 @@ button {
 .easy-input-box[data-tall] .easy-attach.easy-save-later {
   right: 70px;
 }
+
+/* --- Today: the day on one screen (TodayView.tsx) --------------------------- */
+.sidebar-dash-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: #f5a524;
+}
+.today-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.today {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 32px 20px;
+  gap: 16px;
+  overflow: hidden;
+}
+.today-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.today-head h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.today-sub {
+  color: var(--text-tertiary);
+  font-size: 13.5px;
+}
+.today-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.05fr 0.95fr;
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .today-cols {
+    grid-template-columns: 1fr 1fr;
+  }
+  .today-cols > :last-child {
+    grid-column: 1 / -1;
+  }
+  .today {
+    overflow-y: auto;
+  }
+}
+.today-col {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+}
+.today-col h2 {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.today-empty {
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  padding: 8px 0;
+}
+.today-ev {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+}
+.today-ev time {
+  width: 46px;
+  flex: none;
+  text-align: right;
+  padding-top: 7px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.today-ev.allday time {
+  padding-top: 6px;
+  font-size: 11px;
+}
+.today-ev-b {
+  --ev: #4c9bff;
+  flex: 1;
+  min-width: 0;
+  border-left: 3px solid var(--ev);
+  background: color-mix(in srgb, var(--ev) 13%, transparent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.today-ev-b small {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+.today-ev.past {
+  opacity: 0.45;
+}
+.today-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+  color: #ff5f57;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.today-now i {
+  flex: 1;
+  height: 1px;
+  background: #ff5f57;
+}
+.today-td {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--content-hairline);
+}
+.today-ck {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: none;
+  cursor: pointer;
+}
+.today-ck:hover {
+  border-color: #3ecf8e;
+  background: color-mix(in srgb, #3ecf8e 20%, transparent);
+}
+.today-td-t {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.today-td-t small {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  margin-top: 1px;
+}
+.today-pill {
+  flex: none;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.today-pill:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--hover);
+}
+.today-pill.strong {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+  font-weight: 600;
+}
+.today-pill.strong:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-fg);
+  opacity: 0.9;
+}
+.today-pill.working {
+  border-color: color-mix(in srgb, #4c9bff 55%, transparent);
+  color: #8ec0ff;
+}
+.today-pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.today-new {
+  display: flex;
+  gap: 8px;
+  padding: 8px 2px;
+}
+.today-new input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.today-new input::placeholder {
+  color: var(--text-tertiary);
+}
+.today-new select {
+  font: inherit;
+  font-size: 12px;
+  background: var(--hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.today-ag {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--content-hairline);
+  padding: 9px 2px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+button.today-ag:hover {
+  background: var(--hover);
+  border-radius: 8px;
+}
+.today-ag.need {
+  cursor: default;
+  background: color-mix(in srgb, #f5a524 9%, transparent);
+  border: 1px solid color-mix(in srgb, #f5a524 38%, transparent);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+.today-ag-l {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.today-ag-l b {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.today-ag-l span {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.today-ag p {
+  margin: 3px 0 0 15px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.today-acts {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 0 15px;
+}
+.today-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.today-dot.working {
+  background: #4c9bff;
+}
+.today-dot.need {
+  background: #f5a524;
+}
+.today-ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 10px 10px 10px 14px;
+}
+.today-ask input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.today-ask input::placeholder {
+  color: var(--text-tertiary);
+}
+.today-err {
+  color: #ff6b6b;
+  font-size: 12px;
+}
+.today-go {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 14px;
+  cursor: pointer;
+}
+.today-go:disabled {
+  background: var(--accent-soft);
+  color: var(--text-tertiary);
+  cursor: default;
+}

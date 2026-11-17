@@ -1131,6 +1131,16 @@ export interface CoveApi {
   /** False on a Mac with no lid to close (a desktop). */
   hasLid: () => Promise<boolean>
   batteryFloor: () => Promise<number>
+  /** Today: every project's open to-dos. */
+  todayCards: () => Promise<BoardCard[]>
+  /** Today's ask box: a new chat under Chats with this as its first message. */
+  todayAsk: (
+    text: string
+  ) => Promise<{ ok: true; chatId: string; workspaceId: string } | { ok: false; error: string }>
+  /** Hand a to-do to an agent: a chat of its own in its project works on it. */
+  todayHand: (
+    cardId: string
+  ) => Promise<{ ok: true; chatId: string; workspaceId: string } | { ok: false; error: string }>
   /** Copy a conversation (transcript, agent, model; pinned when it is), and open the copy. */
   chatDuplicate: (chatId: string) => Promise<{ workspaceId: string; chatId: string } | null>
   /** Claude Code's version and the last automatic update (main/cli-updater.ts). */
@@ -1831,6 +1841,9 @@ const cove: CoveApi = {
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
   hasLid: () => ipcRenderer.invoke('power:has-lid'),
   batteryFloor: () => ipcRenderer.invoke('power:battery-floor'),
+  todayCards: () => ipcRenderer.invoke('today:cards'),
+  todayAsk: (text) => ipcRenderer.invoke('today:ask', text),
+  todayHand: (cardId) => ipcRenderer.invoke('today:hand', cardId),
   chatDuplicate: (chatId) => ipcRenderer.invoke('chat:duplicate', chatId),
   cliStatus: () => ipcRenderer.invoke('cli:status'),
   cliUpdateNow: () => ipcRenderer.invoke('cli:update-now'),

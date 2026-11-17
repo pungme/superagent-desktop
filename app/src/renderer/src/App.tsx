@@ -1,4 +1,5 @@
 import { goBack, visited, type Visit } from '../../shared/visit-history'
+import { TodayView } from './components/TodayView'
 import { applySavedFromMac } from './lib/saved-prompts'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
@@ -399,11 +400,12 @@ function App(): React.JSX.Element {
     // its own state and covers them both, so going to one leaves it too:
     // clicking a chat in the sidebar's Chats list with Settings open used to
     // open the chat behind Settings, and nothing appeared to happen.
-    const show = (o: 'computer' | 'chats'): void => {
+    const show = (o: 'today' | 'computer' | 'chats'): void => {
       setOverlay(o)
       setSettingsOpen(false)
     }
     const openComputer = (): void => show('computer')
+    const openToday = (): void => show('today')
     const openChats = (): void => show('chats')
     // A conversation that belongs to no project: straight into Chats with a
     // fresh one open, rather than open Chats, then find its + New chat.
@@ -503,6 +505,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('cove:open-dashboard', open)
     window.addEventListener('cove:open-computer', openComputer)
+    window.addEventListener('cove:open-today', openToday)
     window.addEventListener('cove:open-chats', openChats)
     window.addEventListener('cove:open-skills', openSkills)
     window.addEventListener('cove:open-routines', openRoutines)
@@ -512,6 +515,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:open-routines', openRoutines)
       window.removeEventListener('cove:open-dashboard', open)
       window.removeEventListener('cove:open-computer', openComputer)
+      window.removeEventListener('cove:open-today', openToday)
       window.removeEventListener('cove:open-chats', openChats)
       window.removeEventListener('cove:new-chat', onNewChat)
       offDotOpen?.()
@@ -808,6 +812,12 @@ function App(): React.JSX.Element {
               visible={computerOpen && !settingsOpen}
               onClose={() => setOverlay(null)}
             />
+          </div>
+        )}
+        {/* Today: the day on one screen (calendar, to-dos, agents). */}
+        {overlay === 'today' && !settingsOpen && (
+          <div className="today-host">
+            <TodayView visible />
           </div>
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,

@@ -1645,6 +1645,23 @@ function cardsForWorkspace(workspaceId: string): Card[] {
   ).map(hydrate)
 }
 
+/** One card by id, or undefined. */
+export function getCard(id: string): Card | undefined {
+  const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
+  return row ? hydrate(row) : undefined
+}
+
+/** Every open card (not done) in every project, oldest first within each: Today's to-do list. */
+export function openCards(): Card[] {
+  return (
+    db
+      .prepare(
+        "SELECT * FROM cards WHERE status != 'done' ORDER BY workspaceId, position ASC, createdAt ASC"
+      )
+      .all() as unknown[]
+  ).map(hydrate)
+}
+
 /** Workspaces whose folder lives inside `rootPath` — the repos a root project contains. */
 function nestedWorkspaces(rootPath: string): Workspace[] {
   return (db.prepare('SELECT * FROM workspaces').all() as Workspace[]).filter((w) =>

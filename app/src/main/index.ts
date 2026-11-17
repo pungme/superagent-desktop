@@ -1,4 +1,5 @@
 // Before everything: what the released app will not be started with.
+import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
 import './harden'
@@ -424,6 +425,7 @@ app.whenReady().then(async () => {
   startCompanion()
   // Claude Code is kept current: the model picker is only as new as the CLI.
   registerCliUpdaterIpc()
+  registerTodayIpc()
   startCliAutoUpdate()
   // Menu-bar presence while a phone is paired; follows pairing/relay changes.
   // Quiet tests leave the menu bar alone too.

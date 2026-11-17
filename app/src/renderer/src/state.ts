@@ -347,8 +347,8 @@ interface CoveState {
   /** Projects with the simulator pane open, so the sidebar can say so. */
   simOpen: Record<string, boolean>
   setSimOpen: (workspaceId: string, open: boolean) => void
-  overlay: 'computer' | 'chats' | null
-  setOverlay: (o: 'computer' | 'chats' | null) => void
+  overlay: 'today' | 'computer' | 'chats' | null
+  setOverlay: (o: 'today' | 'computer' | 'chats' | null) => void
   // Routines grouped by workspace id, shown nested under each project in the sidebar.
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
@@ -757,10 +757,12 @@ export const SHOT_TTL_MS = 5 * 60_000
 const SHOTS_MAX = 6
 
 /** The full-window view open when the app last ran, if any. */
-function savedOverlay(): 'computer' | 'chats' | null {
+function savedOverlay(): 'today' | 'computer' | 'chats' | null {
   try {
     const o = localStorage.getItem('cove.overlay')
-    return o === 'computer' || o === 'chats' ? o : null
+    // Computer was the home screen until Today took its place.
+    if (o === 'computer' || o === 'today') return 'today'
+    return o === 'chats' ? o : null
   } catch {
     return null
   }

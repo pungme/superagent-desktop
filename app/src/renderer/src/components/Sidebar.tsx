@@ -2458,6 +2458,7 @@ function useSplitDrag(): {
 
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
+  const needsYouCount = useStore((s) => s.guardrailAsks.length)
   const overlay = useStore((s) => s.overlay)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
@@ -2716,8 +2717,8 @@ export function Sidebar(): React.JSX.Element {
           style={mode === 'activity' ? { display: 'none' } : undefined}
         >
           <button
-            className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
-            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
+            className={`sidebar-dash-row ${overlay === 'today' ? 'on' : ''}`}
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-today'))}
           >
             <svg
               className="sidebar-dash-icon"
@@ -2727,14 +2728,17 @@ export function Sidebar(): React.JSX.Element {
               fill="none"
               stroke="currentColor"
               strokeWidth="1.4"
-              strokeLinejoin="round"
+              strokeLinecap="round"
             >
-              <rect x="1.5" y="2.5" width="13" height="9" rx="1.2" />
-              <path d="M6 14h4" />
+              <circle cx="8" cy="8" r="3" />
+              <path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" />
             </svg>
-            Computer
+            Today
+            {needsYouCount > 0 && (
+              <span className="sidebar-dash-badge">{needsYouCount} needs you</span>
+            )}
           </button>
-          {/* Under Computer: the fixed way in first, then what you made. */}
+          {/* Under Today: the fixed way in first, then what you made. */}
           <SplitsSection />
           <PinnedShortcuts />
           <ChatsSection />
