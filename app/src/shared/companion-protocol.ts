@@ -223,6 +223,25 @@ export interface WireLoop {
   needsUser?: boolean
 }
 
+/** An event on Superagent's calendar (`today.get`). */
+export interface WireCalendarEvent {
+  id: string
+  title: string
+  /** YYYY-MM-DD (all day) or YYYY-MM-DDTHH:mm, in the Mac's local time. */
+  start: string
+  end: string | null
+  allDay: boolean
+  notes: string
+  color: string | null
+}
+
+/** `today.get`: the day's events (for `date`, YYYY-MM-DD) and every project's open to-dos. */
+export interface WireToday {
+  date: string
+  events: WireCalendarEvent[]
+  cards: unknown[]
+}
+
 /** A skill or slash command an agent on the Mac can run (`skills.list`). */
 export interface WireSkill {
   name: string
@@ -399,6 +418,9 @@ export type RpcMethod =
   | 'chat.draft'
   | 'chat.pin'
   | 'chat.duplicate'
+  | 'today.get'
+  | 'today.hand'
+  | 'today.ask'
   | 'chat.reorderPinned'
   | 'chat.delete'
   | 'approval.answer'

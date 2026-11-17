@@ -1,4 +1,6 @@
 import { frameWanted, mirrorShotWidth } from '../../shared/mirror-shot'
+import { listCalendarEvents, openCards } from '../store'
+import { handCard, todayAsk as todayAsk_ } from '../today'
 import { duplicateChat } from '../chat-duplicate'
 import { discoverSkills } from '../skills'
 import { addSavedPrompt, listSaved, removeSavedPrompt } from '../saved-prompts'
@@ -196,6 +198,9 @@ const skillsList = z.object({
   provider: z.enum(['claude', 'codex', 'antigravity']).optional(),
   workspaceId: z.string().min(1).optional()
 })
+const todayGet = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+const todayHand = z.object({ cardId: z.string().min(1) })
+const todayAsk = z.object({ text: z.string().min(1).max(200_000) })
 const savedAdd = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(200_000) })
 const savedRemove = z.object({ chatId: z.string().min(1), id: z.string().min(1) })
 const approvalAnswer = z.object({
@@ -465,6 +470,38 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           )
         const done = resolveGate(a.id, a.approve, a.trustRest ?? false, 'ios', !!a.faceId)
         return done ? { ok: true } : fail('gone', 'that approval is no longer waiting')
+      }
+      // Today on the phone: the day's events and every project's open to-dos.
+      case 'today.get': {
+        const p = todayGet.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const next = new Date(`${p.data.date}T12:00:00`)
+        next.setDate(next.getDate() + 1)
+        const to = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+        return {
+          ok: true,
+          result: {
+            date: p.data.date,
+            events: listCalendarEvents(p.data.date, to),
+            cards: openCards()
+          }
+        }
+      }
+      case 'today.hand': {
+        const p = todayHand.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const r = await handCard(p.data.cardId)
+        if (!r.ok) return fail('unavailable', r.error)
+        pushChats()
+        return { ok: true, result: { chatId: r.chatId, workspaceId: r.workspaceId } }
+      }
+      case 'today.ask': {
+        const p = todayAsk.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const r = await todayAsk_(p.data.text)
+        if (!r.ok) return fail('unavailable', r.error)
+        pushChats()
+        return { ok: true, result: { chatId: r.chatId, workspaceId: r.workspaceId } }
       }
       // Save for later: the same list as the Mac's composer.
       case 'saved.list': {

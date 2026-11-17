@@ -173,6 +173,8 @@ vi.mock('../store', () => ({
   moveChatToWorkspace: () => false,
   kvSet: (k: string, v: string) => h.kv.set(k, v),
   kvDel: (k: string) => h.kv.delete(k),
+  listCalendarEvents: () => [],
+  openCards: () => [],
   isPendingBranch: (id: string) => h.kv.get(`pendingBranch:${id}`) === '1',
   markPendingBranch: (id: string) => h.kv.set(`pendingBranch:${id}`, '1'),
   takePendingBranch: (id: string) => h.kv.delete(`pendingBranch:${id}`),
@@ -304,6 +306,10 @@ vi.mock('../skills', () => ({
       kind: 'skill'
     }
   ]
+}))
+vi.mock('../today', () => ({
+  handCard: async () => ({ ok: false, error: 'no' }),
+  todayAsk: async () => ({ ok: false, error: 'no' })
 }))
 vi.mock('../chat-duplicate', () => ({
   duplicateChat: async (id: string) =>
