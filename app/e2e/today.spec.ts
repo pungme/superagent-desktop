@@ -107,3 +107,21 @@ test('the ask box waits for words', async () => {
   await ask.getByLabel('Ask').fill("what's left today?")
   await expect(ask.getByRole('button', { name: 'Send' })).toBeEnabled()
 })
+
+test('a long to-do list shows the few that matter, with Show all for the rest', async () => {
+  await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    for (let i = 0; i < 14; i++) await window.cove.boardAdd(ws.id, `Backlog item ${i}`)
+  })
+  await window.locator('.sidebar-dash-row', { hasText: 'Today' }).click()
+  const todo = window.locator('.today-col[aria-label="To-do"]')
+  await expect(todo.locator('.today-td')).toHaveCount(10)
+  const more = todo.getByRole('button', { name: /^Show all/ })
+  await expect(more).toBeVisible()
+  await more.click()
+  await expect(todo.locator('.today-td').first()).toBeVisible()
+  expect(await todo.locator('.today-td').count()).toBeGreaterThan(10)
+  await todo.getByRole('button', { name: 'Show fewer' }).click()
+  await expect(todo.locator('.today-td')).toHaveCount(10)
+})

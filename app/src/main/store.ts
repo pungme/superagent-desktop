@@ -7,6 +7,7 @@ import {
 } from './transcripts'
 import type { TranscriptPatch } from '../shared/transcript'
 import { isMainOwnedKey } from '../shared/kv-owned'
+import { NOW_MAX } from '../shared/chat-now'
 import { app, ipcMain } from 'electron'
 import { join, sep } from 'path'
 import {
@@ -1055,6 +1056,7 @@ export function deleteChat(chatId: string): void {
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
   db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
   kvDel(pendingKey(chatId))
+  kvDel(nowKey(chatId))
 }
 
 /**
@@ -1159,6 +1161,8 @@ export function kvDel(key: string): void {
 }
 
 const pendingKey = (chatId: string): string => `pendingBranch:${chatId}`
+/** The one line a chat shows in the sidebar as what it is at (see shared/chat-now.ts). */
+const nowKey = (chatId: string): string => `chatNow:${chatId}`
 
 /**
  * A chat that will cut its own copy of the project on its first message.
@@ -2181,7 +2185,8 @@ function registerStoreIpcTail(): void {
         // to read only its own localStorage copy, so a chat the phone created
         // was invisible in the sidebar until the next launch.
         `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
-                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
+                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending,
+                (SELECT value FROM kv WHERE key = 'chatNow:' || chats.id) AS now
          FROM chats WHERE workspaceId = ? ORDER BY pinned DESC, position ASC, updatedAt ASC`
       )
       .all(workspaceId)
@@ -2197,11 +2202,22 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:image', (_e, messageId: string, index: number) =>
     readThumbnail(String(messageId), Number(index) || 0)
   )
+  ipcMain.handle('chat:setNow', (_e, chatId: string, text: string) => {
+    const line = String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, NOW_MAX + 1)
+    if ((kvGet(nowKey(String(chatId))) ?? '') === line) return false
+    if (line) kvSet(nowKey(String(chatId)), line)
+    else kvDel(nowKey(String(chatId)))
+    return true
+  })
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
         `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
-                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
+                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending,
+                (SELECT value FROM kv WHERE key = 'chatNow:' || chats.id) AS now
          FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC`
       )
       .all()

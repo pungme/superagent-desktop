@@ -1,6 +1,7 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
+import { chatNow } from '../../../shared/chat-now'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
@@ -2587,6 +2588,29 @@ export function EasyChat({
   useEffect(() => {
     if (!generating) saveTranscript()
   }, [generating, saveTranscript])
+
+  // The sidebar's one-line "what it is at": when a turn ends, the first sentence or
+  // two of the agent's last reply, kept by main so it shows for chats that are not
+  // open and survives a restart. Free: no model call.
+  const wasWorkingRef = useRef(false)
+  useEffect(() => {
+    const working = generating || thinking
+    const ended = wasWorkingRef.current && !working
+    wasWorkingRef.current = working
+    if (!ended || !chatId) return
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i]
+      if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system && it.msg.text) {
+        const line = chatNow(it.msg.text)
+        if (line)
+          void window.cove.chatSetNow(chatId, line).then((changed) => {
+            if (changed) window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+          })
+        return
+      }
+      if (it.kind === 'msg' && it.msg.role === 'user') return
+    }
+  }, [generating, thinking, items, chatId])
 
   // Paste a screenshot/image into the composer.
   const attachImage = (file: File): void => {

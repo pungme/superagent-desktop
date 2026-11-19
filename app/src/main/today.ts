@@ -1,6 +1,14 @@
 import { ipcMain } from 'electron'
+import { writeFileSync } from 'fs'
+import { join } from 'path'
+import { dayNotes, TODAY_ASSISTANT_RULES } from '../shared/today'
 import {
   createChat,
+  getChat,
+  kvGet,
+  kvSet,
+  listCalendarEvents,
+  setChatTitle,
   DESKTOP_WORKSPACE_ID,
   ensureDesktopWorkspace,
   getCard,
@@ -38,11 +46,59 @@ async function startChat(workspaceId: string, text: string): Promise<Sent> {
   return sent.ok ? { ok: true, chatId, workspaceId: wsId } : { ok: false, error: sent.error }
 }
 
-/** The ask box: a question for the agent that is not tied to a project, in a new chat under Chats. */
-export function todayAsk(text: string): Promise<Sent> {
+const ymd = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/**
+ * The Today box's own conversation: one, kept, under Chats. It is the assistant
+ * that finds the right existing conversation for a request and hands it the work
+ * (app_find_chats / app_send_message), so a request does not start a new chat
+ * every time.
+ */
+function assistantChat(): { chatId: string; workspaceId: string; cwd: string } {
+  const desk = ensureDesktopWorkspace()
+  const known = kvGet('today.chatId')
+  if (known && getChat(known))
+    return { chatId: known, workspaceId: desk.workspaceId, cwd: desk.cwd }
+  const chatId = createChat(desk.workspaceId)
+  setChatTitle(chatId, 'Today')
+  kvSet('today.chatId', chatId)
+  broadcastToWindows('projects:changed', {})
+  return { chatId, workspaceId: desk.workspaceId, cwd: desk.cwd }
+}
+
+/** Today's calendar and to-dos for the assistant to read, as a file next to its chat. */
+function writeDayNotes(cwd: string): void {
+  const now = new Date()
+  const next = new Date(now.getTime() + 86_400_000)
+  const text = dayNotes(
+    now,
+    listCalendarEvents(ymd(now), ymd(next)),
+    openCards(),
+    (ws) => getWorkspace(ws)?.name ?? 'Project'
+  )
+  writeFileSync(join(cwd, 'today.md'), `${text}\n${TODAY_ASSISTANT_RULES}`)
+}
+
+/**
+ * The ask box: the request goes to the Today assistant, which has the day's
+ * notes and the tools to find the right conversation and send it the work.
+ */
+export async function todayAsk(text: string): Promise<Sent> {
   const said = String(text ?? '').trim()
-  if (!said) return Promise.resolve({ ok: false, error: 'Nothing to send.' })
-  return startChat(DESKTOP_WORKSPACE_ID, said)
+  if (!said) return { ok: false, error: 'Nothing to send.' }
+  const { chatId, workspaceId, cwd } = assistantChat()
+  try {
+    writeDayNotes(cwd)
+  } catch {
+    // Without the notes it still routes; it just cannot answer about the day.
+  }
+  const { askFromDot } = await import('./companion/rpc')
+  const sent = await askFromDot(
+    chatId,
+    `${said}\n\n(Today box: today.md in this folder has my calendar and to-dos, and how to handle this.)`
+  )
+  return sent.ok ? { ok: true, chatId, workspaceId } : { ok: false, error: sent.error }
 }
 
 /** Hand a to-do to an agent: it moves to Doing, and a chat of its own in its project works on it. */

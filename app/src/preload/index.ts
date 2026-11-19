@@ -164,6 +164,11 @@ export interface Chat {
    * so a chat created on either device reads the same on both.
    */
   pending: 0 | 1
+  /**
+   * What the conversation is at, in one line (the agent's last reply, trimmed):
+   * the sidebar's subtitle. Comes from main's kv; absent until a turn has ended.
+   */
+  now?: string | null
 }
 
 /** One message matching a search query — chat.search's shape, shared with the phone. */
@@ -699,6 +704,8 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
+  /** Save the one-line "what it is at" for a chat; '' clears it. */
+  chatSetNow: (chatId: string, text: string) => Promise<boolean>
   /** Save the Pinned section's order, top first. */
   chatReorderPinned: (chatIds: string[]) => Promise<void>
   /** Reorder a conversation within its project. */
@@ -1603,6 +1610,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  chatSetNow: (chatId, text) => ipcRenderer.invoke('chat:setNow', chatId, text),
   chatReorderPinned: (chatIds) => ipcRenderer.invoke('chat:reorder-pinned', chatIds),
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),
   chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),

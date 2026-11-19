@@ -1977,6 +1977,7 @@ function PinnedRow({
   live,
   background,
   unread,
+  doing,
   onOpen
 }: {
   chat: Chat
@@ -1999,6 +2000,8 @@ function PinnedRow({
    *  "asleep but not done," reused here for parity. */
   background: boolean
   unread: boolean
+  /** What the agent is at right now, while a turn runs (busy.doing). */
+  doing?: string
   onOpen: () => void
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
@@ -2166,8 +2169,32 @@ function PinnedRow({
             {branch && `⎇ ${branch.replace(/^superagent\//, '')}`}
           </span>
         )}
+        <NowLine live={live} doing={doing} saved={chat.now} />
       </span>
     </button>
+  )
+}
+
+/**
+ * What the conversation is at, under its title: the step under way while a turn
+ * runs, otherwise the first words of the agent's last reply. Nothing until a
+ * turn has ended (an old chat shows no line rather than a guess).
+ */
+function NowLine({
+  live,
+  doing,
+  saved
+}: {
+  live: boolean
+  doing?: string
+  saved?: string | null
+}): React.JSX.Element | null {
+  const text = live ? (doing ?? 'Working…') : (saved ?? '')
+  if (!text) return null
+  return (
+    <span className={`activity-now${live ? ' live' : ''}`} title={text}>
+      {text}
+    </span>
   )
 }
 
@@ -2269,6 +2296,7 @@ function PinnedShortcuts(): React.JSX.Element | null {
               }
               live={Boolean(busy[c.id]?.generating)}
               background={(busy[c.id]?.background ?? 0) > 0}
+              doing={busy[c.id]?.doing}
               unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
               onOpen={() => {
                 // Chats are not a project to switch to: they open where Chats does.
@@ -2338,6 +2366,7 @@ function ActivityList(): React.JSX.Element {
             <span className="activity-when">{when(c.updatedAt)}</span>
           </span>
           <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
+          <NowLine live={Boolean(busy[c.id]?.generating)} doing={busy[c.id]?.doing} saved={c.now} />
         </span>
       </button>
     )

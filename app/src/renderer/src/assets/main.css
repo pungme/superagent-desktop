@@ -404,6 +404,19 @@ button {
   color: var(--text-tertiary);
   flex: none;
 }
+.activity-now {
+  display: block;
+  /* What it is at: a step quieter than the title line, one line, cut with an ellipsis. */
+  font-size: 11px;
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-now.live {
+  color: var(--accent, var(--text-secondary));
+}
 .activity-where {
   display: block;
   /* What the conversation is about: the line you read to tell two pins of the
@@ -16502,4 +16515,31 @@ button.today-ag:hover {
   background: var(--accent-soft);
   color: var(--text-tertiary);
   cursor: default;
+}
+
+.today-more {
+  margin: 6px 2px 2px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.today-more:hover {
+  color: var(--text-primary);
+}
+.today-sent {
+  flex: none;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.today-sent:hover {
+  color: var(--text-primary);
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { BoardCard, CalendarEvent, Chat } from '../../../preload'
 import { useStore } from '../state'
+import { pickTodos } from '../../../shared/today'
 
 /**
  * Today: the day on one screen, where Computer used to be.
@@ -48,6 +49,10 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
   const [error, setError] = useState<string | null>(null)
   const [newTodo, setNewTodo] = useState('')
   const [handing, setHanding] = useState<string | null>(null)
+  /** The to-do list is a few by default (in progress, then newest); this shows every one. */
+  const [allTodos, setAllTodos] = useState(false)
+  /** Where the last request from the box went: its chat, for a way to look. */
+  const [sentTo, setSentTo] = useState<{ workspaceId: string; chatId: string } | null>(null)
 
   const names = useMemo(() => {
     const m = new Map<string, string>()
@@ -119,9 +124,13 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
     const r = await window.cove.todayAsk(text)
     setSending(false)
     if (!r.ok) return setError(r.error)
+    // Stay here: the assistant finds the right conversation and hands it the work
+    // (asking to allow each hand-over, in Agents). Opening its chat is one click.
     setDraft('')
-    open(r.workspaceId, r.chatId)
+    setSentTo({ workspaceId: r.workspaceId, chatId: r.chatId })
   }
+
+  const todos = useMemo(() => pickTodos(cards, allTodos), [cards, allTodos])
 
   const hand = async (c: BoardCard): Promise<void> => {
     setHanding(c.id)
@@ -207,7 +216,7 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
         <section className="today-col" aria-label="To-do">
           <h2>To-do</h2>
           {cards.length === 0 && <p className="today-empty">No open to-dos in any project.</p>}
-          {cards.map((c) => {
+          {todos.shown.map((c) => {
             const chat = c.chatId ? chatById.get(c.chatId) : undefined
             const running = !!(c.chatId && busy[c.chatId]?.generating)
             return (
@@ -247,6 +256,16 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
               </div>
             )
           })}
+          {todos.hidden > 0 && (
+            <button className="today-more" onClick={() => setAllTodos(true)}>
+              Show all {cards.length}
+            </button>
+          )}
+          {allTodos && cards.length > todos.shown.length - 1 && cards.length > 10 && (
+            <button className="today-more" onClick={() => setAllTodos(false)}>
+              Show fewer
+            </button>
+          )}
           {projects.length > 0 && (
             <form
               className="today-new"
@@ -357,6 +376,15 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
           disabled={sending}
         />
         {error && <span className="today-err">{error}</span>}
+        {sentTo && !error && !draft && (
+          <button
+            type="button"
+            className="today-sent"
+            onClick={() => open(sentTo.workspaceId, sentTo.chatId)}
+          >
+            Sent to your Today assistant. Open
+          </button>
+        )}
         <button
           type="submit"
           className="today-go"
