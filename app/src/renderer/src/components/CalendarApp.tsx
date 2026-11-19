@@ -94,7 +94,14 @@ function draftToPayload(d: Draft): {
   color: string
 } {
   if (d.allDay) {
-    return { title: d.title, start: d.date, end: d.date, allDay: true, notes: d.notes, color: d.color }
+    return {
+      title: d.title,
+      start: d.date,
+      end: d.date,
+      allDay: true,
+      notes: d.notes,
+      color: d.color
+    }
   }
   return {
     title: d.title,
@@ -200,6 +207,8 @@ export function CalendarApp(): React.JSX.Element {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  // An agent put events on the calendar while it is open.
+  useEffect(() => window.cove.onCalendarChanged?.(() => void refresh()), [refresh])
 
   // Scroll the time grid to ~7am when entering a timed view.
   useEffect(() => {
@@ -319,11 +328,7 @@ export function CalendarApp(): React.JSX.Element {
         <div className="cal-head-actions">
           <div className="cal-viewseg">
             {(['day', 'week', 'month'] as View[]).map((v) => (
-              <button
-                key={v}
-                className={view === v ? 'on' : ''}
-                onClick={() => setView(v)}
-              >
+              <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
                 {v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
@@ -404,7 +409,9 @@ export function CalendarApp(): React.JSX.Element {
                             style={{ background: e.color ?? COLORS[0] }}
                           />
                         )}
-                        {!e.allDay && <span className="cal-chip-time">{e.start.slice(11, 16)}</span>}
+                        {!e.allDay && (
+                          <span className="cal-chip-time">{e.start.slice(11, 16)}</span>
+                        )}
                         <span className="cal-chip-title">{e.title}</span>
                       </button>
                     ))}

@@ -177,7 +177,9 @@ const APP_PROMPT =
   'is and what is working, app_new_chat starts a conversation (with a first message if they gave a job), ' +
   'app_send_message speaks into another conversation (the user is asked each time), app_stop_chat stops ' +
   'one, app_rename_chat and app_pin_chat tidy, app_open_view shows Settings, the Computer, Chats, or the board, files, browser or simulator of a project, ' +
-  'app_board / app_board_add / app_board_move work the todo list of any project, app_routines and app_routine ' +
+  'app_board / app_board_add / app_board_move work the todo list of any project, app_calendar / app_calendar_add / ' +
+  "app_calendar_update / app_calendar_remove work Superagent's own calendar (put dates and deadlines there with " +
+  'app_calendar_add, many at once; never make an .ics file for it), app_routines and app_routine ' +
   'list, run and pause scheduled tasks, and app_delete_chat deletes a conversation (the user confirms). app_go_back ' +
   'returns to the conversation that was on screen before. These ' +
   'change what the user is looking at, so only use them when asked.'

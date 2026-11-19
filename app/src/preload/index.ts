@@ -46,6 +46,10 @@ export interface LimitNotice {
   alternatives: { id: string; name: string }[]
   switchedTo: { id: string; name: string } | null
   mode: 'ask' | 'auto'
+  /** Other agents that are signed in and have allowance, in the order to try. */
+  agents: ('claude' | 'codex' | 'antigravity')[]
+  /** Auto mode with no account left on this agent: the one the chat should move to. */
+  switchedToAgent: 'claude' | 'codex' | 'antigravity' | null
 }
 
 export interface BrowserState {
@@ -567,6 +571,8 @@ export interface CoveApi {
   boardRemoveImage: (cardId: string, path: string) => Promise<boolean>
   boardImageData: (path: string) => Promise<string | null>
   onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
+  /** An agent (or anything else) added, changed or removed calendar events. */
+  onCalendarChanged: (cb: () => void) => () => void
   /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
   simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
   simBoot: (udid: string) => Promise<boolean>
@@ -1528,6 +1534,7 @@ const cove: CoveApi = {
   boardRemoveImage: (cardId, path) => ipcRenderer.invoke('board:removeImage', cardId, path),
   boardImageData: (path) => ipcRenderer.invoke('board:imageData', path),
   onBoardChanged: (cb) => subscribe('board:changed', (p) => cb(p as { workspaceId: string })),
+  onCalendarChanged: (cb) => subscribe('calendar:changed', () => cb()),
   simList: () => ipcRenderer.invoke('sim:list'),
   simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
   simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),

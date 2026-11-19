@@ -19,6 +19,7 @@ import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
 import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
 import { antigravityWho, codexWho } from '../shared/login-who'
+import { agentsToTry } from '../shared/agent-fallback'
 import {
   usageFromAntigravity,
   usageFromClaudeApi,
@@ -135,6 +136,13 @@ export interface LimitNotice {
   /** Set when the mode is auto and the chat already moved. */
   switchedTo: { id: string; name: string } | null
   mode: LimitMode
+  /**
+   * Other agents that are signed in and have allowance, in the order to try
+   * (Claude, Codex, Antigravity, round). Offered when this agent has no account
+   * left; in auto mode the first is taken (`switchedToAgent`).
+   */
+  agents: AgentProvider[]
+  switchedToAgent: AgentProvider | null
 }
 
 export const LOGIN_ID: Record<AgentProvider, string> = {
@@ -422,6 +430,11 @@ export function authFailureFromEvent(event: Record<string, unknown>): string | n
   return authFailureFrom(text)
 }
 
+/** Whether an agent has an account that is signed in and not out of allowance. */
+function agentHasAllowance(p: AgentProvider): boolean {
+  return listAccounts(p).some((a) => !a.limitedUntil && !a.needsAuth && a.detail !== 'Checking…')
+}
+
 /**
  * An account ran dry mid-chat. Decide what happens — move the chat now (auto)
  * or leave the choice to the user (ask) — and tell the windows either way.
@@ -442,6 +455,9 @@ export function reportLimit(
     switchedTo = alternatives[0]
     pinChatAccount(chatId, switchedTo.id)
   }
+  // No account of this agent left: another agent that can take the chat.
+  const agents = alternatives.length ? [] : agentsToTry(provider, agentHasAllowance)
+  const switchedToAgent = mode === 'auto' && !switchedTo && agents.length ? agents[0] : null
   const notice: LimitNotice = {
     chatId,
     provider,
@@ -449,7 +465,9 @@ export function reportLimit(
     until: at,
     alternatives: alternatives.map((a) => ({ id: a.id, name: a.name })),
     switchedTo: switchedTo ? { id: switchedTo.id, name: switchedTo.name } : null,
-    mode
+    mode,
+    agents,
+    switchedToAgent
   }
   broadcastToWindows('accounts:limit', notice)
   return notice

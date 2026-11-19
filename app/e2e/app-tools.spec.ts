@@ -298,6 +298,63 @@ test('a card is moved by its id, routines are listed, and deleting a chat needs 
   expect((await tool('app_delete_chat', { chatId })).text).toContain('cannot delete itself')
 })
 
+test("the agent can read and write Superagent's own calendar, and is asked before deleting", async () => {
+  // Adding many at once, a whole day and a time; they show on the calendar the window reads.
+  const added = await tool('app_calendar_add', {
+    events: [
+      { title: 'Wenders live pitch', start: '2031-12-08', notes: 'verify the date' },
+      { title: 'Lübeck window opens', start: '2032-02-15' },
+      { title: 'Call with the editor', start: '2031-12-09T15:30', end: '2031-12-09T16:00' }
+    ]
+  })
+  expect(added.text).toContain('Added 3 events')
+  const fromWindow = await window.evaluate(() =>
+    window.cove.calendarList('2031-12-01', '2032-03-01')
+  )
+  expect(fromWindow.map((e) => [e.title, e.allDay])).toEqual([
+    ['Wenders live pitch', true],
+    ['Call with the editor', false],
+    ['Lübeck window opens', true]
+  ])
+  const listed = await tool('app_calendar', { from: '2031-12-01', to: '2032-03-01' })
+  expect(listed.text).toContain('Wenders live pitch')
+  expect(listed.text).toContain('2031-12-09 15:30 to 2031-12-09 16:00')
+  expect(
+    (await tool('app_calendar_add', { events: [{ title: 'x', start: 'tomorrow' }] })).isError
+  ).toBe(true)
+
+  // Changed by id.
+  const id = /^(\S+)\s+·\s+2031-12-08\s+·\s+Wenders live pitch/m.exec(listed.text)![1]
+  expect(
+    (await tool('app_calendar_update', { id, title: 'Wenders pitch (moved)', start: '2031-12-10' }))
+      .text
+  ).toContain('Wenders pitch (moved)')
+  expect((await tool('app_calendar_update', { id: 'nope', title: 'x' })).isError).toBe(true)
+
+  // Deleting: asked first; a no leaves it.
+  const answer = async (yes: boolean, p: Promise<{ text: string }>): Promise<string> => {
+    let done = false
+    void p.finally(() => (done = true))
+    await expect
+      .poll(async () => {
+        await app.evaluate(({ ipcMain }, y) => {
+          for (let n = 1; n <= 80; n++) ipcMain.emit('guardrail:resolve', {}, `gate-${n}`, y, false)
+        }, yes)
+        return done
+      })
+      .toBe(true)
+    return (await p).text
+  }
+  expect(await answer(false, tool('app_calendar_remove', { ids: [id] }))).toContain('did not allow')
+  expect((await tool('app_calendar', { from: '2031-12-01', to: '2032-03-01' })).text).toContain(
+    '(moved)'
+  )
+  expect(await answer(true, tool('app_calendar_remove', { ids: [id] }))).toBe('Deleted 1 event.')
+  expect((await tool('app_calendar', { from: '2031-12-01', to: '2032-03-01' })).text).not.toContain(
+    '(moved)'
+  )
+})
+
 test('a conversation is found by something said in it, however long ago and however buried', async () => {
   const ids = await window.evaluate(async (ws) => {
     return [await window.cove.chatCreate(ws), await window.cove.chatCreate(ws)]

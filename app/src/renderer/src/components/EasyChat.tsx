@@ -5697,6 +5697,28 @@ export function EasyChat({
         setTimeout(() => switchAccountRef.current(to.id), 300)
         return
       }
+      const agent = n.switchedToAgent
+      if (agent) {
+        // Every account of this agent is out: another agent takes the chat on.
+        const when = n.until
+          ? ` until ${new Date(n.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+          : ''
+        setItems((prev) => [
+          ...prev,
+          {
+            kind: 'msg',
+            msg: {
+              id: `sys-limit-${Date.now()}`,
+              at: Date.now(),
+              role: 'assistant',
+              text: `↻ ${PROVIDER_LABEL[n.provider]} is out of allowance${when} — continuing on ${PROVIDER_LABEL[agent]}, which has the conversation so far.`,
+              system: true
+            }
+          }
+        ])
+        setTimeout(() => moveToAgentRef.current(agent), 300)
+        return
+      }
       setLimitNotice(n)
       setGenerating(false)
       setThinking(false)
@@ -5739,6 +5761,28 @@ export function EasyChat({
     }
     void setChatProvider(workspaceId, chatId, value)
   }
+  /**
+   * Out of allowance on every account of this agent: carry on with another agent.
+   * The conversation goes along as a recap (see pickProvider), and the message that
+   * hit the limit is sent again, as a switch of account does.
+   */
+  const moveToAgent = (agent: AgentProvider): void => {
+    setLimitNotice(null)
+    limitPendingRef.current = false
+    const again = inFlightSendRef.current
+    pickProvider(agent)
+    if (again) {
+      pendingSendsRef.current.push({
+        text: again.text,
+        images: again.images,
+        replyTo: again.replyTo
+      })
+      setGenerating(true)
+      setThinking(true)
+    }
+  }
+  const moveToAgentRef = useRef(moveToAgent)
+  moveToAgentRef.current = moveToAgent
   /**
    * Never show one agent's models while another is running. Codex's arrive with
    * its init event; until they do, a Codex chat offers Default alone rather than
@@ -6166,7 +6210,9 @@ export function EasyChat({
           <p className="easy-handoff-what">
             {limitNotice.alternatives.length
               ? 'Carry on with another account? The conversation continues where it is.'
-              : `Every ${PROVIDER_LABEL[limitNotice.provider]} account you've added is out. Add one under Settings → Agents, or wait for the reset.`}
+              : (limitNotice.agents ?? []).length
+                ? `Every ${PROVIDER_LABEL[limitNotice.provider]} account you've added is out. Carry on with ${(limitNotice.agents ?? []).map((a) => PROVIDER_LABEL[a]).join(' or ')}? It gets the conversation so far.`
+                : `Every ${PROVIDER_LABEL[limitNotice.provider]} account you've added is out. Add one under Settings → Agents, or wait for the reset.`}
           </p>
           <div className="easy-guard-actions">
             <button className="easy-guard-deny" onClick={() => setLimitNotice(null)}>
@@ -6176,6 +6222,11 @@ export function EasyChat({
             {limitNotice.alternatives.slice(0, 3).map((a) => (
               <button key={a.id} className="easy-guard-trust" onClick={() => switchAccount(a.id)}>
                 Switch to {a.name}
+              </button>
+            ))}
+            {(limitNotice.agents ?? []).map((a) => (
+              <button key={a} className="easy-guard-trust" onClick={() => moveToAgent(a)}>
+                Continue on {PROVIDER_LABEL[a]}
               </button>
             ))}
           </div>

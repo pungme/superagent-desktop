@@ -9,6 +9,7 @@ import { findProject } from '../shared/find-project'
 import { rankChats, searchWords, type FindableChat } from '../shared/find-chat'
 import { requestApproval } from './hooks'
 import {
+  addCalendarEvent,
   addCard,
   chatsMentioning,
   createChat,
@@ -17,12 +18,15 @@ import {
   getChat,
   getWorkspace,
   listAllChats,
+  listCalendarEvents,
   listCards,
   moveCard,
   markPendingBranch,
+  removeCalendarEvent,
   searchChats,
   setChatPinned,
-  setChatTitle
+  setChatTitle,
+  updateCalendarEvent
 } from './store'
 import { isGenerating } from './companion/log'
 
@@ -426,6 +430,147 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
       const { deleteChatFully } = await import('./companion/rpc')
       await deleteChatFully(chatId, 'asked for through an agent')
       return said(`Deleted "${chat.title ?? 'New chat'}".`)
+    }
+  )
+
+  // Superagent's own calendar (the one on the Today view and in the Calendar app).
+  // Without these the agent could only write an .ics file and ask the user to open it.
+  const WHEN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/
+  const when = z
+    .string()
+    .regex(WHEN, 'Use YYYY-MM-DD for a whole day or YYYY-MM-DDTHH:mm for a time (local).')
+  const day = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const line = (e: {
+    id: string
+    title: string
+    start: string
+    end: string | null
+    notes: string
+  }): string =>
+    `${e.id}  ·  ${e.start.replace('T', ' ')}${e.end ? ` to ${e.end.replace('T', ' ')}` : ''}  ·  ${e.title}${e.notes ? `\n    ${e.notes.replace(/\s+/g, ' ').slice(0, 160)}` : ''}`
+
+  server.registerTool(
+    'app_calendar',
+    {
+      description:
+        "The events on Superagent's own calendar (what the Today view and the Calendar app show), each with its id, when and title. Defaults to the next 30 days; pass from and to (YYYY-MM-DD, to is exclusive) for another stretch.",
+      inputSchema: {
+        from: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        to: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+      }
+    },
+    async ({ from, to }) => {
+      const start = from ?? day(new Date())
+      const end = to ?? day(new Date(new Date(`${start}T12:00`).getTime() + 30 * 86_400_000))
+      const rows = listCalendarEvents(start, end)
+      return said(
+        rows.length
+          ? rows.map(line).join('\n')
+          : `There is nothing on the calendar from ${start} to ${end}.`
+      )
+    }
+  )
+
+  server.registerTool(
+    'app_calendar_add',
+    {
+      description:
+        'Put events on Superagent\'s own calendar. Give one or many (up to 200) in one call: a title, a start (YYYY-MM-DD for a whole day, YYYY-MM-DDTHH:mm for a time, local), optionally an end, notes and a colour. Use this, not an .ics file, when asked to "put these in the calendar".',
+      inputSchema: {
+        events: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(200),
+              start: when,
+              end: when.optional(),
+              notes: z.string().max(4000).optional(),
+              color: z.string().max(20).optional()
+            })
+          )
+          .min(1)
+          .max(200)
+      }
+    },
+    async ({ events }) => {
+      const added = events.map((e) =>
+        addCalendarEvent({
+          title: e.title,
+          start: e.start,
+          end: e.end ?? null,
+          allDay: !e.start.includes('T'),
+          notes: e.notes,
+          color: e.color ?? null
+        })
+      )
+      broadcastToWindows('calendar:changed')
+      return said(
+        `Added ${added.length} event${added.length === 1 ? '' : 's'} to the calendar:\n${added.map(line).join('\n')}`
+      )
+    }
+  )
+
+  server.registerTool(
+    'app_calendar_update',
+    {
+      description:
+        'Change an event on the calendar, by the id app_calendar shows: its title, start, end, notes or colour.',
+      inputSchema: {
+        id: z.string().min(1).max(100),
+        title: z.string().min(1).max(200).optional(),
+        start: when.optional(),
+        end: when.nullable().optional(),
+        notes: z.string().max(4000).optional(),
+        color: z.string().max(20).nullable().optional()
+      }
+    },
+    async ({ id, ...patch }) => {
+      const next: Parameters<typeof updateCalendarEvent>[1] = {}
+      if (patch.title !== undefined) next.title = patch.title
+      if (patch.start !== undefined) {
+        next.start = patch.start
+        next.allDay = !patch.start.includes('T')
+      }
+      if (patch.end !== undefined) next.end = patch.end
+      if (patch.notes !== undefined) next.notes = patch.notes
+      if (patch.color !== undefined) next.color = patch.color
+      const ev = updateCalendarEvent(id, next)
+      if (!ev) return said(`There is no event with the id "${id}".`, true)
+      broadcastToWindows('calendar:changed')
+      return said(`Updated:\n${line(ev)}`)
+    }
+  )
+
+  server.registerTool(
+    'app_calendar_remove',
+    {
+      description:
+        'Delete events from the calendar, by the ids app_calendar shows (up to 200). The user is asked to confirm.',
+      inputSchema: { ids: z.array(z.string().min(1).max(100)).min(1).max(200) }
+    },
+    async ({ ids }) => {
+      const known = listCalendarEvents().filter((e) => ids.includes(e.id))
+      if (!known.length) return said('None of those ids is an event on the calendar.', true)
+      const yes = await requestApproval(
+        ctx.workspaceId,
+        ctx.sessionId,
+        'mcp__cove-browser__app_calendar_remove',
+        `Delete ${known.length} calendar event${known.length === 1 ? '' : 's'}:\n${known
+          .slice(0, 12)
+          .map((e) => `${e.start.slice(0, 10)}  ${e.title}`)
+          .join('\n')}${known.length > 12 ? `\n…and ${known.length - 12} more` : ''}`,
+        'permission'
+      )
+      if (!yes) return said('The user did not allow deleting them. Leave them as they are.', true)
+      for (const e of known) removeCalendarEvent(e.id)
+      broadcastToWindows('calendar:changed')
+      return said(`Deleted ${known.length} event${known.length === 1 ? '' : 's'}.`)
     }
   )
 
