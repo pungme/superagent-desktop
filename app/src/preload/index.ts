@@ -197,6 +197,14 @@ import type { PairPayload, WireLoop } from '../shared/companion-protocol'
 /** The /loop running in a chat — the same shape the phone gets. */
 export type ChatLoop = WireLoop
 import type { AgentProvider } from '../shared/agent-provider'
+import type { SimRow } from '../shared/sim-cleanup'
+
+/** What Settings → Simulators shows. */
+export interface SimCleanupState {
+  rows: SimRow[]
+  totalBytes: number
+  auto: boolean
+}
 
 /** Which browser a project's agent uses: the built-in pane, or the user's real one. */
 export type BrowserChoice = 'builtin' | 'brave' | 'chrome' | 'edge'
@@ -710,6 +718,12 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
+  /** Simulators on this Mac with their size and why each is kept, for Settings. */
+  simCleanupState: () => Promise<SimCleanupState | null>
+  simCleanupDelete: (
+    udids: string[]
+  ) => Promise<{ deleted: number; freedBytes: number; skipped: number }>
+  simCleanupAuto: (on: boolean) => Promise<boolean>
   /** Save the one-line "what it is at" for a chat; '' clears it. */
   chatSetNow: (chatId: string, text: string) => Promise<boolean>
   /** Save the Pinned section's order, top first. */
@@ -1617,6 +1631,9 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  simCleanupState: () => ipcRenderer.invoke('sim:cleanup-state'),
+  simCleanupDelete: (udids) => ipcRenderer.invoke('sim:cleanup-delete', udids),
+  simCleanupAuto: (on) => ipcRenderer.invoke('sim:cleanup-auto', on),
   chatSetNow: (chatId, text) => ipcRenderer.invoke('chat:setNow', chatId, text),
   chatReorderPinned: (chatIds) => ipcRenderer.invoke('chat:reorder-pinned', chatIds),
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),

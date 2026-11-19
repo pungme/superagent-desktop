@@ -16549,3 +16549,58 @@ button.today-ag:hover {
   color: var(--accent, #0a84ff);
   font-weight: 600;
 }
+
+/* Settings → Simulators: the list agents leave behind, biggest first. */
+.settings-sim-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.settings-sim-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.settings-sim-row + .settings-sim-row {
+  border-top: 1px solid var(--border);
+}
+.settings-sim-row.fixed {
+  cursor: default;
+  opacity: 0.6;
+}
+.settings-sim-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-sim-meta {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.settings-sim-size {
+  width: 56px;
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.settings-sim-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.settings-sim-actions .settings-cli-check {
+  margin-right: 0;
+}
+.settings-sim-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+}

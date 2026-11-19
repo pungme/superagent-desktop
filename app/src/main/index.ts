@@ -2,6 +2,7 @@
 import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
+import { registerSimCleanupIpc, startSimCleanup } from './sim-cleanup'
 import './harden'
 import { registerMicIpc } from './mic'
 import { afterLastWindow } from '../shared/last-window'
@@ -432,6 +433,9 @@ app.whenReady().then(async () => {
   registerCliUpdaterIpc()
   registerTodayIpc()
   startCliAutoUpdate()
+  // Simulators agents leave behind: cleared by hand from Settings, or by themselves once idle.
+  registerSimCleanupIpc()
+  startSimCleanup()
   // Menu-bar presence while a phone is paired; follows pairing/relay changes.
   // Quiet tests leave the menu bar alone too.
   if (!QUIET) startTray()

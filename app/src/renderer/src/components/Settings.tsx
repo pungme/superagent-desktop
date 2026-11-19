@@ -10,7 +10,8 @@ import { APP_HOTKEYS, NO_APP_HOTKEY, appHotkeyLabel } from '../../../shared/app-
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Account, Connector } from '../../../preload'
+import type { Account, Connector, SimCleanupState } from '../../../preload'
+import { IDLE_MS, sizeLabel, type SimKeep } from '../../../shared/sim-cleanup'
 import { SkillsPanel } from './SkillsPanel'
 import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state'
 import { IconEditor } from './IconEditor'
@@ -723,6 +724,126 @@ function ClaudeCodeUpdates(): React.JSX.Element {
         </button>
         <Toggle checked={on} onChange={toggle} />
       </Row>
+    </>
+  )
+}
+
+const KEEP_WORDS: Record<NonNullable<SimKeep>, string> = {
+  running: 'running',
+  held: 'in use by a conversation',
+  baseline: 'yours: only cleared by hand',
+  recent: 'used this week'
+}
+
+/**
+ * The simulators on this Mac. Agents create them and never delete them, and each is
+ * 2 to 14 GB. Cleared by hand from this list, or (switch on, the default) by
+ * themselves once they are new since Superagent first looked, shut down, held by no
+ * conversation and a week unused. See main/sim-cleanup.ts.
+ */
+function SimulatorCleanup(): React.JSX.Element | null {
+  const [st, setSt] = useState<SimCleanupState | null | undefined>(undefined)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const load = useCallback(async (): Promise<void> => {
+    setSt(await window.cove.simCleanupState?.())
+  }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+  if (st === undefined) return null
+  if (st === null || st.rows.length === 0) return null
+  const rows = st.rows
+  const pickedBytes = rows.filter((r) => picked.has(r.udid)).reduce((n, r) => n + r.sizeBytes, 0)
+  const now = Date.now()
+  const idleRows = rows.filter(
+    (r) => r.removable && (r.lastUsedAt === null || now - r.lastUsedAt > IDLE_MS)
+  )
+  const toggle = (udid: string): void =>
+    setPicked((p) => {
+      const n = new Set(p)
+      if (n.has(udid)) n.delete(udid)
+      else n.add(udid)
+      return n
+    })
+  const remove = async (): Promise<void> => {
+    if (!picked.size) return
+    if (
+      !window.confirm(
+        `Delete ${picked.size} simulator${picked.size === 1 ? '' : 's'} (${sizeLabel(pickedBytes)})? Their apps and data go with them. They can be created again.`
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      const r = await window.cove.simCleanupDelete(Array.from(picked))
+      setNote(
+        `Deleted ${r.deleted}, freed ${sizeLabel(r.freedBytes)}${r.skipped ? `; ${r.skipped} skipped (running or in use)` : ''}.`
+      )
+      setPicked(new Set())
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <GroupLabel>Simulators</GroupLabel>
+      <Row
+        title="Clear out unused simulators"
+        desc={`Agents create simulators and never delete them: ${rows.length} here take ${sizeLabel(st.totalBytes)}. With this on, new ones that nobody has used for a week are deleted by themselves, every few hours. Simulators that were already here are only deleted by you, below.`}
+      >
+        <Toggle
+          checked={st.auto}
+          onChange={(v) => {
+            setSt({ ...st, auto: v })
+            void window.cove.simCleanupAuto(v)
+          }}
+        />
+      </Row>
+      <div className="settings-sim-list">
+        {rows.map((r) => (
+          <label
+            key={r.udid}
+            className={`settings-sim-row${r.removable ? '' : ' fixed'}`}
+            title={r.udid}
+          >
+            <input
+              type="checkbox"
+              disabled={!r.removable || busy}
+              checked={picked.has(r.udid)}
+              onChange={() => toggle(r.udid)}
+            />
+            <span className="settings-sim-name">{r.name}</span>
+            <span className="settings-sim-meta">
+              {r.keep && r.keep !== 'baseline' && r.keep !== 'recent'
+                ? KEEP_WORDS[r.keep]
+                : r.lastUsedAt
+                  ? `used ${ago(r.lastUsedAt, now)}`
+                  : 'never used'}
+            </span>
+            <span className="settings-sim-size">{sizeLabel(r.sizeBytes)}</span>
+          </label>
+        ))}
+      </div>
+      <div className="settings-sim-actions">
+        <button
+          className="settings-cli-check"
+          disabled={busy || !idleRows.length}
+          onClick={() => setPicked(new Set(idleRows.map((r) => r.udid)))}
+        >
+          Select the {idleRows.length} unused for a week
+        </button>
+        <button
+          className="settings-cli-check"
+          disabled={busy || !picked.size}
+          onClick={() => void remove()}
+        >
+          {picked.size ? `Delete ${picked.size} (${sizeLabel(pickedBytes)})` : 'Delete selected'}
+        </button>
+        {note && <span className="settings-sim-note">{note}</span>}
+      </div>
     </>
   )
 }
@@ -1613,6 +1734,7 @@ export function Settings({
             <section className="settings-section">
               <AgentsPanel env={env} envChecking={envChecking} onRecheck={checkAgents} />
               <ClaudeCodeUpdates />
+              <SimulatorCleanup />
               <GroupLabel>New chats</GroupLabel>
               <Row
                 title="Agent"

@@ -1,0 +1,171 @@
+import { ipcMain } from 'electron'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { kvGet, kvSet } from './store'
+import { chatHoldingSimulator, openSimulators } from './simulator'
+import { healthLog } from './health'
+import {
+  autoCleanup,
+  describeSimulators,
+  type PlanContext,
+  type SimInfo,
+  type SimRow
+} from '../shared/sim-cleanup'
+
+/**
+ * Simulators agents create and never delete (2 to 14 GB each; 16 of them were 95 GB).
+ * Settings → Simulators lists them for clearing by hand; with "Clear out unused
+ * simulators" on (the default), ones that appeared after Superagent's first look, are
+ * shut down, held by no conversation and unused for a week go by themselves. What was
+ * there at the first look is the person's and is only removed by hand.
+ *
+ * `sim.` keys are main-owned (shared/kv-owned.ts): only these handlers write them.
+ */
+
+const run = promisify(execFile)
+const BASELINE_KEY = 'sim.baseline'
+const AUTO_KEY = 'sim.autoClean'
+const EVERY_MS = 6 * 60 * 60 * 1000
+const FIRST_MS = 3 * 60 * 1000
+
+export function autoCleanOn(): boolean {
+  return kvGet(AUTO_KEY) !== '0'
+}
+
+/** Every device simctl knows, unavailable ones included, with size and last use. */
+export async function scanSimulators(): Promise<SimInfo[]> {
+  const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', '--json'], {
+    timeout: 30_000,
+    maxBuffer: 16 * 1024 * 1024
+  })
+  const parsed = JSON.parse(stdout) as {
+    devices: Record<
+      string,
+      { udid: string; name: string; state: string; dataPathSize?: number; lastUsedAt?: string }[]
+    >
+  }
+  const out: SimInfo[] = []
+  for (const list of Object.values(parsed.devices))
+    for (const d of list) {
+      const at = d.lastUsedAt ? Date.parse(d.lastUsedAt) : NaN
+      out.push({
+        udid: d.udid,
+        name: d.name,
+        state: d.state,
+        sizeBytes: d.dataPathSize ?? 0,
+        lastUsedAt: Number.isNaN(at) ? null : at
+      })
+    }
+  return out
+}
+
+/** The UDIDs there at the first look. Fixed then, so later ones count as created since. */
+function baseline(devices: SimInfo[]): Set<string> {
+  const saved = kvGet(BASELINE_KEY)
+  if (saved) {
+    try {
+      return new Set(JSON.parse(saved) as string[])
+    } catch {
+      // fall through and take a new one
+    }
+  }
+  // An empty scan is simctl failing, not a Mac with no simulators: do not fix a baseline on it.
+  if (devices.length) kvSet(BASELINE_KEY, JSON.stringify(devices.map((d) => d.udid)))
+  return new Set(devices.map((d) => d.udid))
+}
+
+function heldSet(devices: SimInfo[]): Set<string> {
+  const held = new Set<string>()
+  for (const d of devices) if (chatHoldingSimulator(d.udid)) held.add(d.udid)
+  for (const o of openSimulators()) held.add(o.udid)
+  return held
+}
+
+async function context(devices: SimInfo[]): Promise<PlanContext> {
+  return { now: Date.now(), held: heldSet(devices), baseline: baseline(devices) }
+}
+
+export interface SimCleanupState {
+  rows: SimRow[]
+  totalBytes: number
+  auto: boolean
+}
+
+export async function simCleanupState(): Promise<SimCleanupState> {
+  const devices = await scanSimulators()
+  const rows = describeSimulators(devices, await context(devices))
+  return { rows, totalBytes: rows.reduce((n, r) => n + r.sizeBytes, 0), auto: autoCleanOn() }
+}
+
+/** Delete these, skipping any that is running or held at this moment. */
+export async function deleteSimulators(
+  udids: string[]
+): Promise<{ deleted: number; freedBytes: number; skipped: number }> {
+  const devices = await scanSimulators()
+  const ctx = await context(devices)
+  const rows = new Map(describeSimulators(devices, ctx).map((r) => [r.udid, r]))
+  let deleted = 0
+  let freedBytes = 0
+  let skipped = 0
+  for (const udid of udids) {
+    const row = rows.get(udid)
+    if (!row || !row.removable) {
+      skipped++
+      continue
+    }
+    try {
+      await run('xcrun', ['simctl', 'delete', udid], { timeout: 120_000 })
+      deleted++
+      freedBytes += row.sizeBytes
+      healthLog(
+        `simulator deleted ${row.name} (${udid.slice(0, 8)}) ${Math.round(row.sizeBytes / 1e6)} MB`
+      )
+    } catch {
+      skipped++
+    }
+  }
+  return { deleted, freedBytes, skipped }
+}
+
+/** The automatic pass. Returns what it removed, for the log and tests. */
+export async function autoCleanSimulators(): Promise<SimRow[]> {
+  const devices = await scanSimulators()
+  const ctx = await context(devices)
+  const gone = autoCleanup(devices, ctx)
+  if (!autoCleanOn()) return []
+  if (gone.length) {
+    const r = await deleteSimulators(gone.map((g) => g.udid))
+    healthLog(`simulator clean-up removed ${r.deleted} (${Math.round(r.freedBytes / 1e6)} MB)`)
+  }
+  return gone
+}
+
+let timer: NodeJS.Timeout | null = null
+/** Soon after launch (which also fixes the baseline), then every six hours. */
+export function startSimCleanup(): void {
+  if (timer) return
+  if (process.env.COVE_USER_DATA) return
+  const tick = (): void => {
+    void autoCleanSimulators()
+      .catch(() => [])
+      .finally(() => {
+        timer = setTimeout(tick, EVERY_MS)
+        timer.unref()
+      })
+  }
+  timer = setTimeout(tick, FIRST_MS)
+  timer.unref()
+}
+
+export function registerSimCleanupIpc(): void {
+  ipcMain.handle('sim:cleanup-state', () => simCleanupState().catch(() => null))
+  ipcMain.handle('sim:cleanup-delete', (_e, udids: unknown) =>
+    deleteSimulators(
+      Array.isArray(udids) ? udids.filter((u): u is string => typeof u === 'string') : []
+    )
+  )
+  ipcMain.handle('sim:cleanup-auto', (_e, on: unknown) => {
+    kvSet(AUTO_KEY, on ? '1' : '0')
+    return autoCleanOn()
+  })
+}
