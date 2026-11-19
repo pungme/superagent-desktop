@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { autoCleanup, describeSimulators, IDLE_MS, sizeLabel, type SimInfo } from './sim-cleanup'
+import {
+  autoCleanup,
+  describeSimulators,
+  IDLE_MS,
+  sizeLabel,
+  type PlanContext,
+  type SimInfo
+} from './sim-cleanup'
 
 const NOW = Date.UTC(2026, 10, 19, 12)
 const day = 24 * 60 * 60 * 1000
@@ -11,7 +18,7 @@ const dev = (udid: string, over: Partial<SimInfo> = {}): SimInfo => ({
   lastUsedAt: NOW - 10 * day,
   ...over
 })
-const ctx = (over: { held?: string[]; baseline?: string[] } = {}) => ({
+const ctx = (over: { held?: string[]; baseline?: string[] } = {}): PlanContext => ({
   now: NOW,
   held: new Set(over.held ?? []),
   baseline: new Set(over.baseline ?? [])
