@@ -18,6 +18,7 @@ import { join } from 'path'
 import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
 import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
+import { antigravityWho, codexWho } from '../shared/login-who'
 import {
   usageFromAntigravity,
   usageFromClaudeApi,
@@ -264,8 +265,10 @@ export function listAccounts(provider: AgentProvider): Account[] {
         detail:
           a.kind === 'config' && a.who
             ? a.who
-            : (a.kind === 'token' ? 'Token' : 'Signed in') +
-              (a.addedAt ? ` · added ${new Date(a.addedAt).toLocaleDateString()}` : ''),
+            : a.kind === 'home' && codexHomeWho(a.home)
+              ? codexHomeWho(a.home)
+              : (a.kind === 'token' ? 'Token' : 'Signed in') +
+                (a.addedAt ? ` · added ${new Date(a.addedAt).toLocaleDateString()}` : ''),
         needsAuth: f.auth[a.id] ?? null,
         usage: f.usage[a.id] ?? null,
         isDefault: chosen === a.id
@@ -1070,6 +1073,27 @@ export function probeClaudeLogin(env?: Record<string, string>): Promise<LoginSta
   })
 }
 
+/** Who a Codex home (CODEX_HOME, or ~/.codex) is signed in as; '' when unknown. */
+function codexHomeWho(home?: string): string {
+  try {
+    const dir = home || process.env.CODEX_HOME || join(os.homedir(), '.codex')
+    return codexWho(readFileSync(join(dir, 'auth.json'), 'utf8'))
+  } catch {
+    return ''
+  }
+}
+
+/** The account Antigravity's last run signed in with, from its log; '' when unknown. */
+function antigravityLogWho(): string {
+  try {
+    return antigravityWho(
+      readFileSync(join(os.homedir(), '.gemini', 'antigravity-cli', 'cli.log'), 'utf8')
+    )
+  } catch {
+    return ''
+  }
+}
+
 /** "Logged in using ChatGPT" from `codex login status`; signedIn false on "Not logged in". */
 function probeCodexLogin(): Promise<LoginState | null> {
   return new Promise((resolve) => {
@@ -1096,7 +1120,10 @@ function probeCodexLogin(): Promise<LoginState | null> {
       const line = out.trim().split('\n')[0]?.trim() ?? ''
       if (/not logged in/i.test(line)) return resolve({ detail: '', signedIn: false })
       if (/logged in/i.test(line))
-        return resolve({ detail: line.replace(/^Logged in (using|with) /i, ''), signedIn: true })
+        return resolve({
+          detail: codexHomeWho() || line.replace(/^Logged in (using|with) /i, ''),
+          signedIn: true
+        })
       resolve(null)
     })
   })
@@ -1134,7 +1161,8 @@ function probeAntigravityLogin(): Promise<LoginState | null> {
       clearTimeout(timer)
       if (/sign in|not logged in|authenticat/i.test(err))
         return resolve({ detail: '', signedIn: false })
-      if (code === 0 && out.trim()) return resolve({ detail: 'Google account', signedIn: true })
+      if (code === 0 && out.trim())
+        return resolve({ detail: antigravityLogWho() || 'Google account', signedIn: true })
       resolve(null)
     })
   })
