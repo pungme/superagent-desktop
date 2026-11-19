@@ -724,6 +724,9 @@ export interface CoveApi {
     udids: string[]
   ) => Promise<{ deleted: number; freedBytes: number; skipped: number }>
   simCleanupAuto: (on: boolean) => Promise<boolean>
+  /** Whether macOS's "quit unexpectedly" pop-ups are switched off; and switching them. */
+  simCrashDialogsHidden: () => Promise<boolean>
+  simSetCrashDialogsHidden: (hide: boolean) => Promise<boolean>
   /** Save the one-line "what it is at" for a chat; '' clears it. */
   chatSetNow: (chatId: string, text: string) => Promise<boolean>
   /** Save the Pinned section's order, top first. */
@@ -1634,6 +1637,8 @@ const cove: CoveApi = {
   simCleanupState: () => ipcRenderer.invoke('sim:cleanup-state'),
   simCleanupDelete: (udids) => ipcRenderer.invoke('sim:cleanup-delete', udids),
   simCleanupAuto: (on) => ipcRenderer.invoke('sim:cleanup-auto', on),
+  simCrashDialogsHidden: () => ipcRenderer.invoke('sim:crash-dialogs'),
+  simSetCrashDialogsHidden: (hide) => ipcRenderer.invoke('sim:crash-dialogs-set', hide),
   chatSetNow: (chatId, text) => ipcRenderer.invoke('chat:setNow', chatId, text),
   chatReorderPinned: (chatIds) => ipcRenderer.invoke('chat:reorder-pinned', chatIds),
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),

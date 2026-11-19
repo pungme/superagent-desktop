@@ -752,8 +752,32 @@ function SimulatorCleanup(): React.JSX.Element | null {
   useEffect(() => {
     void load()
   }, [load])
+  const [hidden, setHidden] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.cove.simCrashDialogsHidden?.().then(setHidden)
+  }, [])
   if (st === undefined) return null
-  if (st === null || st.rows.length === 0) return null
+  const popups = (
+    <Row
+      title="Hide “quit unexpectedly” pop-ups"
+      desc="The simulator's SpringBoard sometimes crashes (a macOS 27 beta bug) and macOS shows a pop-up each time. Superagent already restarts a simulator that crashes in a loop. This switches the pop-ups off for every app on this Mac; the crash reports are still kept."
+    >
+      <Toggle
+        checked={!!hidden}
+        onChange={(v) => {
+          setHidden(v)
+          void window.cove.simSetCrashDialogsHidden(v).then(setHidden)
+        }}
+      />
+    </Row>
+  )
+  if (st === null || st.rows.length === 0)
+    return (
+      <>
+        <GroupLabel>Simulators</GroupLabel>
+        {popups}
+      </>
+    )
   const rows = st.rows
   const pickedBytes = rows.filter((r) => picked.has(r.udid)).reduce((n, r) => n + r.sizeBytes, 0)
   const now = Date.now()
@@ -802,6 +826,7 @@ function SimulatorCleanup(): React.JSX.Element | null {
           }}
         />
       </Row>
+      {popups}
       <div className="settings-sim-list">
         {rows.map((r) => (
           <label

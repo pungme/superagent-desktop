@@ -67,6 +67,14 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
         }
       ]
       let auto = true
+      let hidden = false
+      ipcMain.removeHandler('sim:crash-dialogs')
+      ipcMain.handle('sim:crash-dialogs', () => hidden)
+      ipcMain.removeHandler('sim:crash-dialogs-set')
+      ipcMain.handle('sim:crash-dialogs-set', (_e, hide: boolean) => {
+        hidden = hide
+        return hidden
+      })
       ipcMain.removeHandler('sim:cleanup-state')
       ipcMain.handle('sim:cleanup-state', () => ({
         rows,
@@ -119,6 +127,12 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
     expect(
       await app.evaluate(() => (globalThis as unknown as { deleted: string[][] }).deleted)
     ).toEqual([['B', 'C']])
+
+    // The pop-ups switch: off to start with, and main says what it is after.
+    const popups = page.locator('.settings-row', { hasText: 'quit unexpectedly' })
+    await expect(popups.locator('input[type="checkbox"]')).not.toBeChecked()
+    await popups.locator('.switch').click()
+    await expect(popups.locator('input[type="checkbox"]')).toBeChecked()
 
     // The switch is remembered by main.
     await page
