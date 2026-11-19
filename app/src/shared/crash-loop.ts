@@ -33,12 +33,14 @@ export function parseSpringBoardCrash(text: string): SpringBoardCrash | null {
   }
 }
 
-export const LOOP_WINDOW_MS = 90_000
-export const LOOP_MIN_CRASHES = 4
+export const LOOP_WINDOW_MS = 60_000
+export const LOOP_MIN_CRASHES = 3
 /** Not twice for one device inside this: a restart that did not help is not tried again at once. */
 export const LOOP_COOLDOWN_MS = 10 * 60_000
 /** Only a loop still going: the latest crash this recent. */
-export const LOOP_ACTIVE_MS = 30_000
+export const LOOP_ACTIVE_MS = 20_000
+/** After a loop, the pop-ups come back once there has been no crash this long. */
+export const LOOP_QUIET_MS = 3 * 60_000
 
 /** Devices to restart now. */
 export function loopingDevices(

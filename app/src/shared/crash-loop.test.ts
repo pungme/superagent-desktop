@@ -30,14 +30,14 @@ describe('parseSpringBoardCrash', () => {
 
 describe('loopingDevices', () => {
   const none = new Map<string, number>()
-  it('flags a device that crashed four times in 90 seconds and is still going', () => {
-    const cs = [5, 12, 20, 33].map((s) => crash('A', s))
+  it('flags a device that crashed three times in a minute and is still going', () => {
+    const cs = [5, 11, 18].map((s) => crash('A', s))
     expect(loopingDevices(cs, NOW, none)).toEqual(['A'])
   })
-  it('does not for three crashes, for old ones, or once it has gone quiet', () => {
+  it('does not for two crashes, for old ones, or once it has gone quiet', () => {
     expect(
       loopingDevices(
-        [5, 12, 20].map((s) => crash('A', s)),
+        [5, 12].map((s) => crash('A', s)),
         NOW,
         none
       )
@@ -51,18 +51,18 @@ describe('loopingDevices', () => {
     ).toEqual([])
     expect(
       loopingDevices(
-        [40, 50, 60, 70].map((s) => crash('A', s)),
+        [30, 40, 50, 55].map((s) => crash('A', s)),
         NOW,
         none
       )
     ).toEqual([])
   })
   it('counts each device on its own', () => {
-    const cs = [...[5, 12, 20, 33].map((s) => crash('A', s)), crash('B', 5), crash('B', 10)]
+    const cs = [...[5, 12, 20].map((s) => crash('A', s)), crash('B', 5), crash('B', 10)]
     expect(loopingDevices(cs, NOW, none)).toEqual(['A'])
   })
   it('does not restart the same device again within ten minutes', () => {
-    const cs = [5, 12, 20, 33].map((s) => crash('A', s))
+    const cs = [5, 12, 20].map((s) => crash('A', s))
     expect(loopingDevices(cs, NOW, new Map([['A', NOW - 5 * 60_000]]))).toEqual([])
     expect(loopingDevices(cs, NOW, new Map([['A', NOW - 11 * 60_000]]))).toEqual(['A'])
   })
