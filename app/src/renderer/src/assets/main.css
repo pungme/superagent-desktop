@@ -16543,3 +16543,9 @@ button.today-ag:hover {
 .today-sent:hover {
   color: var(--text-primary);
 }
+
+/* Auto mode switch beside Mode: quiet when off, the accent when on. */
+.easy-auto-btn.on .easy-control-val {
+  color: var(--accent, #0a84ff);
+  font-weight: 600;
+}

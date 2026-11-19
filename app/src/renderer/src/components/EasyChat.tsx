@@ -2,6 +2,7 @@ import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { chatNow } from '../../../shared/chat-now'
+import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
@@ -1558,7 +1559,16 @@ const MessageRow = memo(function MessageRow({
               {loopLabel(loopSplit.note)}
             </span>
           )}
-          <PastedText text={loopSplit?.main ?? msg.text} />
+          {msg.role === 'user' && msg.text.trim() === AUTO_PROMPT ? (
+            <span className="easy-loop-chip" title={AUTO_PROMPT}>
+              <span className="easy-loop-chip-mark" aria-hidden="true">
+                ↻
+              </span>
+              Auto: asked whether anything is left
+            </span>
+          ) : (
+            <PastedText text={loopSplit?.main ?? msg.text} />
+          )}
         </>
       )}
       {/* Before the first word: something to say it is coming. After that
@@ -2601,7 +2611,7 @@ export function EasyChat({
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i]
       if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system && it.msg.text) {
-        const line = chatNow(it.msg.text)
+        const line = saidDone(it.msg.text) ? '' : chatNow(it.msg.text)
         if (line)
           void window.cove.chatSetNow(chatId, line).then((changed) => {
             if (changed) window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
@@ -4842,6 +4852,79 @@ export function EasyChat({
     }, 120)
     return () => clearTimeout(t)
   }, [floating, items, generating, thinking, chatId, agentName, provider, floatNeedsYou])
+
+  // Auto mode: when a turn ends, ask the agent whether anything is left, and let it
+  // carry on, until it says it is done (shared/auto-mode.ts holds every reason to
+  // stop). Per chat, off by default, kept across restarts.
+  const [autoOn, setAutoOnState] = useState(false)
+  const autoRoundsRef = useRef(0)
+  const [autoRounds, setAutoRounds] = useState(0)
+  useEffect(() => {
+    setAutoOnState(!!chatId && localStorage.getItem(`cove.auto:${chatId}`) === '1')
+    autoRoundsRef.current = 0
+    setAutoRounds(0)
+  }, [chatId])
+  const setAuto = (on: boolean): void => {
+    setAutoOnState(on)
+    autoRoundsRef.current = 0
+    setAutoRounds(0)
+    if (chatId) {
+      if (on) localStorage.setItem(`cove.auto:${chatId}`, '1')
+      else localStorage.removeItem(`cove.auto:${chatId}`)
+    }
+  }
+  const autoWasWorkingRef = useRef(false)
+  useEffect(() => {
+    const working = generating || thinking
+    const ended = autoWasWorkingRef.current && !working
+    autoWasWorkingRef.current = working
+    if (!ended || !autoOn || !chatId) return
+    // The last turn: what the agent said, and what came last in the transcript.
+    let lastReply = ''
+    let lastUser = ''
+    let trailingSystem = false
+    let askedQuestion = false
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i]
+      if (it.kind === 'msg' && it.msg.system) {
+        if (i === items.length - 1) trailingSystem = true
+        continue
+      }
+      if (it.kind === 'tool' && /ask/i.test(it.tool.name) && i >= items.length - 2)
+        askedQuestion = true
+      if (it.kind === 'msg' && it.msg.role === 'assistant' && !lastReply) lastReply = it.msg.text
+      if (it.kind === 'msg' && it.msg.role === 'user') {
+        lastUser = it.msg.text
+        break
+      }
+    }
+    // Something the person wrote starts the count again.
+    if (lastUser.trim() !== AUTO_PROMPT) autoRoundsRef.current = 0
+    const decision = autoNext({
+      on: true,
+      rounds: autoRoundsRef.current,
+      lastReply,
+      askedQuestion,
+      needsYou: floatNeedsYou,
+      stopped: trailingSystem,
+      failed: false,
+      queued: queuedRef.current.length,
+      typing: input.trim().length > 0,
+      ready: readyRef.current && !suspendedRef.current
+    })
+    setAutoRounds(autoRoundsRef.current)
+    if (!decision.send) return
+    // A beat, so the turn has settled and a person typing right now wins.
+    const t = setTimeout(() => {
+      if (generatingRef.current || !readyRef.current) return
+      if (inputRef.current && inputRef.current.value.trim()) return
+      autoRoundsRef.current += 1
+      setAutoRounds(autoRoundsRef.current)
+      submitRef.current?.(AUTO_PROMPT, [], { files: [], reply: null, keepComposer: true })
+    }, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generating, thinking, autoOn, chatId])
   useEffect(() => {
     if (!floating) return
     const onSend = (e: Event): void => {
@@ -6998,6 +7081,22 @@ export function EasyChat({
               )}
             </div>
           )}
+        </div>
+        <div className="easy-control">
+          <button
+            className={`easy-control-btn easy-auto-btn ${autoOn ? 'on' : ''}`}
+            onClick={() => setAuto(!autoOn)}
+            title={
+              autoOn
+                ? 'Auto is on: when the agent finishes, it is asked whether anything is left and carries on. It stops when it is done, asks you something, or you write. Click to turn off.'
+                : 'Auto: when the agent finishes, ask it whether anything is left, and let it carry on until it is done.'
+            }
+          >
+            <span className="easy-control-key">Auto</span>
+            <span className="easy-control-val">
+              {autoOn ? (autoRounds > 0 ? `On · ${autoRounds}/${AUTO_MAX_ROUNDS}` : 'On') : 'Off'}
+            </span>
+          </button>
         </div>
         <div className="easy-control">
           <button
