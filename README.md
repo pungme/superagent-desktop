@@ -159,7 +159,7 @@ them into.
 
 ### Getting the phone app
 
-[TestFlight](https://testflight.apple.com/join/hvg9RGMh), or build it from
+[the App Store](https://apps.apple.com/de/app/superagent-companion-app/id6806598776?l=en-GB), or build it from
 source — see [its README](https://github.com/pungme/superagent-ios).
 
 - **Ask mode.** A permission mode where the agent checks with you before it
