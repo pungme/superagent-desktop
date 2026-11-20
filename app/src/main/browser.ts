@@ -8,7 +8,6 @@ import {
 } from './google-signin'
 import { unseenPaneSize } from '../shared/mirror-shot'
 import { popupDecision, popupSize } from '../shared/popup-login'
-import { QUIET } from './quiet'
 import { applySignInIdentity } from './sign-in-identity'
 import {
   BrowserWindow,
@@ -1029,7 +1028,9 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
           width,
           height,
           parent: window,
-          show: !QUIET,
+          // A quiet test run (see quiet.ts) shows no windows; read here, not imported,
+          // because quiet.ts touches Electron the moment it is loaded.
+          show: process.env.COVE_E2E_QUIET !== '1',
           autoHideMenuBar: true,
           title: 'Sign in',
           webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
