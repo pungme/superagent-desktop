@@ -159,3 +159,21 @@ test('a shot taken in one chat is offered in the chat you switch to', async () =
   expect(otherId).toBeTruthy()
   rmSync(other, { recursive: true, force: true })
 })
+
+test('in a narrow chat no button runs off the strip', async () => {
+  shoot('Screenshot 2026-09-29 at 20.13.00.png')
+  await expect(window.locator('.easy-shot')).toHaveCount(1, { timeout: 10_000 })
+  // As wide as the chat in a small window: 380 px, the strip's own padding included.
+  await window.addStyleTag({ content: '.easy-shots { width: 380px !important; }' })
+  const over = await window.evaluate(() => {
+    const strip = document.querySelector('.easy-shots') as HTMLElement
+    const right = strip.getBoundingClientRect().right
+    return [...strip.children]
+      .map((c) => ({ cls: (c as HTMLElement).className, right: c.getBoundingClientRect().right }))
+      .filter((c) => c.right > right + 0.5)
+  })
+  expect(over).toEqual([])
+  if (process.env.SHOT)
+    await window.locator('.easy-shots').screenshot({ path: '/tmp/sa-shots-narrow.png' })
+  await window.getByRole('button', { name: 'Dismiss' }).click()
+})

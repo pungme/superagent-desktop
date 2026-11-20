@@ -6412,48 +6412,50 @@ export function EasyChat({
               <span className="easy-shots-text">
                 {shots.length === 1 ? 'Screenshot just taken' : `${shots.length} screenshots`}
               </span>
-              <button
-                className="easy-shots-attach"
-                title="⌘⇧A"
-                aria-label={shots.length === 1 ? 'Attach' : 'Attach all'}
-                onClick={() => attachShots(shots)}
-              >
-                {shots.length === 1 ? 'Attach' : 'Attach all'}
-                <kbd className="easy-shots-key">⌘⇧A</kbd>
-              </button>
-              <button
-                className="easy-shots-attach-delete"
-                aria-label={shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
-                title={
-                  shots.length === 1
-                    ? 'Attach it, and move the file to the Trash (⌘⇧D)'
-                    : 'Attach them, and move the files to the Trash (⌘⇧D)'
-                }
-                onClick={() => attachShots(shots, true)}
-              >
-                {shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
-                <kbd className="easy-shots-key">⌘⇧D</kbd>
-              </button>
-              <button
-                className="easy-shots-attach-delete"
-                aria-label="Delete"
-                title={
-                  shots.length === 1
-                    ? 'Move the file to the Trash, without attaching it'
-                    : 'Move the files to the Trash, without attaching them'
-                }
-                onClick={() => deleteShots(shots)}
-              >
-                {shots.length === 1 ? 'Delete' : 'Delete all'}
-              </button>
-              <button
-                className="easy-shots-dismiss"
-                title="Dismiss"
-                aria-label="Dismiss"
-                onClick={() => dropShots(shots.map((p) => p.name))}
-              >
-                ×
-              </button>
+              <div className="easy-shots-actions">
+                <button
+                  className="easy-shots-attach"
+                  title="⌘⇧A"
+                  aria-label={shots.length === 1 ? 'Attach' : 'Attach all'}
+                  onClick={() => attachShots(shots)}
+                >
+                  {shots.length === 1 ? 'Attach' : 'Attach all'}
+                  <kbd className="easy-shots-key">⌘⇧A</kbd>
+                </button>
+                <button
+                  className="easy-shots-attach-delete"
+                  aria-label={shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
+                  title={
+                    shots.length === 1
+                      ? 'Attach it, and move the file to the Trash (⌘⇧D)'
+                      : 'Attach them, and move the files to the Trash (⌘⇧D)'
+                  }
+                  onClick={() => attachShots(shots, true)}
+                >
+                  {shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
+                  <kbd className="easy-shots-key">⌘⇧D</kbd>
+                </button>
+                <button
+                  className="easy-shots-attach-delete"
+                  aria-label="Delete"
+                  title={
+                    shots.length === 1
+                      ? 'Move the file to the Trash, without attaching it'
+                      : 'Move the files to the Trash, without attaching them'
+                  }
+                  onClick={() => deleteShots(shots)}
+                >
+                  {shots.length === 1 ? 'Delete' : 'Delete all'}
+                </button>
+                <button
+                  className="easy-shots-dismiss"
+                  title="Dismiss"
+                  aria-label="Dismiss"
+                  onClick={() => dropShots(shots.map((p) => p.name))}
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
           {queued.length > 0 && (

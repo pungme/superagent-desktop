@@ -13924,8 +13924,9 @@ button {
    Attach & delete, ×. */
 .easy-shots {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
   padding: 6px 8px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -13976,6 +13977,17 @@ button {
 }
 .easy-shot:hover .easy-shot-remove {
   opacity: 1;
+}
+/* The buttons stay together and drop to their own line in a narrow chat, rather than
+   running off the right edge; inside, they wrap too if even that is too wide. */
+.easy-shots-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 8px;
+  min-width: 0;
 }
 .easy-shots-text {
   flex: 1 1 auto;
