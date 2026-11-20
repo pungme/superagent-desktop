@@ -1,7 +1,7 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
-import { chatNow } from '../../../shared/chat-now'
+import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
@@ -180,6 +180,8 @@ interface ToolCall {
   id: string
   name: string
   detail: string
+  /** The step in plain words when the agent gave them ("Build the app"): the live line. */
+  about?: string
   /** A screenshot tool's own picture, or one Claude's Read opened — fetched
    *  from the Mac's thumbnail store by this same tool id (see RemoteImages),
    *  same as a phone-sent message's pictures. */
@@ -848,6 +850,15 @@ function msgTime(ms: number): string {
       : { day: 'numeric', month: 'short', year: 'numeric' }
   )
   return `${date} ${time}`
+}
+
+/** A command's own description ("Build the app"), as Claude Code writes one for each. */
+function toolAbout(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const o = input as Record<string, unknown>
+  return typeof o.command === 'string' && typeof o.description === 'string' && o.description.trim()
+    ? o.description.trim().slice(0, 120)
+    : undefined
 }
 
 function toolDetail(input: unknown): string {
@@ -3589,7 +3600,15 @@ export function EasyChat({
               ? { kind: 'diff', diff }
               : handedOver
                 ? { kind: 'file', file: { id, path: handedOver } }
-                : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
+                : {
+                    kind: 'tool',
+                    tool: {
+                      id,
+                      name,
+                      detail: toolDetail(block.input),
+                      about: toolAbout(block.input)
+                    }
+                  }
             // Keyed on the tool_use id, so a backend that re-states a call it
             // already announced updates that card instead of drawing a second
             // one. (Codex re-emits a long-running command at the end of the turn
@@ -4343,23 +4362,23 @@ export function EasyChat({
   // than "the agent is replying" three times over.
   const doing = useMemo((): string | undefined => {
     if (!(generating || thinking)) return undefined
-    for (let i = items.length - 1; i >= 0 && i >= items.length - 6; i--) {
-      const it = items[i]
-      if (it.kind === 'tool') {
+    // The last stretch is enough: liveLine only reads this turn.
+    const entries: LiveEntry[] = []
+    for (const it of items.slice(-40)) {
+      if (it.kind === 'msg') {
+        if (it.msg.system) continue
+        if (it.msg.role === 'user') entries.push({ kind: 'user' })
+        else if (it.msg.text) entries.push({ kind: 'say', text: it.msg.text })
+      } else if (it.kind === 'tool') {
         const { verb } = toolLabel(it.tool.name)
-        return `${verb}${it.tool.detail ? ` · ${it.tool.detail}` : ''}`.slice(0, 90)
-      }
-      if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system && it.msg.text) {
-        const line = it.msg.text.trim().split('\n').filter(Boolean).pop() ?? ''
-        return line ? `“${line.length > 80 ? line.slice(0, 79) + '…' : line}”` : undefined
-      }
-      if (it.kind === 'thinking' && it.text) {
-        const line = it.text.trim().split('\n').filter(Boolean).pop() ?? ''
-        return line ? `Thinking: ${line.length > 70 ? line.slice(0, 69) + '…' : line}` : undefined
-      }
-      if (it.kind === 'msg' && it.msg.role === 'user') return 'Thinking about what you asked'
+        // A file name is worth showing ("Editing Sidebar.tsx"); a command line is not.
+        const target = /^[\w.@-]+\.[\w]+$/.test(it.tool.detail) ? it.tool.detail : undefined
+        entries.push({ kind: 'tool', verb, about: it.tool.about, target })
+      } else if (it.kind === 'diff') {
+        entries.push({ kind: 'tool', verb: 'Editing', target: it.diff.file.split('/').pop() })
+      } else if (it.kind === 'thinking') entries.push({ kind: 'think' })
     }
-    return undefined
+    return liveLine(entries)
   }, [items, generating, thinking])
   useEffect(() => {
     bgTasksRef.current = bgTasks

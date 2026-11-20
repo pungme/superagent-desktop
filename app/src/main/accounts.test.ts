@@ -117,6 +117,35 @@ describe('what the CLIs say when an account runs dry', () => {
     ).toEqual({ until: null })
   })
 
+  it("reads Antigravity's quota message, with the reset it names", () => {
+    const now = Date.now()
+    const out = limitFromEvent({
+      type: 'result',
+      is_error: true,
+      result:
+        'Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 141h17m16s.'
+    })!
+    expect(out).not.toBeNull()
+    const expected = now + (141 * 3600 + 17 * 60 + 16) * 1000
+    expect(Math.abs(out.until! - expected)).toBeLessThan(5000)
+    // The same, as the Gemini API words it.
+    expect(
+      limitFromEvent({
+        type: 'result',
+        is_error: true,
+        result: 'RESOURCE_EXHAUSTED (code 429): quota exceeded'
+      })
+    ).toEqual({ until: null })
+    // A rate limit that clears in seconds is not the account running out.
+    expect(
+      limitFromEvent({
+        type: 'result',
+        is_error: true,
+        result: 'RESOURCE_EXHAUSTED (code 429): Individual quota reached. Resets in 45s.'
+      })
+    ).toBeNull()
+  })
+
   it("reads Claude's rate_limit_event, reset time in epoch seconds", () => {
     expect(
       limitFromEvent({

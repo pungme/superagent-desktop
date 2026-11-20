@@ -528,9 +528,33 @@ export function limitFromEvent(event: Record<string, unknown>): Limit | null {
   // It does not say which; the session knows (CURRENT_MODEL).
   if (/switch to (another|a different) model/i.test(text))
     return { until: null, model: CURRENT_MODEL }
+  // Antigravity (and the Gemini API under it): "Individual quota reached. Please upgrade
+  // your subscription to increase your limits. Resets in 141h17m16s." It was not matched,
+  // so the chat stopped on the error instead of moving on (2026-11-20).
+  const quota =
+    /quota (has been )?(reached|exceeded|exhausted)|resource[_ ]exhausted|upgrade your subscription to increase your limits/i.test(
+      text
+    )
+  if (quota) {
+    const resetMs = resetInMs(text)
+    // Clears in a few minutes: a passing rate limit the CLI retries, not the account out.
+    if (resetMs !== null && resetMs < 10 * 60_000) return null
+    return { until: resetMs === null ? null : Date.now() + resetMs }
+  }
   if (/hit your (usage )?limit|usage limit|out of (usage|credits)|limit reached/i.test(text))
     return { until: null }
   return null
+}
+
+/** "Resets in 141h17m16s" / "resets in 3m" as milliseconds, or null when the text names none. */
+function resetInMs(text: string): number | null {
+  const m = /resets? in\s+((?:\d+\s*[dhms]\s*)+)/i.exec(text)
+  if (!m) return null
+  const unit: Record<string, number> = { d: 86_400_000, h: 3_600_000, m: 60_000, s: 1000 }
+  let ms = 0
+  for (const [, n, u] of m[1].matchAll(/(\d+)\s*([dhms])/gi))
+    ms += Number(n) * unit[u.toLowerCase()]
+  return ms || null
 }
 
 /**

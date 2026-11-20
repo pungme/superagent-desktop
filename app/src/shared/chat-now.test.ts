@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chatNow } from './chat-now'
+import { chatNow, liveLine } from './chat-now'
 
 describe('chatNow', () => {
   it('adds a second sentence when the first is too short to say anything', () => {
@@ -31,5 +31,51 @@ describe('chatNow', () => {
   it('is empty for nothing', () => {
     expect(chatNow('')).toBe('')
     expect(chatNow('```\nonly code\n```')).toBe('')
+  })
+})
+
+describe('liveLine', () => {
+  it("uses the step's own description, never the raw command", () => {
+    expect(
+      liveLine([
+        { kind: 'user' },
+        {
+          kind: 'tool',
+          verb: 'Terminal',
+          about: 'Build the app bundle',
+          target: './scripts/build-app.sh'
+        }
+      ])
+    ).toBe('Build the app bundle')
+    expect(liveLine([{ kind: 'user' }, { kind: 'tool', verb: 'Terminal' }])).toBe(
+      'Running a command'
+    )
+  })
+  it('otherwise says what the agent said it is about to do', () => {
+    expect(
+      liveLine([
+        { kind: 'user' },
+        { kind: 'say', text: 'The badge now sits cleanly above the ring. Merging to main:' },
+        { kind: 'tool', verb: 'Terminal' }
+      ])
+    ).toBe('Merging to main')
+  })
+  it('only looks at this turn', () => {
+    expect(
+      liveLine([
+        { kind: 'say', text: 'Old news from the last turn.' },
+        { kind: 'user' },
+        { kind: 'tool', verb: 'Editing', target: 'Sidebar.tsx' }
+      ])
+    ).toBe('Editing Sidebar.tsx')
+    expect(liveLine([{ kind: 'say', text: 'x.' }, { kind: 'user' }])).toBe('Reading what you asked')
+    expect(liveLine([{ kind: 'user' }, { kind: 'think' }])).toBe('Thinking')
+  })
+  it('keeps it to one short line', () => {
+    const long =
+      'I am going to go through every single page of the portal and check each table, then the filters, then the exports'
+    const out = liveLine([{ kind: 'user' }, { kind: 'say', text: long }])
+    expect(out.length).toBeLessThanOrEqual(90)
+    expect(out.endsWith('…')).toBe(true)
   })
 })
