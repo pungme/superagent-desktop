@@ -1167,7 +1167,7 @@ export function destroyBrowserPane(id: string): void {
   } catch {
     pane.visible = false
   }
-  if (!pane.view.webContents.isDestroyed()) pane.view.webContents.close()
+  livePage(pane)?.close()
 }
 
 /**
@@ -1200,7 +1200,7 @@ export function skipNativeMenuFor(wc: Electron.WebContents, ms = 1500): void {
  */
 export function paneViewSize(paneId: string): { width: number; height: number } | null {
   const pane = panes.get(paneId)
-  if (!pane || pane.view.webContents.isDestroyed()) return null
+  if (!pane || !livePage(pane)) return null
   const { width, height } = pane.view.getBounds()
   return { width, height }
 }
@@ -1279,8 +1279,42 @@ export function releaseCompositing(paneId: string): void {
   paneLog('composite-release', paneId)
 }
 
+/**
+ * The pane's page, or null once it has died. A crashed or killed page leaves a view whose
+ * webContents is undefined or destroyed; code that called `.isDestroyed()` on it threw
+ * on every bounds update (16 ms apart), the pane was never replaced, and every address
+ * sent to it was dropped as "NO-PANE": the browser that sometimes does not load at all.
+ */
+function livePage(pane: BrowserPane | undefined): Electron.WebContents | null {
+  const wc = pane?.view.webContents as Electron.WebContents | undefined
+  return wc && !wc.isDestroyed() ? wc : null
+}
+
 export function getPaneWebContents(id: string): Electron.WebContents | undefined {
-  return panes.get(id)?.view.webContents
+  return livePage(panes.get(id)) ?? undefined
+}
+
+/**
+ * Replace a dead pane with a new one on the same window and partition, on the page it was
+ * on. Returns the new pane, or null when there is no window to put it in.
+ */
+const revivedAt = new Map<string, number>()
+function reviveDeadPane(pane: BrowserPane, url?: string): BrowserPane | null {
+  const { id, window, partition } = pane
+  // A page that kills its own pane again and again (one that calls window.close()) must
+  // not be loaded again in a loop: inside ten seconds of the last revival it comes back
+  // on the empty page, unless the person typed an address.
+  const recent = Date.now() - (revivedAt.get(id) ?? 0) < 10_000
+  revivedAt.set(id, Date.now())
+  const was = url ?? (recent ? undefined : lastState.get(id)?.url)
+  paneLog('pane-revived', id, `${recent ? 'again, blank: ' : ''}${(was ?? '').slice(0, 100)}`)
+  destroyBrowserPane(id)
+  if (window.isDestroyed()) return null
+  createBrowserPane(window, id, partition)
+  const fresh = panes.get(id) ?? null
+  const wc = livePage(fresh ?? undefined)
+  if (wc && was && isNavigable(was)) wc.loadURL(was).catch(() => {})
+  return fresh
 }
 
 /** How long an overlay waits for the page's photograph before the view goes anyway. */
@@ -1289,7 +1323,10 @@ const FREEZE_DETACH_MS = 80
 export function registerBrowserIpc(): void {
   ipcMain.handle('browser:create', (e, id: string, partition: string) => {
     const window = BrowserWindow.fromWebContents(e.sender)
-    if (window) createBrowserPane(window, id, partition)
+    // A pane whose page has died is replaced, not handed back as it is.
+    const existing = panes.get(id)
+    if (existing && !livePage(existing)) reviveDeadPane(existing)
+    else if (window) createBrowserPane(window, id, partition)
     // Return whatever the pane is already showing. createBrowserPane no-ops on an
     // existing id, so a pane hidden on a chat switch and re-created when you come
     // back reports its live URL — the renderer uses that to leave the page alone
@@ -1329,9 +1366,11 @@ export function registerBrowserIpc(): void {
       // in the main process" dialog, over a stack ending at attachPaneView.
       // The bounds reconciler re-sends every 250ms, so one crashed pane threw
       // that dialog on a timer. A corpse gets buried, not attached.
-      if (pane.view.webContents.isDestroyed()) {
+      if (!livePage(pane)) {
         paneLog('pane-view-destroyed', id)
-        destroyBrowserPane(id)
+        // Replaced, not just buried: the window keeps sending bounds for this pane and
+        // nothing else would ever make a new one.
+        reviveDeadPane(pane)
         return
       }
       if (!pane.window.isFocused() && (focusGuardActive || detachedWhileAway.size > 0)) {
@@ -1551,6 +1590,12 @@ export function registerBrowserIpc(): void {
       return
     }
     const ok = isNavigable(url) || isLocalFile(url)
+    // A pane that exists but has died: make a new one on the address, rather than drop it.
+    const dead = panes.get(id)
+    if (!wc && dead && ok) {
+      reviveDeadPane(dead, url)
+      return
+    }
     if (!wc || !ok) paneLog('navigate-dropped', id, `${wc ? '' : 'NO-PANE '}${url.slice(0, 120)}`)
     if (!wc) return
     if (ok) wc.loadURL(url)
