@@ -398,6 +398,11 @@ export function startCompanionLog(): void {
     }
   )
 
+  // Out of allowance in a chat no window has open: the phone hears where it carried on.
+  agentBus.on('carry-on', ({ chatId, text }: { chatId?: string; text: string }) => {
+    if (chatId) record(chatId, { kind: 'notice', text })
+  })
+
   agentBus.on('resume-lost', ({ chatId }: { chatId?: string }) => {
     if (chatId)
       record(chatId, {

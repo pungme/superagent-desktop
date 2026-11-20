@@ -246,6 +246,7 @@ vi.mock('./devices', async () => {
 
 vi.mock('../agent', () => ({
   agentBus: h.agentBus,
+  setResendWithoutWindow: () => {},
   listSessions: () => [...h.sessions.values()],
   findSessionByChat: (chatId: string) => [...h.sessions.values()].find((s) => s.chatId === chatId),
   startAgent: (_owner: null, opts: { chatId?: string; workspaceId?: string; cwd?: string }) => {

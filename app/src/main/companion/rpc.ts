@@ -92,6 +92,7 @@ import {
   hardInterruptAgent,
   findSessionByChat,
   getSessionOpts,
+  setResendWithoutWindow,
   AgentStartOptions
 } from '../agent'
 import {
@@ -1472,6 +1473,18 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
 // A loop round for a chat no window has open starts its agent the way a
 // phone message does.
 setUnattendedSend(async (chatId, text) => (await sendToChat({ chatId, text })).ok)
+/**
+ * A limit in a chat no window has open: the same message, sent again on the account or
+ * agent main moved the chat to (see carryOnWithoutWindow in agent.ts). Called at startup,
+ * not at load: in the bundle this module loads before agent.ts has made its hook, and a
+ * call from here at load stopped the app from starting at all.
+ */
+export function registerResendWithoutWindow(): void {
+  setResendWithoutWindow(
+    async (chatId, text, images) =>
+      (await sendToChat({ chatId, text, ...(images.length ? { images } : {}) })).ok
+  )
+}
 
 /** The dot's request: sent the way a phone sends one, into a chat nobody has open. */
 /**

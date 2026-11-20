@@ -1,0 +1,3 @@
+# Superagent 2.1.3-beta.20
+
+**Automatic account switching works for chats you run from your iPhone.** A message sent from the phone runs its agent on the Mac without a window, and it was the window that moved a chat to the next account and sent your message again, so a phone-only chat simply stopped at "out of allowance". The Mac now does it itself: it moves the chat to the next account with allowance (or to Codex or Antigravity when every account of that agent is out, with the conversation so far) and sends your message again. The phone shows a line saying where it carried on. The same goes for the Today box and for /loop rounds in a chat nobody has open.

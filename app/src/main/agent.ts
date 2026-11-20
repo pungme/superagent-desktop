@@ -8,7 +8,13 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { agentLog } from './agent-log'
-import { loadChatItems, getChatProvider, setChatSession } from './store'
+import {
+  clearChatSession,
+  loadChatItems,
+  getChatProvider,
+  setChatProvider,
+  setChatSession
+} from './store'
 import type { LegacyItem } from './transcript'
 import { startClaudeSession, suggestTitleWithClaude } from './claude/session'
 import {
@@ -21,7 +27,8 @@ import {
   markAuth,
   markModelLimited,
   recordUsage,
-  reportLimit
+  reportLimit,
+  type LimitNotice
 } from './accounts'
 import { usageFromClaudeEvent } from './usage'
 import { connectorsAskedFor, knownConnectors } from './connectors'
@@ -70,6 +77,8 @@ interface AgentSession {
   opts: AgentStartOptions
   /** The last `system/init` event, replayed to a window that adopts the session. */
   lastInit?: Record<string, unknown>
+  /** What was last sent, so a chat no window has open can send it again after a limit. */
+  lastSend?: { text: string; images: AgentImage[] }
 }
 
 const sessions = new Map<string, AgentSession>()
@@ -452,7 +461,13 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
               fallback,
               trigger: 'usage_limit'
             })
-          } else reportLimit(opts.chatId, provider, account.id, out.until)
+            carryOnWithoutWindow(id, opts.chatId, null)
+          } else
+            carryOnWithoutWindow(
+              id,
+              opts.chatId,
+              reportLimit(opts.chatId, provider, account.id, out.until)
+            )
         }
       }
       agentBus.emit('event', { ...meta, event })
@@ -587,6 +602,50 @@ export function imageNote(paths: string[], glance: boolean): string {
   )
 }
 
+/**
+ * The phone's send path, registered by the companion (rpc.ts) to keep this module free of it.
+ * Used to send a message again in a chat no window has open.
+ */
+let resendWithoutWindow:
+  ((chatId: string, text: string, images: AgentImage[]) => Promise<boolean>) | null = null
+export function setResendWithoutWindow(
+  fn: (chatId: string, text: string, images: AgentImage[]) => Promise<boolean>
+): void {
+  resendWithoutWindow = fn
+}
+
+/**
+ * A limit hit a chat that no window has open (the phone sent it): the window is what
+ * moves a chat to another account or agent and sends the message again, so with none
+ * the chat simply stopped. Main does the same here: stop this agent, move the chat,
+ * and send the last message again on the new one. `notice` null is a model running out
+ * (main already starts it on the next model down).
+ */
+function carryOnWithoutWindow(id: string, chatId: string, notice: LimitNotice | null): void {
+  const s = sessions.get(id)
+  if (!s || (s.owner && !s.owner.isDestroyed())) return
+  const again = s.lastSend
+  let said: string
+  if (notice === null) said = 'The model ran out of allowance; continuing on the next one down.'
+  else if (notice.switchedTo)
+    said = `${notice.account.name} is out of allowance; continuing on ${notice.switchedTo.name}.`
+  else if (notice.switchedToAgent) {
+    // As the phone's own "switch agent" does: the new agent gets the conversation as a recap.
+    setChatProvider(chatId, notice.switchedToAgent)
+    clearChatSession(chatId)
+    markContextLost(chatId)
+    said = `${PROVIDER_LABEL[notice.provider]} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]}, which has the conversation so far.`
+  } else return
+  agentLog('carry-on', id, `chat=${chatId} ${said}`)
+  agentBus.emit('carry-on', { chatId, text: `↻ ${said}` })
+  // After the failed result has gone by, as the window waits before it switches.
+  setTimeout(() => {
+    stopAgent(id, 'out of allowance: carrying on')
+    if (again && resendWithoutWindow)
+      void resendWithoutWindow(chatId, again.text, again.images).catch(() => false)
+  }, 300)
+}
+
 export function sendToAgent(
   id: string,
   text: string,
@@ -608,6 +667,7 @@ export function sendToAgent(
 ): boolean {
   const session = sessions.get(id)
   if (!session || !session.backend.writable) return false
+  session.lastSend = { text, images }
   // One id for the durable event, its saved thumbnails, and the live renderer
   // notification. Previously the live path had no id at all, so an image sent
   // from the iOS share sheet could not ask main for its thumbnail.

@@ -39,7 +39,7 @@ import { composePush, macOnlyPushDue, pushTargets, testPushTarget, type PushKind
 import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
-import { listChats } from './rpc'
+import { listChats, registerResendWithoutWindow } from './rpc'
 import { loopsBus } from '../loops'
 import { bindRemoteTransport } from '../remote-control'
 import type { WireEvent, WireBrowser } from '../../shared/companion-protocol'
@@ -66,6 +66,7 @@ export function relayUrl(): string {
 }
 
 export function startCompanion(): void {
+  registerResendWithoutWindow()
   // Remote control sends its frames, and asks who is still there, through here.
   bindRemoteTransport({
     send: (connId, frame) => conns.get(connId)?.send(frame),
