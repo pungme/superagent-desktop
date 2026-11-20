@@ -7,6 +7,8 @@ import {
   signInRetryUrl
 } from './google-signin'
 import { unseenPaneSize } from '../shared/mirror-shot'
+import { popupDecision, popupSize } from '../shared/popup-login'
+import { QUIET } from './quiet'
 import { applySignInIdentity } from './sign-in-identity'
 import {
   BrowserWindow,
@@ -1012,10 +1014,41 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     const url = favicons?.[0]
     if (url) fetchFavicon(id, url, sendState)
   })
-  wc.setWindowOpenHandler(({ url }) => {
-    // target=_blank etc. navigate the same pane — one browser per workspace (v1)
-    if (isNavigable(url)) wc.loadURL(url)
+  // A sign-in popup (window.open with a size, or a known provider's sign-in page) is
+  // a small window of its own that keeps its link to the page, so the login can be
+  // handed back (see shared/popup-login.ts). Anything else a page opens
+  // (target=_blank, links) navigates the same pane: one browser per workspace.
+  const popups = new Set<Electron.BrowserWindow>()
+  wc.setWindowOpenHandler(({ url, disposition, features }) => {
+    const how = popupDecision({ url, disposition, features })
+    if (how === 'popup' && !window.isDestroyed()) {
+      const { width, height } = popupSize(features)
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width,
+          height,
+          parent: window,
+          show: !QUIET,
+          autoHideMenuBar: true,
+          title: 'Sign in',
+          webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+        }
+      }
+    }
+    if (how === 'pane' && isNavigable(url)) wc.loadURL(url)
     return { action: 'deny' }
+  })
+  wc.on('did-create-window', (child) => {
+    // The same browser the pane is, or Google turns the popup away.
+    applyBrowserIdentity(child.webContents)
+    child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    popups.add(child)
+    child.once('closed', () => popups.delete(child))
+  })
+  wc.once('destroyed', () => {
+    for (const w of popups) if (!w.isDestroyed()) w.close()
+    popups.clear()
   })
   wc.on('render-process-gone', (_e, details) => {
     paneLog('render-process-gone', id, details.reason)
