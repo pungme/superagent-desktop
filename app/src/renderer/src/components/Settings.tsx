@@ -334,6 +334,20 @@ function AgentsPanel({
   // Monday's 10 PM.
   const timeLeft = (until: number | null): string =>
     until ? `out until ${resetLabel(until, readAt)}` : ''
+  const ordinalSuffix = (n: number): string => {
+    const v = n % 100
+    if (v >= 11 && v <= 13) return 'th'
+    switch (n % 10) {
+      case 1:
+        return 'st'
+      case 2:
+        return 'nd'
+      case 3:
+        return 'rd'
+      default:
+        return 'th'
+    }
+  }
   const startAdd = (p: AgentProvider): void => {
     setAdding(p)
     setName('')
@@ -368,9 +382,28 @@ function AgentsPanel({
       setUpgrading(null)
     }
   }
-  const makeDefault = async (a: Account): Promise<void> => {
-    await window.cove.accountsSetDefault(a.provider, a.id)
+  const reorder = async (p: AgentProvider, newIds: string[]): Promise<void> => {
+    await window.cove.accountsReorder(p, newIds)
     await refresh()
+  }
+  const prioritizeFirst = async (p: AgentProvider, id: string): Promise<void> => {
+    const currentList = list?.[p] ?? []
+    const ids = currentList.map((a) => a.id)
+    const newIds = [id, ...ids.filter((x) => x !== id)]
+    await reorder(p, newIds)
+  }
+  const moveAccountOrder = async (
+    p: AgentProvider,
+    fromIndex: number,
+    delta: number
+  ): Promise<void> => {
+    const currentList = list?.[p] ?? []
+    const toIndex = fromIndex + delta
+    if (toIndex < 0 || toIndex >= currentList.length) return
+    const ids = currentList.map((a) => a.id)
+    const [moved] = ids.splice(fromIndex, 1)
+    ids.splice(toIndex, 0, moved)
+    await reorder(p, ids)
   }
   const add = async (): Promise<void> => {
     if (!adding) return
@@ -478,7 +511,7 @@ function AgentsPanel({
                 out to be no agent to run them. */}
             {(pending || status?.installed) && (
               <ul className="settings-accounts-list">
-                {(list?.[p] ?? []).map((a) => (
+                {(list?.[p] ?? []).map((a, idx) => (
                   <li
                     key={a.id}
                     className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
@@ -494,25 +527,51 @@ function AgentsPanel({
                           {a.needsAuth ? 'Needs sign-in' : timeLeft(a.limitedUntil)}
                         </span>
                       )}
-                      {/* Which one new chats start on: said on that one, and
-                          one click on any other. Only with a choice to make. */}
-                      {(list?.[p]?.length ?? 0) > 1 &&
-                        (a.isDefault ? (
-                          <span
-                            className="settings-account-default"
-                            title="New chats start on this account"
-                          >
-                            Default
-                          </span>
-                        ) : (
+                      {/* Priority ordering: which account new chats start on
+                          and the sequence used for automatic failover. */}
+                      {(list?.[p]?.length ?? 0) > 1 && (
+                        <span
+                          className={`settings-account-priority ${idx === 0 ? 'first' : ''}`}
+                          title={
+                            idx === 0
+                              ? 'Used first for new chats and automatic failover'
+                              : `Fallback #${idx} when earlier accounts run dry`
+                          }
+                        >
+                          {idx === 0 ? '1st · Used first' : `${idx + 1}${ordinalSuffix(idx + 1)}`}
+                        </span>
+                      )}
+                      {(list?.[p]?.length ?? 0) > 1 && idx > 0 && (
+                        <button
+                          className="settings-account-action"
+                          title="Use this account first for new chats"
+                          onClick={() => void prioritizeFirst(p, a.id)}
+                        >
+                          Use first
+                        </button>
+                      )}
+                      {(list?.[p]?.length ?? 0) > 1 && (
+                        <div className="settings-account-reorder">
                           <button
-                            className="settings-account-action"
-                            title="Start new chats on this account"
-                            onClick={() => void makeDefault(a)}
+                            className="settings-account-move"
+                            title="Move up in priority"
+                            aria-label="Move up in priority"
+                            disabled={idx === 0}
+                            onClick={() => void moveAccountOrder(p, idx, -1)}
                           >
-                            Make default
+                            ↑
                           </button>
-                        ))}
+                          <button
+                            className="settings-account-move"
+                            title="Move down in priority"
+                            aria-label="Move down in priority"
+                            disabled={idx === (list?.[p]?.length ?? 0) - 1}
+                            onClick={() => void moveAccountOrder(p, idx, 1)}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      )}
                       {a.kind !== 'login' && (
                         <button
                           className="settings-account-remove"

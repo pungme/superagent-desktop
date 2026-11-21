@@ -15928,9 +15928,10 @@ button {
   animation-play-state: paused !important;
 }
 
-/* Settings → Agents: which account new chats start on, and the quiet actions
-   beside an account (Make default, Sign in fully, Connect). */
-.settings-account-default {
+/* Settings → Agents: which account new chats start on, priority order, and the quiet actions
+   beside an account (Use first, Sign in fully, Connect). */
+.settings-account-default,
+.settings-account-priority.first {
   flex: none;
   font-size: 10.5px;
   font-weight: 500;
@@ -15938,6 +15939,46 @@ button {
   border-radius: 999px;
   color: var(--accent-fg);
   background: var(--accent);
+}
+.settings-account-priority {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--text-tertiary);
+  background: var(--bg-surface-raised, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border);
+}
+.settings-account-reorder {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.settings-account-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.settings-account-move:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.settings-account-move:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .settings-account-action {
   flex: none;

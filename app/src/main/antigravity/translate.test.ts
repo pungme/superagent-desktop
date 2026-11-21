@@ -143,7 +143,10 @@ describe('tool calls', () => {
         state: 'ACTIVE',
         step_type: 'tool',
         tool_name: 'run_command',
-        tool_info: { name: 'run_command', parameters: { CommandLine: 'ls -la' } }
+        tool_info: {
+          name: 'run_command',
+          parameters: { CommandLine: 'ls -la', toolSummary: 'List files' }
+        }
       }),
       step({
         step_index: 2,
@@ -152,13 +155,17 @@ describe('tool calls', () => {
         tool_name: 'run_command',
         tool_info: {
           name: 'run_command',
-          parameters: { CommandLine: 'ls -la' },
+          parameters: { CommandLine: 'ls -la', toolSummary: 'List files' },
           output: 'total 0\n'
         }
       })
     ])
     const [use] = blocks(events)
-    expect(use).toMatchObject({ type: 'tool_use', name: 'Bash', input: { command: 'ls -la' } })
+    expect(use).toMatchObject({
+      type: 'tool_use',
+      name: 'Bash',
+      input: { command: 'ls -la', description: 'List files' }
+    })
     const [res] = toolResults(events)
     expect(res).toMatchObject({ tool_use_id: use.id, content: 'total 0\n', is_error: false })
   })

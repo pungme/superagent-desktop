@@ -856,9 +856,13 @@ function msgTime(ms: number): string {
 function toolAbout(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined
   const o = input as Record<string, unknown>
-  return typeof o.command === 'string' && typeof o.description === 'string' && o.description.trim()
-    ? o.description.trim().slice(0, 120)
-    : undefined
+  const desc =
+    typeof o.description === 'string' && o.description.trim()
+      ? o.description.trim()
+      : typeof o.toolSummary === 'string' && o.toolSummary.trim()
+        ? o.toolSummary.trim()
+        : undefined
+  return desc ? desc.slice(0, 120) : undefined
 }
 
 function toolDetail(input: unknown): string {
@@ -4854,11 +4858,12 @@ export function EasyChat({
         .filter((m) => m.text)
       const lastTool = [...items].reverse().find((it) => it.kind === 'tool')
       const status =
-        lastTool && lastTool.kind === 'tool'
+        doing ??
+        (lastTool && lastTool.kind === 'tool'
           ? floatStatus(toolLabel(lastTool.tool.name).verb, lastTool.tool.detail)
           : thinking
             ? 'Thinking'
-            : 'Working'
+            : 'Working')
       window.cove.floatState({
         chatId,
         agent: agentName,
@@ -4870,7 +4875,7 @@ export function EasyChat({
       })
     }, 120)
     return () => clearTimeout(t)
-  }, [floating, items, generating, thinking, chatId, agentName, provider, floatNeedsYou])
+  }, [floating, items, generating, thinking, doing, chatId, agentName, provider, floatNeedsYou])
 
   // Auto mode: when a turn ends, ask the agent whether anything is left, and let it
   // carry on, until it says it is done (shared/auto-mode.ts holds every reason to

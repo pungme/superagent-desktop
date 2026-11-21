@@ -65,6 +65,9 @@ export function mapTool(name: string, params: Json): { name: string; input: Json
         name: 'Bash',
         input: {
           command: str(params, 'CommandLine') ?? '',
+          ...(str(params, 'toolSummary', 'Description', 'description')
+            ? { description: str(params, 'toolSummary', 'Description', 'description') }
+            : {}),
           ...(str(params, 'Cwd') ? { cwd: str(params, 'Cwd') } : {})
         }
       }

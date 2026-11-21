@@ -40,6 +40,15 @@
 
 static NSString *gDeveloperDir = nil;
 
+static dispatch_queue_t frameworkQueue(void) {
+  static dispatch_queue_t q;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    q = dispatch_queue_create("superagent.simview.framework", DISPATCH_QUEUE_SERIAL);
+  });
+  return q;
+}
+
 static NSString *developerDir(void) {
   NSTask *t = [NSTask new];
   t.launchPath = @"/usr/bin/xcode-select";
@@ -60,51 +69,61 @@ static NSString *developerDir(void) {
   return dev.length ? dev : nil;
 }
 
-/** Load CoreSimulator and SimulatorKit once. Returns the reason on failure. */
+/** Load CoreSimulator and SimulatorKit once (thread-safe). Returns the reason on failure. */
 static const char *loadFrameworks(void) {
-  if (gDeveloperDir) return NULL;
-  NSString *dev = developerDir();
-  if (!dev) return "no developer directory (is Xcode installed?)";
-  if (!dlopen("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW))
-    return "CoreSimulator.framework would not load";
-  NSString *contents = [dev stringByDeletingLastPathComponent];
-  NSArray *candidates = @[
-    [contents stringByAppendingString:@"/SharedFrameworks/SimulatorKit.framework/SimulatorKit"],
-    [dev stringByAppendingString:@"/Library/PrivateFrameworks/SimulatorKit.framework/SimulatorKit"]
-  ];
-  BOOL loaded = NO;
-  for (NSString *sk in candidates)
-    if (dlopen(sk.UTF8String, RTLD_NOW)) {
-      loaded = YES;
-      break;
+  __block const char *err = NULL;
+  dispatch_sync(frameworkQueue(), ^{
+    if (gDeveloperDir) return;
+    NSString *dev = developerDir();
+    if (!dev) { err = "no developer directory (is Xcode installed?)"; return; }
+    if (!dlopen("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW)) {
+      err = "CoreSimulator.framework would not load";
+      return;
     }
-  if (!loaded) return "SimulatorKit.framework would not load";
-  gDeveloperDir = dev;
-  return NULL;
+    NSString *contents = [dev stringByDeletingLastPathComponent];
+    NSArray *candidates = @[
+      [contents stringByAppendingString:@"/SharedFrameworks/SimulatorKit.framework/SimulatorKit"],
+      [dev stringByAppendingString:@"/Library/PrivateFrameworks/SimulatorKit.framework/SimulatorKit"]
+    ];
+    BOOL loaded = NO;
+    for (NSString *sk in candidates)
+      if (dlopen(sk.UTF8String, RTLD_NOW)) {
+        loaded = YES;
+        break;
+      }
+    if (!loaded) { err = "SimulatorKit.framework would not load"; return; }
+    gDeveloperDir = dev;
+  });
+  return err;
 }
 
 static id msg(id target, SEL sel) { return ((id(*)(id, SEL))objc_msgSend)(target, sel); }
 
 /** The booted device with this UDID (any booted one when udid is empty). */
 static id findDevice(NSString *wantUDID, const char **why) {
-  Class ctxCls = NSClassFromString(@"SimServiceContext");
-  if (!ctxCls) { *why = "SimServiceContext missing — private API moved"; return nil; }
-  NSError *err = nil;
-  id ctx = ((id(*)(id, SEL, id, NSError **))objc_msgSend)(
-      ctxCls, @selector(sharedServiceContextForDeveloperDir:error:), gDeveloperDir, &err);
-  if (!ctx) { *why = "no simulator service context"; return nil; }
-  id set = ((id(*)(id, SEL, NSError **))objc_msgSend)(ctx, @selector(defaultDeviceSetWithError:), &err);
-  if (!set) { *why = "no default device set"; return nil; }
-  for (id d in msg(set, @selector(devices))) {
-    if ([[d valueForKey:@"state"] unsignedLongValue] != 3) continue;  // 3 == Booted
-    if (wantUDID.length) {
-      NSString *u = [[d valueForKey:@"UDID"] UUIDString];
-      if ([u caseInsensitiveCompare:wantUDID] != NSOrderedSame) continue;
+  @try {
+    Class ctxCls = NSClassFromString(@"SimServiceContext");
+    if (!ctxCls) { *why = "SimServiceContext missing — private API moved"; return nil; }
+    NSError *err = nil;
+    id ctx = ((id(*)(id, SEL, id, NSError **))objc_msgSend)(
+        ctxCls, @selector(sharedServiceContextForDeveloperDir:error:), gDeveloperDir, &err);
+    if (!ctx) { *why = "no simulator service context"; return nil; }
+    id set = ((id(*)(id, SEL, NSError **))objc_msgSend)(ctx, @selector(defaultDeviceSetWithError:), &err);
+    if (!set) { *why = "no default device set"; return nil; }
+    for (id d in msg(set, @selector(devices))) {
+      if ([[d valueForKey:@"state"] unsignedLongValue] != 3) continue;  // 3 == Booted
+      if (wantUDID.length) {
+        NSString *u = [[d valueForKey:@"UDID"] UUIDString];
+        if ([u caseInsensitiveCompare:wantUDID] != NSOrderedSame) continue;
+      }
+      return d;
     }
-    return d;
+    *why = "no booted simulator with that udid";
+    return nil;
+  } @catch (NSException *e) {
+    *why = "CoreSimulator threw an exception while looking up the device";
+    return nil;
   }
-  *why = "no booted simulator with that udid";
-  return nil;
 }
 
 static IOSurfaceRef surfaceOf(id desc) {
@@ -117,22 +136,26 @@ static IOSurfaceRef surfaceOf(id desc) {
 
 /** Every screen of the device that hands back a framebuffer. */
 static NSArray *displayPorts(id device) {
-  id io = msg(device, @selector(io));
-  if (!io) return @[];
-  Protocol *proto = objc_getProtocol("SimDisplayIOSurfaceRenderable");
-  if (!proto) return @[];
-  NSMutableArray *out = [NSMutableArray array];
-  for (id port in msg(io, @selector(ioPorts))) {
-    id desc = nil;
-    @try {
-      desc = msg(port, @selector(descriptor));
-    } @catch (NSException *e) {
-      continue;
+  @try {
+    id io = msg(device, @selector(io));
+    if (!io) return @[];
+    Protocol *proto = objc_getProtocol("SimDisplayIOSurfaceRenderable");
+    if (!proto) return @[];
+    NSMutableArray *out = [NSMutableArray array];
+    for (id port in msg(io, @selector(ioPorts))) {
+      id desc = nil;
+      @try {
+        desc = msg(port, @selector(descriptor));
+      } @catch (NSException *e) {
+        continue;
+      }
+      if (!desc || ![desc conformsToProtocol:proto]) continue;
+      if (surfaceOf(desc)) [out addObject:desc];
     }
-    if (!desc || ![desc conformsToProtocol:proto]) continue;
-    if (surfaceOf(desc)) [out addObject:desc];
+    return out;
+  } @catch (NSException *e) {
+    return @[];
   }
-  return out;
 }
 
 /** How lit a surface is: the mean of a sparse grid of pixels, 0–255. */
@@ -161,12 +184,16 @@ static double portBrightness(id desc) {
   return s ? brightness(s) : 0;
 }
 
-/** The lit screen; the first when none is (a device still starting). */
-static id litPort(id device) {
-  NSArray *ports = displayPorts(device);
+/** Pick the lit screen from an already-fetched ports list; first when none is lit. */
+static id pickLitPort(NSArray *ports) {
   for (id d in ports)
     if (portBrightness(d) > DARK) return d;
   return ports.firstObject;
+}
+
+/** The lit screen; the first when none is (a device still starting). */
+static id litPort(id device) {
+  return pickLitPort(displayPorts(device));
 }
 
 // ---------------------------------------------------------------------------
@@ -185,11 +212,13 @@ static id litPort(id device) {
 @interface SimAttachment : NSObject
 @property(nonatomic, strong) SimScreenView *view;
 /** The picture itself: a sublayer, so it can be turned for landscape inside the view. */
-@property(nonatomic, strong) CALayer *screen;
+@property(atomic, strong) CALayer *screen;
 @property(nonatomic) double rotation;
 @property(atomic, strong) id device;
 @property(atomic, strong) id port;
 @property(atomic, strong) NSUUID *callbackUUID;
+/** Per-device serial queue for all CoreSimulator calls (attach, heartbeat, unregister). */
+@property(nonatomic, strong) dispatch_queue_t queue;
 @property(nonatomic, strong) dispatch_source_t beat;
 @property(atomic) IOSurfaceRef surface;
 /** A frame is queued to be shown; later damage before it runs is the same frame. */
@@ -210,6 +239,22 @@ static id litPort(id device) {
 @implementation SimAttachment
 @end
 
+/** State carried across the background probe -> main-thread attach handoff. */
+@interface SimAttachJob : NSObject
+@property(nonatomic) napi_deferred deferred;
+@property(nonatomic, weak) NSView *host;
+@property(nonatomic, copy) NSString *udid;
+@property(nonatomic, strong) SimAttachment *attachment;
+@property(nonatomic, copy) NSString *error;
+@property(nonatomic) size_t width;
+@property(nonatomic) size_t height;
+@property(nonatomic) double brightness;
+@property(nonatomic, copy) NSString *deviceName;
+@property(nonatomic) NSInteger screens;
+@end
+@implementation SimAttachJob
+@end
+
 static NSMutableDictionary<NSNumber *, SimAttachment *> *gAttachments;
 static NSInteger gNextId = 1;
 
@@ -220,8 +265,8 @@ static NSInteger gNextId = 1;
  * at once. That was the simulator's jank. Simulator.app's main thread has
  * nothing else to do; ours does.
  *
- * The surface is only ever swapped on the main thread, inside a dispatch_sync
- * onto this queue, so a frame being drawn never sees it released.
+ * The surface is only ever swapped inside a dispatch_sync onto this queue,
+ * so a frame being drawn never sees it released.
  */
 static dispatch_queue_t presentQueue(void) {
   static dispatch_queue_t q;
@@ -235,28 +280,35 @@ static dispatch_queue_t presentQueue(void) {
 }
 
 /**
- * The once-a-second check (heartbeat) runs here, never on the main thread.
- * Every question it asks the device — still booted? which screens? how lit? —
- * is a synchronous call into CoreSimulator, and while that service is busy (a
- * build installing, another device booting) each one waits. On the main thread
- * that wait froze the whole app: 62% of the main thread in a 5-second sample of
- * the owner's Mac (2026-10-22), and main-thread stalls of seconds to minutes.
+ * One serial utility queue per attached device. Every CoreSimulator question
+ * (attach lookup, displayPorts, damage callback registration/unregistration,
+ * heartbeat) runs here — NEVER on the main thread, and NEVER sharing a queue
+ * with another device. If one simulator wedges inside CoreSimulator's
+ * synchronous XPC (`xpc_connection_send_message_with_reply_sync`), neither the
+ * app's main thread nor any other simulator is affected.
  */
-static dispatch_queue_t heartbeatQueue(void) {
-  static dispatch_queue_t q;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    q = dispatch_queue_create(
-        "superagent.simview.heartbeat",
-        dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+static dispatch_queue_t makeDeviceQueue(NSString *udid) {
+  NSString *label = [NSString stringWithFormat:@"superagent.simview.dev.%@",
+                                               udid.length ? [udid substringToIndex:MIN((NSUInteger)8, udid.length)] : @"any"];
+  return dispatch_queue_create(
+      label.UTF8String,
+      dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+}
+
+/** Retain a safe reference to the current surface without racing setSurface(). */
+static IOSurfaceRef copySurface(SimAttachment *a) {
+  if (!a) return NULL;
+  __block IOSurfaceRef out = NULL;
+  dispatch_sync(presentQueue(), ^{
+    if (a.surface) out = (IOSurfaceRef)CFRetain(a.surface);
   });
-  return q;
+  return out;
 }
 
 /** Show whatever is on the surface now: CA only re-reads an IOSurface when told. */
 static void presentNow(SimAttachment *a) {
-  if (a.dead || !a.surface) return;
   CALayer *layer = a.screen;
+  if (a.dead || !a.surface || !layer) return;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   layer.contents = nil;
@@ -271,7 +323,7 @@ static void presentNow(SimAttachment *a) {
 }
 
 static void present(SimAttachment *a) {
-  if (a.pending) return;
+  if (a.dead || a.pending) return;
   a.pending = YES;
   __weak SimAttachment *weak = a;
   dispatch_async(presentQueue(), ^{
@@ -290,16 +342,19 @@ static void setSurface(SimAttachment *a, IOSurfaceRef s) {
   });
 }
 
+/** Must only be called on `a.queue` (never the main thread). */
 static void unregisterDamage(SimAttachment *a) {
-  if (!a.port || !a.callbackUUID) return;
+  id port = a.port;
+  NSUUID *uuid = a.callbackUUID;
+  a.callbackUUID = nil;
+  if (!port || !uuid) return;
   @try {
-    ((void (*)(id, SEL, id))objc_msgSend)(a.port, @selector(unregisterCallbackWithUUID:), a.callbackUUID);
+    ((void (*)(id, SEL, id))objc_msgSend)(port, @selector(unregisterCallbackWithUUID:), uuid);
   } @catch (NSException *e) {
   }
-  a.callbackUUID = nil;
 }
 
-/** Point the layer at this port's surface and follow its damage. */
+/** Point the layer at this port's surface and follow its damage. Runs on `a.queue`. */
 static BOOL usePort(SimAttachment *a, id port) {
   IOSurfaceRef s = surfaceOf(port);
   if (!s) return NO;
@@ -311,7 +366,7 @@ static BOOL usePort(SimAttachment *a, id port) {
   void (^damage)(id) = ^(id rects) {
     (void)rects;
     SimAttachment *strong = weak;
-    if (strong && strong.callbackUUID == uuid) {
+    if (strong && !strong.dead && strong.callbackUUID == uuid) {
       strong.damaged += 1;
       present(strong);
     }
@@ -323,26 +378,36 @@ static BOOL usePort(SimAttachment *a, id port) {
   } @catch (NSException *e) {
     // No damage callback: the heartbeat below still refreshes the picture.
   }
-  // Torn down while this ran on the heartbeat queue: let go of what we took.
+  // Torn down while this ran on the device queue: let go of what we took.
   if (a.dead) {
     unregisterDamage(a);
     setSurface(a, NULL);
+    a.port = nil;
+    a.device = nil;
     return NO;
   }
   present(a);
   return YES;
 }
 
-/** Once a second: device gone, screen switched (foldable), or just quiet. */
+/** Once a second, on `a.queue`: device gone, screen switched (foldable), or just quiet. */
 static void heartbeat(SimAttachment *a) {
   if (a.dead) return;
-  if ([[a.device valueForKey:@"state"] unsignedLongValue] != 3) {
+  id device = a.device;
+  if (!device) return;
+  unsigned long state = 0;
+  @try {
+    state = [[device valueForKey:@"state"] unsignedLongValue];
+  } @catch (NSException *e) {
+    state = 0;
+  }
+  if (state != 3) {
     a.screens = 0;
     // Shut down: leave the last picture; the app hears of it through simctl
     // and takes the view down. Nothing to refresh.
     return;
   }
-  NSArray *ports = displayPorts(a.device);
+  NSArray *ports = displayPorts(device);
   a.screens = ports.count;
   if (ports.count > 1 && portBrightness(a.port) <= DARK) {
     id other = nil;
@@ -416,27 +481,8 @@ static SimAttachment *attachmentArg(napi_env env, napi_value v) {
   return gAttachments[@((NSInteger)numberArg(env, v))];
 }
 
-/** attach({ view, udid }) */
-static napi_value Attach(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value argv[1];
-  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
-  if (argc < 1) return throwErr(env, "attach needs { view, udid }");
-  napi_value viewBuf, udidVal;
-  napi_get_named_property(env, argv[0], "view", &viewBuf);
-  napi_get_named_property(env, argv[0], "udid", &udidVal);
-  NSView *host = viewFromBuffer(env, viewBuf);
-  if (!host) return throwErr(env, "view is not an NSView handle");
-  const char *why = loadFrameworks();
-  if (why) return throwErr(env, why);
-  id device = findDevice(stringArg(env, udidVal), &why);
-  if (!device) return throwErr(env, why);
-  id port = litPort(device);
-  if (!port) return throwErr(env, "no display port handed back a framebuffer");
-
-  SimAttachment *a = [SimAttachment new];
-  a.device = device;
-  a.udid = [[device valueForKey:@"UDID"] UUIDString];
+/** Attach the native NSView/CALayer and start the per-device heartbeat. Main thread only. */
+static void installView(SimAttachment *a, NSView *host) {
   a.view = [[SimScreenView alloc] initWithFrame:NSMakeRect(-10, -10, 1, 1)];
   a.view.wantsLayer = YES;
   a.view.layer.masksToBounds = NO;
@@ -454,33 +500,247 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
   a.screen = layer;
   a.view.hidden = YES;
   [host addSubview:a.view positioned:NSWindowAbove relativeTo:nil];
-  if (!usePort(a, port)) {
-    [a.view removeFromSuperview];
-    return throwErr(env, "framebuffer surface disappeared");
-  }
-  a.screens = 1;
   a.id = gNextId++;
   if (!gAttachments) gAttachments = [NSMutableDictionary dictionary];
   gAttachments[@(a.id)] = a;
   __weak SimAttachment *weak = a;
-  // Once a second, off the main thread (see heartbeatQueue).
-  dispatch_source_t beat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, heartbeatQueue());
+  // Once a second, on this device's own serial queue (never main, never shared).
+  dispatch_source_t beat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, a.queue);
   dispatch_source_set_timer(beat, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), NSEC_PER_SEC,
                             NSEC_PER_SEC / 4);
   dispatch_source_set_event_handler(beat, ^{
-    SimAttachment *s = weak;
-    if (s && !s.dead) heartbeat(s);
+    @autoreleasepool {
+      SimAttachment *s = weak;
+      if (s && !s.dead) heartbeat(s);
+    }
   });
   a.beat = beat;
   dispatch_resume(beat);
+  // Paint the initial surface unconditionally now that `a.screen` is installed.
+  dispatch_async(presentQueue(), ^{
+    SimAttachment *s = weak;
+    if (s) presentNow(s);
+  });
+}
+
+static void teardown(SimAttachment *a) {
+  a.dead = YES;
+  if (a.beat) dispatch_source_cancel(a.beat);
+  a.beat = nil;
+  // Synchronize with presentQueue BEFORE removing the view/layer so no
+  // in-flight presentNow() can touch a.surface or a.screen afterward.
+  setSurface(a, NULL);
+  [a.view removeFromSuperview];
+  a.screen = nil;
+  // CoreSimulator cleanup (unregisterCallbackWithUUID + object release) MUST
+  // run off the main thread: if SimDeviceIOClient is wedged, calling it on the
+  // main thread would deadlock the whole app.
+  dispatch_queue_t q = a.queue;
+  if (q) {
+    dispatch_async(q, ^{
+      @autoreleasepool {
+        unregisterDamage(a);
+        a.port = nil;
+        a.device = nil;
+      }
+    });
+  }
+}
+
+static void rejectJob(napi_env env, napi_deferred deferred, NSString *message) {
+  napi_value msg, err;
+  napi_create_string_utf8(env, (message ?: @"attach failed").UTF8String, NAPI_AUTO_LENGTH, &msg);
+  napi_create_error(env, NULL, msg, &err);
+  napi_reject_deferred(env, deferred, err);
+}
+
+/** Main-thread completion of AttachAsync: pure AppKit/N-API, ZERO CoreSimulator. */
+static void onAttachDone(napi_env env, napi_value js_cb, void *context, void *data) {
+  (void)js_cb;
+  (void)context;
+  SimAttachJob *job = (__bridge_transfer SimAttachJob *)data;
+  if (!job) return;
+  if (env == NULL) {
+    // Environment tearing down: clean up off the main thread without N-API calls.
+    if (job.attachment) teardown(job.attachment);
+    return;
+  }
+  if (job.error || !job.attachment) {
+    if (job.attachment) teardown(job.attachment);
+    rejectJob(env, job.deferred, job.error ?: @"attach failed");
+    return;
+  }
+  NSView *host = job.host;
+  if (!host || !host.window) {
+    teardown(job.attachment);
+    rejectJob(env, job.deferred, @"window closed");
+    return;
+  }
+  SimAttachment *a = job.attachment;
+  installView(a, host);
 
   napi_value out;
   napi_create_object(env, &out);
   setNum(env, out, "id", a.id);
-  setNum(env, out, "width", IOSurfaceGetWidth(a.surface));
-  setNum(env, out, "height", IOSurfaceGetHeight(a.surface));
-  setNum(env, out, "screens", displayPorts(device).count);
-  setNum(env, out, "brightness", brightness(a.surface));
+  setNum(env, out, "width", job.width);
+  setNum(env, out, "height", job.height);
+  setNum(env, out, "screens", job.screens);
+  setNum(env, out, "brightness", job.brightness);
+  setStr(env, out, "device", job.deviceName ?: @"");
+  setStr(env, out, "udid", a.udid ?: @"");
+  napi_resolve_deferred(env, job.deferred, out);
+}
+
+/**
+ * attachAsync({ view, udid }) -> Promise<{ id, width, height, screens, brightness, device, udid }>
+ *
+ * Runs every CoreSimulator call (framework load, device lookup, displayPorts,
+ * damage callback registration) on a dedicated per-device background serial
+ * queue. The main thread only validates the NSView handle, hands off to the
+ * queue, and installs the NSView/CALayer once the framebuffer is in hand — so
+ * a wedged CoreSimulator XPC can never freeze the app.
+ */
+static napi_value AttachAsync(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (argc < 1) return throwErr(env, "attachAsync needs { view, udid }");
+  napi_value viewBuf, udidVal;
+  napi_get_named_property(env, argv[0], "view", &viewBuf);
+  napi_get_named_property(env, argv[0], "udid", &udidVal);
+  NSView *host = viewFromBuffer(env, viewBuf);
+  if (!host) return throwErr(env, "view is not an NSView handle");
+  NSString *wantUDID = stringArg(env, udidVal);
+
+  napi_deferred deferred = NULL;
+  napi_value promise = NULL;
+  if (napi_create_promise(env, &deferred, &promise) != napi_ok) {
+    return throwErr(env, "could not create attach promise");
+  }
+
+  napi_value name;
+  napi_create_string_utf8(env, "simview.attach", NAPI_AUTO_LENGTH, &name);
+  napi_threadsafe_function tsfn = NULL;
+  if (napi_create_threadsafe_function(env, NULL, NULL, name, 1, 1, NULL, NULL, NULL,
+                                      onAttachDone, &tsfn) != napi_ok) {
+    rejectJob(env, deferred, @"could not schedule async attach");
+    return promise;
+  }
+  // Unref so a hung CoreSimulator XPC on a background queue never blocks app quit.
+  napi_unref_threadsafe_function(env, tsfn);
+
+  SimAttachJob *job = [SimAttachJob new];
+  job.deferred = deferred;
+  job.host = host;
+  job.udid = wantUDID;
+
+  dispatch_queue_t q = makeDeviceQueue(wantUDID);
+  dispatch_async(q, ^{
+    @autoreleasepool {
+      const char *why = loadFrameworks();
+      if (why) {
+        job.error = [NSString stringWithUTF8String:why];
+      } else {
+        id device = findDevice(job.udid, &why);
+        if (!device) {
+          job.error = [NSString stringWithUTF8String:why ?: "no booted simulator with that udid"];
+        } else {
+          NSArray *ports = displayPorts(device);
+          id port = pickLitPort(ports);
+          if (!port) {
+            job.error = @"no display port handed back a framebuffer";
+          } else {
+            SimAttachment *a = [SimAttachment new];
+            a.device = device;
+            a.queue = q;
+            @try {
+              a.udid = [[device valueForKey:@"UDID"] UUIDString];
+              job.deviceName = [device valueForKey:@"name"] ?: @"";
+            } @catch (NSException *e) {
+              a.udid = job.udid;
+              job.deviceName = @"";
+            }
+            a.screens = (NSInteger)ports.count;
+            if (!usePort(a, port)) {
+              job.error = @"framebuffer surface disappeared";
+            } else {
+              IOSurfaceRef s = copySurface(a);
+              if (!s) {
+                a.dead = YES;
+                unregisterDamage(a);
+                setSurface(a, NULL);
+                a.port = nil;
+                a.device = nil;
+                job.error = @"framebuffer surface disappeared";
+              } else {
+                job.width = IOSurfaceGetWidth(s);
+                job.height = IOSurfaceGetHeight(s);
+                job.brightness = brightness(s);
+                CFRelease(s);
+                job.screens = (NSInteger)ports.count;
+                job.attachment = a;
+              }
+            }
+          }
+        }
+      }
+      void *retained = (__bridge_retained void *)job;
+      napi_status st = napi_call_threadsafe_function(tsfn, retained, napi_tsfn_blocking);
+      if (st != napi_ok) {
+        SimAttachJob *discard = (__bridge_transfer SimAttachJob *)retained;
+        if (discard.attachment) {
+          discard.attachment.dead = YES;
+          unregisterDamage(discard.attachment);
+          setSurface(discard.attachment, NULL);
+          discard.attachment.port = nil;
+          discard.attachment.device = nil;
+        }
+      }
+      napi_release_threadsafe_function(tsfn, napi_tsfn_release);
+    }
+  });
+
+  return promise;
+}
+
+/** attach({ view, udid }) — legacy sync entry point (kept for scripts/sim-bench). */
+static napi_value Attach(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (argc < 1) return throwErr(env, "attach needs { view, udid }");
+  napi_value viewBuf, udidVal;
+  napi_get_named_property(env, argv[0], "view", &viewBuf);
+  napi_get_named_property(env, argv[0], "udid", &udidVal);
+  NSView *host = viewFromBuffer(env, viewBuf);
+  if (!host) return throwErr(env, "view is not an NSView handle");
+  const char *why = loadFrameworks();
+  if (why) return throwErr(env, why);
+  id device = findDevice(stringArg(env, udidVal), &why);
+  if (!device) return throwErr(env, why);
+  NSArray *ports = displayPorts(device);
+  id port = pickLitPort(ports);
+  if (!port) return throwErr(env, "no display port handed back a framebuffer");
+
+  SimAttachment *a = [SimAttachment new];
+  a.device = device;
+  a.udid = [[device valueForKey:@"UDID"] UUIDString];
+  a.queue = makeDeviceQueue(a.udid);
+  a.screens = (NSInteger)ports.count;
+  if (!usePort(a, port)) {
+    return throwErr(env, "framebuffer surface disappeared");
+  }
+  installView(a, host);
+
+  IOSurfaceRef s = copySurface(a);
+  napi_value out;
+  napi_create_object(env, &out);
+  setNum(env, out, "id", a.id);
+  setNum(env, out, "width", s ? IOSurfaceGetWidth(s) : 0);
+  setNum(env, out, "height", s ? IOSurfaceGetHeight(s) : 0);
+  setNum(env, out, "screens", ports.count);
+  setNum(env, out, "brightness", s ? brightness(s) : 0);
+  if (s) CFRelease(s);
   setStr(env, out, "device", [device valueForKey:@"name"]);
   setStr(env, out, "udid", a.udid);
   return out;
@@ -494,10 +754,15 @@ static napi_value SizeOf(napi_env env, napi_callback_info info) {
   SimAttachment *a = attachmentArg(env, argv[0]);
   napi_value out;
   napi_create_object(env, &out);
-  if (!a || !a.surface) return out;
-  setNum(env, out, "width", IOSurfaceGetWidth(a.surface));
-  setNum(env, out, "height", IOSurfaceGetHeight(a.surface));
-  setNum(env, out, "brightness", brightness(a.surface));
+  IOSurfaceRef s = copySurface(a);
+  if (!a || !s) {
+    if (s) CFRelease(s);
+    return out;
+  }
+  setNum(env, out, "width", IOSurfaceGetWidth(s));
+  setNum(env, out, "height", IOSurfaceGetHeight(s));
+  setNum(env, out, "brightness", brightness(s));
+  CFRelease(s);
   // Where the view ended up, for a test to check against what it asked for.
   NSRect f = a.view.frame;
   setNum(env, out, "x", f.origin.x);
@@ -530,17 +795,18 @@ static napi_value SetBounds(napi_env env, napi_callback_info info) {
   // Electron's content view is not flipped: AppKit's origin is bottom-left.
   double hostH = host ? host.bounds.size.height : 0;
   NSRect frame = host.isFlipped ? NSMakeRect(x, y, w, h) : NSMakeRect(x, hostH - y - h, w, h);
+  CALayer *screen = a.screen;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   a.view.frame = frame;
   BOOL turned = fabs(fabs(rotation) - 90) < 1;
-  a.screen.transform = CATransform3DIdentity;
-  a.screen.bounds = turned ? CGRectMake(0, 0, h, w) : CGRectMake(0, 0, w, h);
-  a.screen.position = CGPointMake(w / 2, h / 2);
-  a.screen.cornerRadius = radius;
-  if (turned) a.screen.transform = CATransform3DMakeRotation(rotation * M_PI / 180.0, 0, 0, 1);
+  screen.transform = CATransform3DIdentity;
+  screen.bounds = turned ? CGRectMake(0, 0, h, w) : CGRectMake(0, 0, w, h);
+  screen.position = CGPointMake(w / 2, h / 2);
+  screen.cornerRadius = radius;
+  if (turned) screen.transform = CATransform3DMakeRotation(rotation * M_PI / 180.0, 0, 0, 1);
   a.rotation = rotation;
-  a.screen.contentsScale = a.view.window.backingScaleFactor ?: 2;
+  screen.contentsScale = a.view.window.backingScaleFactor ?: 2;
   [CATransaction commit];
   return NULL;
 }
@@ -556,15 +822,6 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   a.view.hidden = !on;
   if (on) present(a);
   return NULL;
-}
-
-static void teardown(SimAttachment *a) {
-  a.dead = YES;
-  if (a.beat) dispatch_source_cancel(a.beat);
-  a.beat = nil;
-  unregisterDamage(a);
-  [a.view removeFromSuperview];
-  setSurface(a, NULL);
 }
 
 /** stats(id) -> { damaged, shown, longestGapMs }, and starts counting again. */
@@ -637,10 +894,11 @@ static napi_value Health(napi_env env, napi_callback_info info) {
   napi_value out;
   napi_create_object(env, &out);
   SimAttachment *a = argc ? attachmentArg(env, argv[0]) : nil;
-  IOSurfaceRef s = a ? a.surface : NULL;
+  IOSurfaceRef s = copySurface(a);
   setNum(env, out, "screens", a ? a.screens : 0);
   setNum(env, out, "width", s ? IOSurfaceGetWidth(s) : 0);
   setNum(env, out, "height", s ? IOSurfaceGetHeight(s) : 0);
+  if (s) CFRelease(s);
   return out;
 }
 
@@ -649,9 +907,9 @@ static napi_value Init(napi_env env, napi_value exports) {
     const char *name;
     napi_callback fn;
   } fns[] = {
-      {"attach", Attach},         {"size", SizeOf},     {"setBounds", SetBounds},
-      {"setVisible", SetVisible}, {"detach", Detach}, {"screens", Screens}, {"stats", Stats},
-      {"health", Health},
+      {"attach", Attach},       {"attachAsync", AttachAsync}, {"size", SizeOf},
+      {"setBounds", SetBounds}, {"setVisible", SetVisible},   {"detach", Detach},
+      {"screens", Screens},     {"stats", Stats},             {"health", Health},
   };
   for (size_t i = 0; i < sizeof(fns) / sizeof(fns[0]); i++) {
     napi_value fn;

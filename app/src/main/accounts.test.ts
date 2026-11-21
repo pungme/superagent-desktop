@@ -66,6 +66,7 @@ import {
   modelLimitedUntil,
   pinChatAccount,
   removeAccount,
+  reorderAccounts,
   recordUsage,
   reportLimit,
   setLimitMode
@@ -115,6 +116,32 @@ describe('what the CLIs say when an account runs dry', () => {
     expect(
       limitFromEvent({ type: 'result', is_error: true, result: "You've hit your usage limit" })
     ).toEqual({ until: null })
+  })
+
+  it.each(['5-hour', 'weekly', '7-day'])('switches accounts after a %s limit', (window) => {
+    const spare = addClaudeToken('Spare', TOKEN)
+    const text = `You've hit your ${window} limit · resets 12:40pm (Europe/Berlin)`
+    const gate = new LimitGate()
+    const synthetic = {
+      type: 'assistant',
+      message: { model: '<synthetic>', content: [{ text }] }
+    }
+    const result = { type: 'result', is_error: true, result: text }
+    expect(limitFromEvent(synthetic)).toEqual({ until: null })
+    expect(limitFromEvent(result)).toEqual({ until: null })
+    gate.hold(limitFromEvent(synthetic)!)
+    gate.hold(limitFromEvent(result)!)
+    const limit = gate.result(result)!
+    const notice = reportLimit('c1', 'claude', LOGIN_ID.claude, limit.until)
+    expect(notice.switchedTo?.id).toBe(spare.id)
+    expect(accountForChat('claude', 'c1').id).toBe(spare.id)
+    // Ordinary assistant prose must never trigger an account switch.
+    expect(
+      limitFromEvent({
+        ...synthetic,
+        message: { ...synthetic.message, model: 'claude-opus-5-5' }
+      })
+    ).toBeNull()
   })
 
   it("reads Antigravity's quota message, with the reset it names", () => {
@@ -812,5 +839,93 @@ describe('the default account for new chats', () => {
     expect(JSON.parse(readFileSync(join(dir, 'accounts.json'), 'utf8')).defaults).toEqual({})
     expect(accountForChat('claude', undefined).id).toBe(LOGIN_ID.claude)
     expect(listAccounts('claude')[0].isDefault).toBe(true)
+  })
+})
+
+describe('account priority order', () => {
+  it('reordering accounts persists order in accounts.json and syncs default', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const spare = addClaudeToken('Spare', TOKEN.slice(0, -1) + 'b')
+    // Initially: [login, work, spare]
+    expect(listAccounts('claude').map((a) => a.id)).toEqual([LOGIN_ID.claude, work.id, spare.id])
+    expect(listAccounts('claude')[0].isDefault).toBe(true)
+
+    // Reorder: spare first, then work, then login
+    reorderAccounts('claude', [spare.id, work.id, LOGIN_ID.claude])
+    _resetAccountsForTests()
+
+    const onDisk = JSON.parse(readFileSync(join(dir, 'accounts.json'), 'utf8'))
+    expect(onDisk.order.claude).toEqual([spare.id, work.id, LOGIN_ID.claude])
+    expect(onDisk.defaults.claude).toBe(spare.id)
+
+    const reordered = listAccounts('claude')
+    expect(reordered.map((a) => a.id)).toEqual([spare.id, work.id, LOGIN_ID.claude])
+    expect(reordered[0].isDefault).toBe(true)
+    expect(reordered[1].isDefault).toBe(false)
+    expect(reordered[2].isDefault).toBe(false)
+  })
+
+  it('accountForChat picks #1 priority account, and fails over down the priority list when limited', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const spare = addClaudeToken('Spare', TOKEN.slice(0, -1) + 'b')
+    reorderAccounts('claude', [work.id, spare.id, LOGIN_ID.claude])
+
+    // Starts on #1 (work)
+    expect(accountForChat('claude', undefined).id).toBe(work.id)
+
+    // When work is limited, fails over to #2 (spare)
+    markLimited(work.id, Date.now() + 60_000)
+    expect(accountForChat('claude', undefined).id).toBe(spare.id)
+
+    // When spare is also limited, fails over to #3 (login)
+    markLimited(spare.id, Date.now() + 60_000)
+    expect(accountForChat('claude', undefined).id).toBe(LOGIN_ID.claude)
+
+    // When all are limited, falls back to default (#1 work)
+    markLimited(LOGIN_ID.claude, Date.now() + 60_000)
+    expect(accountForChat('claude', undefined).id).toBe(work.id)
+  })
+
+  it('reportLimit in auto mode switches to next available account in priority order', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const spare = addClaudeToken('Spare', TOKEN.slice(0, -1) + 'b')
+    reorderAccounts('claude', [work.id, spare.id, LOGIN_ID.claude])
+
+    const notice = reportLimit('chat-1', 'claude', work.id, Date.now() + 60_000)
+    // Mode is auto by default; switchedTo should be the next priority account (#2 spare)
+    expect(notice.switchedTo?.id).toBe(spare.id)
+    // Alternatives are in priority order: spare, then login
+    expect(notice.alternatives.map((a) => a.id)).toEqual([spare.id, LOGIN_ID.claude])
+  })
+
+  it('removing the #1 priority account promotes the next account in priority order', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const spare = addClaudeToken('Spare', TOKEN.slice(0, -1) + 'b')
+    reorderAccounts('claude', [work.id, spare.id, LOGIN_ID.claude])
+
+    removeAccount(work.id)
+    _resetAccountsForTests()
+
+    const onDisk = JSON.parse(readFileSync(join(dir, 'accounts.json'), 'utf8'))
+    expect(onDisk.order.claude).toEqual([spare.id, LOGIN_ID.claude])
+    expect(onDisk.defaults.claude).toBe(spare.id)
+
+    const remaining = listAccounts('claude')
+    expect(remaining.map((a) => a.id)).toEqual([spare.id, LOGIN_ID.claude])
+    expect(remaining[0].isDefault).toBe(true)
+    expect(accountForChat('claude', undefined).id).toBe(spare.id)
+  })
+
+  it('setDefaultAccount moves account to top of priority order when order is set', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const spare = addClaudeToken('Spare', TOKEN.slice(0, -1) + 'b')
+    reorderAccounts('claude', [spare.id, work.id, LOGIN_ID.claude])
+
+    setDefaultAccount('claude', LOGIN_ID.claude)
+    _resetAccountsForTests()
+
+    const list = listAccounts('claude')
+    expect(list.map((a) => a.id)).toEqual([LOGIN_ID.claude, spare.id, work.id])
+    expect(list[0].isDefault).toBe(true)
   })
 })

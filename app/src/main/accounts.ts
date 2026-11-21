@@ -124,6 +124,8 @@ interface AccountsFile {
   usage: Record<string, Usage>
   /** Per agent, the account new chats start on, when the user chose one. */
   defaults: Partial<Record<AgentProvider, string>>
+  /** Priority order of account IDs per agent (index 0 is used first). */
+  order?: Partial<Record<AgentProvider, string[]>>
 }
 
 /** What the window is told when an account runs dry. */
@@ -189,7 +191,8 @@ function load(): AccountsFile {
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
       usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {},
-      defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {}
+      defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {},
+      order: raw.order && typeof raw.order === 'object' ? raw.order : {}
     }
   } catch {
     file = {
@@ -200,7 +203,8 @@ function load(): AccountsFile {
       chats: {},
       auth: {},
       usage: {},
-      defaults: {}
+      defaults: {},
+      order: {}
     }
   }
   return file
@@ -260,7 +264,7 @@ export function listAccounts(provider: AgentProvider): Account[] {
     usage: f.usage[LOGIN_ID[provider]] ?? null,
     isDefault: chosen === LOGIN_ID[provider]
   }
-  return [
+  const all = [
     login,
     ...f.accounts
       .filter((a) => a.provider === provider)
@@ -282,6 +286,23 @@ export function listAccounts(provider: AgentProvider): Account[] {
         isDefault: chosen === a.id
       }))
   ]
+  const order = f.order?.[provider]
+  if (order && order.length > 0) {
+    const map = new Map(all.map((a) => [a.id, a]))
+    const ordered: Account[] = []
+    for (const id of order) {
+      const item = map.get(id)
+      if (item) {
+        ordered.push(item)
+        map.delete(id)
+      }
+    }
+    for (const item of map.values()) {
+      ordered.push(item)
+    }
+    return ordered
+  }
+  return all
 }
 
 export function limitMode(): LimitMode {
@@ -300,6 +321,15 @@ export function setLimitMode(mode: LimitMode): void {
  */
 function defaultAccountId(provider: AgentProvider): string {
   const f = load()
+  const order = f.order?.[provider]
+  if (order && order.length > 0) {
+    const valid = new Set([
+      LOGIN_ID[provider],
+      ...f.accounts.filter((a) => a.provider === provider).map((a) => a.id)
+    ])
+    const top = order.find((id) => valid.has(id))
+    if (top) return top
+  }
   const id = f.defaults[provider]
   if (id && f.accounts.some((a) => a.id === id && a.provider === provider)) return id
   return LOGIN_ID[provider]
@@ -312,6 +342,35 @@ export function setDefaultAccount(provider: AgentProvider, accountId: string): v
   else if (f.accounts.some((a) => a.id === accountId && a.provider === provider))
     f.defaults[provider] = accountId
   else throw new Error('No such account.')
+  if (f.order?.[provider]) {
+    const curr = f.order[provider]!.filter((id) => id !== accountId)
+    f.order[provider] = [accountId, ...curr]
+  }
+  save()
+  broadcastToWindows('accounts:changed')
+}
+
+/** Reorder accounts for a provider. The first account is used first (becomes default). */
+export function reorderAccounts(provider: AgentProvider, accountIds: string[]): void {
+  const f = load()
+  const validIds = new Set([
+    LOGIN_ID[provider],
+    ...f.accounts.filter((a) => a.provider === provider).map((a) => a.id)
+  ])
+  const filtered: string[] = []
+  for (const id of accountIds) {
+    if (validIds.has(id) && !filtered.includes(id)) filtered.push(id)
+  }
+  for (const id of validIds) {
+    if (!filtered.includes(id)) filtered.push(id)
+  }
+  if (!f.order) f.order = {}
+  f.order[provider] = filtered
+  if (filtered.length > 0) {
+    const topId = filtered[0]
+    if (topId === LOGIN_ID[provider]) delete f.defaults[provider]
+    else f.defaults[provider] = topId
+  }
   save()
   broadcastToWindows('accounts:changed')
 }
@@ -541,7 +600,13 @@ export function limitFromEvent(event: Record<string, unknown>): Limit | null {
     if (resetMs !== null && resetMs < 10 * 60_000) return null
     return { until: resetMs === null ? null : Date.now() + resetMs }
   }
-  if (/hit your (usage )?limit|usage limit|out of (usage|credits)|limit reached/i.test(text))
+  // Claude also names the exhausted window: "hit your 5-hour limit".
+  // Keep this specific to allowance windows; arbitrary prose is not a limit.
+  if (
+    /hit your (?:(?:usage|weekly|daily|\d+[- ](?:hour|day|week)) )?limit|usage limit|out of (usage|credits)|limit reached/i.test(
+      text
+    )
+  )
     return { until: null }
   return null
 }
@@ -1032,6 +1097,13 @@ function moveAccount(from: string, to: string): void {
   for (const [chatId, acct] of Object.entries(f.chats)) if (acct === from) f.chats[chatId] = to
   for (const p of Object.keys(f.defaults) as AgentProvider[])
     if (f.defaults[p] === from) f.defaults[p] = to
+  if (f.order) {
+    for (const p of Object.keys(f.order) as AgentProvider[]) {
+      if (f.order[p]) {
+        f.order[p] = f.order[p]!.map((id) => (id === from ? to : id))
+      }
+    }
+  }
   f.accounts = f.accounts.filter((a) => a.id !== from)
   delete f.limits[from]
   delete f.auth[from]
@@ -1046,6 +1118,16 @@ export function removeAccount(id: string): void {
   delete f.limits[id]
   for (const [chatId, acct] of Object.entries(f.chats)) if (acct === id) delete f.chats[chatId]
   if (f.defaults[stored.provider] === id) delete f.defaults[stored.provider]
+  if (f.order?.[stored.provider]) {
+    f.order[stored.provider] = f.order[stored.provider]!.filter((x) => x !== id)
+    if (f.order[stored.provider]!.length > 0) {
+      const top = f.order[stored.provider]![0]
+      if (top === LOGIN_ID[stored.provider]) delete f.defaults[stored.provider]
+      else f.defaults[stored.provider] = top
+    } else {
+      delete f.order[stored.provider]
+    }
+  }
   // The folder holds symlinks into ~/.codex or ~/.claude: rm removes the links,
   // never what they point at.
   for (const folder of [stored.home, stored.configDir]) {
@@ -1518,6 +1600,9 @@ export function registerAccountsIpc(): void {
   )
   ipcMain.handle('accounts:set-default', (_e, provider: AgentProvider, id: string) =>
     setDefaultAccount(provider, id)
+  )
+  ipcMain.handle('accounts:reorder', (_e, provider: AgentProvider, ids: string[]) =>
+    reorderAccounts(provider, ids)
   )
   ipcMain.handle('accounts:remove', (_e, id: string) => removeAccount(id))
   ipcMain.handle('accounts:set-mode', (_e, mode: LimitMode) => setLimitMode(mode))

@@ -972,6 +972,8 @@ export interface CoveApi {
   accountsAddClaudeLogin: (name: string, replaces?: string) => Promise<Account>
   /** Which account new chats of this agent start on. */
   accountsSetDefault: (provider: Account['provider'], id: string) => Promise<void>
+  /** Priority order of accounts for an agent: index 0 is used first, followed by fallbacks. */
+  accountsReorder: (provider: Account['provider'], ids: string[]) => Promise<void>
   /** A Claude account's claude.ai connectors and whether each is connected (main/connectors.ts). */
   connectorsList: (accountId: string, force?: boolean) => Promise<Connector[]>
   /** Connect one in a sign-in window of ours; resolves with it as it is after. */
@@ -1763,6 +1765,7 @@ const cove: CoveApi = {
   accountsAddClaudeLogin: (name, replaces) =>
     ipcRenderer.invoke('accounts:add-claude-login', name, replaces),
   accountsSetDefault: (provider, id) => ipcRenderer.invoke('accounts:set-default', provider, id),
+  accountsReorder: (provider, ids) => ipcRenderer.invoke('accounts:reorder', provider, ids),
   connectorsList: (accountId, force) => ipcRenderer.invoke('connectors:list', accountId, force),
   connectorsConnect: (accountId, name) => ipcRenderer.invoke('connectors:connect', accountId, name),
   onConnectorsChanged: (cb) => subscribe('connectors:changed', (id) => cb(id as string)),
