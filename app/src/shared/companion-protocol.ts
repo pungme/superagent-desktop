@@ -53,7 +53,16 @@ export type WireEventData =
     }
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'thinking'; id: string; text: string }
-  | { kind: 'tool'; id: string; name: string; detail: string; task?: TaskInfo }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      /** The command or target itself ("ls -la", "a.ts"). */
+      detail: string
+      task?: TaskInfo
+      /** The step in plain words ("List files"), when the agent gave one. */
+      about?: string
+    }
   | {
       kind: 'tool_result'
       toolId: string

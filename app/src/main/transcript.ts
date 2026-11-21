@@ -143,13 +143,16 @@ export class TranscriptProjector {
         const name = typeof block.name === 'string' ? block.name : 'tool'
         const diff = toolDiff(name, id, block.input)
         const task = taskInfo(name, block.input)
+        const detail = toolDetail(block.input)
+        const about = toolAbout(block.input, detail)
         out.push(
           diff ?? {
             kind: 'tool',
             id,
             name,
-            detail: toolDetail(block.input),
-            ...(task ? { task } : {})
+            detail,
+            ...(task ? { task } : {}),
+            ...(about ? { about } : {})
           }
         )
       }
@@ -225,6 +228,19 @@ export function toolDetail(input: unknown): string {
   if (typeof pick === 'string') return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
   if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
   return ''
+}
+
+/**
+ * The step in plain words: the `description` Claude's Bash and Agent calls
+ * carry, and Antigravity's run_command summary (translated into the same
+ * field). Undefined when there is none or it only repeats `detail`.
+ */
+export function toolAbout(input: unknown, detail = toolDetail(input)): string | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const d = (input as Record<string, unknown>).description
+  if (typeof d !== 'string') return undefined
+  const about = d.replace(/\s+/g, ' ').trim().slice(0, 100)
+  return about && about !== detail ? about : undefined
 }
 
 /** The plan a planning tool call carries; undefined for every other tool. */

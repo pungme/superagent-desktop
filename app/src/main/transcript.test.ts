@@ -76,6 +76,26 @@ describe('TranscriptProjector', () => {
     ).toEqual([])
   })
 
+  it('carries a step\'s plain description beside the command', () => {
+    const p = new TranscriptProjector()
+    const out = p.project(
+      assistant([
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'Bash',
+          input: { command: 'ls -la', description: '  List   files ' }
+        },
+        // A description that only repeats the detail adds nothing.
+        { type: 'tool_use', id: 't2', name: 'Agent', input: { description: 'Find it' } }
+      ])
+    ).persist
+    expect(out).toEqual([
+      { kind: 'tool', id: 't1', name: 'Bash', detail: 'ls -la', about: 'List files' },
+      { kind: 'tool', id: 't2', name: 'Agent', detail: 'Find it' }
+    ])
+  })
+
   it('reports tool results with a bounded summary', () => {
     const p = new TranscriptProjector()
     const out = p.project({
