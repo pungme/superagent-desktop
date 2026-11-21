@@ -1,6 +1,7 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
+import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
 import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
@@ -5824,7 +5825,7 @@ export function EasyChat({
   // A chat pinned to a model the line-up no longer lists (an old "sonnet[1m]")
   // still runs on it — name it rather than claiming Default.
   const modelLabel =
-    modelOptions.find((m) => m.value === effectiveModel)?.label ??
+    modelPillLabel(modelOptions, effectiveModel) ??
     (effectiveModel ? shortModel(effectiveModel) : 'Default')
   /**
    * How much of the agent's memory this conversation fills. The window depends on
@@ -7126,25 +7127,45 @@ export function EasyChat({
           </button>
           {controlMenu === 'model' && (
             <div className="easy-control-menu easy-control-menu-wide">
-              {modelOptions
-                .filter((o) => !o.older || showOlder)
-                .map((o) => (
-                  <button
-                    key={o.value || 'default'}
-                    className={`easy-control-item ${o.value === effectiveModel ? 'on' : ''} ${o.older ? 'older' : ''}`}
-                    onClick={() => pickModel(o.value)}
+              {groupModelOptions(modelOptions.filter((o) => !o.older || showOlder)).map((row) =>
+                row.kind === 'efforts' ? (
+                  // One model, one row: Antigravity lists it once per effort.
+                  <div
+                    key={`efforts-${row.label}`}
+                    className={`easy-control-item easy-model-efforts ${row.efforts.some((e) => e.option.value === effectiveModel) ? 'on' : ''}`}
                   >
-                    <span className="easy-control-item-label">{o.label}</span>
+                    <span className="easy-control-item-label">{row.label}</span>
+                    <span className="easy-effort-chips">
+                      {row.efforts.map((e) => (
+                        <button
+                          key={e.option.value}
+                          className={`easy-effort-chip ${e.option.value === effectiveModel ? 'on' : ''}`}
+                          onClick={() => pickModel(e.option.value)}
+                          title={`${row.label}, ${e.effort} effort`}
+                        >
+                          {e.effort}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    key={row.option.value || 'default'}
+                    className={`easy-control-item ${row.option.value === effectiveModel ? 'on' : ''} ${row.option.older ? 'older' : ''}`}
+                    onClick={() => pickModel(row.option.value)}
+                  >
+                    <span className="easy-control-item-label">{row.option.label}</span>
                     <span className="easy-control-item-hint">
                       {/* Naming the resolution here rather than on the pill: the
                         pill showing "Opus 5" while the menu said Default read
                         as though Opus had been picked. */}
-                      {o.value === '' && activeModel
-                        ? `${o.hint} — right now ${shortModel(activeModel)}`
-                        : o.hint}
+                      {row.option.value === '' && activeModel
+                        ? `${row.option.hint} — right now ${shortModel(activeModel)}`
+                        : row.option.hint}
                     </span>
                   </button>
-                ))}
+                )
+              )}
               {olderModels.length > 0 && !showOlder && (
                 <button
                   className="easy-control-item easy-control-more"

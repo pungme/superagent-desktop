@@ -7788,6 +7788,39 @@ button {
   font-size: 10px;
   color: var(--text-tertiary);
 }
+/* A model offered at several efforts: its name, then one chip per effort. */
+.easy-model-efforts {
+  justify-content: space-between;
+  cursor: default;
+}
+.easy-model-efforts:hover {
+  background: none;
+}
+.easy-model-efforts.on {
+  background: var(--accent-soft);
+}
+.easy-effort-chips {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.easy-effort-chip {
+  border: none;
+  background: none;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.easy-effort-chip:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.easy-effort-chip.on {
+  background: var(--text-primary);
+  color: var(--bg-content);
+  font-weight: 600;
+}
 /* An account's limits in the Account menu: name, percent, when it resets. */
 .easy-account-windows {
   display: grid;
