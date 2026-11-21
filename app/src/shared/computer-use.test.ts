@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { LaidWindow } from './computer-use'
 import {
   CONSENT_IDLE_MS,
   consentStands,
@@ -28,7 +29,8 @@ import {
   pointerMoved,
   shotSize,
   toScreenPoint,
-  validKeyCombo
+  validKeyCombo,
+  coverApps
 } from './computer-use'
 
 const laptop = { x: 0, y: 0, width: 1728, height: 1117 }
@@ -484,5 +486,47 @@ describe("the apps that draw the Mac's own prompts, as the helper really reports
   it('leaves ordinary apps alone', () => {
     expect(offLimitsApp(ownerApp('Notes', 'com.apple.Notes')?.id)).toBeNull()
     expect(offLimitsApp('com.apple.notificationcenterui')).toBeNull()
+  })
+})
+
+describe('coverApps', () => {
+  const shot = { width: 200, height: 100, area: { x: 0, y: 0, width: 100, height: 50 } }
+  const win = (
+    id: string,
+    name: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): LaidWindow => ({
+    app: { id, name },
+    owner: name,
+    layer: 0,
+    frame: { x, y, width: w, height: h }
+  })
+  const px = (): Uint8Array => new Uint8Array(200 * 100 * 4).fill(200)
+  const at = (p: Uint8Array, x: number, y: number): number => p[(y * 200 + x) * 4]
+  it('greys only the password manager, at the picture scale, and names it', () => {
+    const p = px()
+    const names = coverApps(
+      p,
+      shot,
+      [
+        win('com.apple.dt.Xcode', 'Xcode', 0, 0, 60, 50),
+        win('com.apple.Passwords', 'Passwords', 60, 10, 30, 20)
+      ],
+      (id) => id === 'com.apple.Passwords'
+    )
+    expect(names).toEqual(['Passwords'])
+    expect(at(p, 130, 30)).toBe(0x2b) // inside Passwords (60..90 x 10..30 points, 2x)
+    expect(at(p, 50, 50)).toBe(200) // Xcode untouched
+    expect(at(p, 190, 90)).toBe(200) // outside both
+  })
+  it('leaves a picture alone when the app is on another display', () => {
+    const p = px()
+    expect(
+      coverApps(p, shot, [win('com.apple.Passwords', 'Passwords', 500, 0, 30, 20)], () => true)
+    ).toEqual([])
+    expect(p.every((v) => v === 200)).toBe(true)
   })
 })

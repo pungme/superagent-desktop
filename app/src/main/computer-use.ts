@@ -25,6 +25,7 @@ import {
   ringLabel,
   overlaps,
   mayGlance,
+  coverApps,
   coverOthers,
   type LaidWindow,
   type ScreenArea,
@@ -485,14 +486,44 @@ async function layout(): Promise<LaidWindow[]> {
  * cannot be listed: no picture is better than an uncovered one.
  */
 async function layoutBefore(owner: string): Promise<LaidWindow[] | null> {
-  if (!focusedView() || owner === '__check__') return null
+  if (owner === '__check__') return null
+  let windows: LaidWindow[]
   try {
-    return await layout()
+    windows = await layout()
   } catch {
-    throw new Error(
-      'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made.'
-    )
+    // Showing only the allowed apps needs the list; without it, no picture.
+    if (focusedView())
+      throw new Error(
+        'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made.'
+      )
+    // Showing everything: without the list a secret window cannot be covered, so a
+    // picture is refused only when one is on screen, as it always was.
+    const secret = (await windowsOnScreen()).find((w) => secretApp(w.app.id))
+    if (secret)
+      throw new Error(
+        `${secret.app.name} is on screen and could not be covered in the picture. Ask the user to close or hide that window; computer_read_ui still works on the app in front.`
+      )
+    return null
   }
+  if (focusedView()) return windows
+  // Everything is shown, except a password manager or an app on the keep-out list left
+  // open beside the app being worked in: that is covered (see onlyAllowed).
+  return windows.some((w) => w.app && secretApp(w.app.id)) ? windows : null
+}
+
+/** An app whose windows never go into a picture: a password manager, or one the user keeps out. */
+function secretApp(id: string): boolean {
+  return offLimitsApp(id, deniedApps()) !== null
+}
+
+/** A macOS password or permission prompt, or the lock screen: waits on the user, so nothing goes on. */
+function needsTheUser(app: AppRef): boolean {
+  const name = offLimitsApp(app.id, deniedApps())
+  return (
+    name === 'a macOS password prompt' ||
+    name === 'a macOS password or permission prompt' ||
+    name === 'the lock screen'
+  )
 }
 
 async function onlyAllowed(
@@ -517,14 +548,25 @@ async function onlyAllowed(
   const pixels = image.toBitmap({ scaleFactor: 1 })
   if (pixels.length !== width * height * 4)
     throw new Error('The picture could not be prepared. computer_read_ui still works.')
-  const allowed = (id: string): boolean => appApproved(owner, id) || appRule(id) === 'look'
   const shot = { width, height, area }
-  const hidden = [
-    ...new Set([
-      ...coverOthers(pixels, shot, before, allowed),
-      ...coverOthers(pixels, shot, windows, allowed)
-    ])
-  ]
+  // Only the allowed apps, when the user asked for that; otherwise everything but the
+  // secret ones. Both lists, before and after the picture, so a window brought forward
+  // while it was taken is covered either way.
+  const allowed = (id: string): boolean =>
+    !secretApp(id) && (appApproved(owner, id) || appRule(id) === 'look')
+  const hidden = focusedView()
+    ? [
+        ...new Set([
+          ...coverOthers(pixels, shot, before, allowed),
+          ...coverOthers(pixels, shot, windows, allowed)
+        ])
+      ]
+    : [
+        ...new Set([
+          ...coverApps(pixels, shot, before, secretApp),
+          ...coverApps(pixels, shot, windows, secretApp)
+        ])
+      ]
   return { image: nativeImage.createFromBitmap(pixels, { width, height }), hidden }
 }
 
@@ -552,7 +594,9 @@ async function mayLook(owner: string, picture: ScreenArea | null = null): Promis
     const showing = (await windowsOnScreen()).find(
       (w) => overlaps(w.frame, picture) && offLimitsMessage(w.app)
     )
-    if (showing)
+    // A password manager beside the app is covered in the picture (onlyAllowed); a prompt
+    // asking for the user's password, or the lock screen, waits on the user.
+    if (showing && needsTheUser(showing.app))
       throw new Error(
         `${offLimitsApp(showing.app.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.app.name} is on this display, and computer use does not take a picture with it in. Ask the user to answer or close it, or to move or hide that window; computer_read_ui still works on the app in front.`
       )

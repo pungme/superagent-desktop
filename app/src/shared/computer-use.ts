@@ -779,3 +779,37 @@ export function isPaste(keys: string): boolean {
   const parts = normalKeyCombo(keys).split('+')
   return parts[parts.length - 1] === 'v' && parts.includes('cmd')
 }
+
+/**
+ * Grey out the windows of the given apps, and only those: a password manager open beside
+ * the app the agent works in. Refusing every picture while one was anywhere on the display
+ * stopped computer use 17 times in a few weeks; covering its windows keeps its secrets out
+ * of the picture just as well. Returns the names of the apps covered.
+ */
+export function coverApps(
+  pixels: Uint8Array,
+  shot: Shot,
+  windows: LaidWindow[],
+  covered: (id: string) => boolean,
+  grey = 0x2b
+): string[] {
+  const { width, height, area } = shot
+  const k = width / area.width
+  const names = new Set<string>()
+  for (const w of windows) {
+    if (!w.app || !covered(w.app.id) || !overlaps(w.frame, area)) continue
+    const x0 = Math.max(0, Math.floor((w.frame.x - area.x) * k))
+    const y0 = Math.max(0, Math.floor((w.frame.y - area.y) * k))
+    const x1 = Math.min(width, Math.ceil((w.frame.x + w.frame.width - area.x) * k))
+    const y1 = Math.min(height, Math.ceil((w.frame.y + w.frame.height - area.y) * k))
+    if (x1 <= x0 || y1 <= y0) continue
+    names.add(w.app.name)
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) {
+        const p = (y * width + x) * 4
+        pixels[p] = pixels[p + 1] = pixels[p + 2] = grey
+        pixels[p + 3] = 255
+      }
+  }
+  return [...names]
+}
