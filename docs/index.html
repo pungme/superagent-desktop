@@ -435,43 +435,6 @@
     .who-foot { margin: 80px auto 0; text-align: center; max-width: 720px; }
     .who-foot b { color: var(--ink); font-weight: 600; }
 
-    /* What it does: one bento of #f5f5f7 tiles, 28px corners, at the media width. The big tiles carry
-       the animated drawings (scaled to the tile), the small ones a line each. */
-    .fgrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; width: var(--wide); max-width: 87.5%; margin: 64px auto 0; }
-    .fc { position: relative; display: flex; flex-direction: column; background: #f5f5f7; border-radius: 28px; padding: 36px 36px 0; overflow: hidden; }
-    .fc.w3 { grid-column: span 3; } .fc.w4 { grid-column: span 4; } .fc.w6 { grid-column: span 6; } .fc.w8 { grid-column: span 8; }
-    .fc-eye { font-size: 14px; line-height: 1.43; font-weight: 600; letter-spacing: -0.016em; color: var(--ink-2); }
-    .fc h3 { margin-top: 6px; font-family: var(--display); font-size: 28px; line-height: 1.14; font-weight: 600; letter-spacing: 0.007em; text-wrap: balance; }
-    .fc.hero-card h3 { font-size: 40px; line-height: 1.1; letter-spacing: 0; }
-    .fc-text > p:not(.fc-eye):not(.fc-more) { margin-top: 10px; font-size: 17px; line-height: 1.47; letter-spacing: -0.022em; color: var(--ink-2); max-width: 560px; text-wrap: pretty; }
-    .fc.hero-card .fc-text > p:not(.fc-eye):not(.fc-more) { font-family: var(--display); font-size: 21px; line-height: 1.38; letter-spacing: 0.011em; }
-    .fc-more { margin-top: 10px; font-size: 14px; line-height: 1.43; letter-spacing: -0.016em; color: var(--ink-2); }
-    .fc kbd { font-family: var(--font); font-size: 0.82em; padding: 1px 6px; border-radius: 6px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1); color: var(--ink); }
-    /* The drawing sits at the foot of the tile, bleeding off its bottom edge like a screenshot in a tray */
-    .fc .media { width: auto; max-width: none; margin: 28px 0 0; margin-top: auto; padding-top: 28px; }
-    .fc .media .gfx { border-radius: 12px 12px 0 0; }
-    .fc .vbtn { top: 40px; right: 14px; width: 30px; height: 30px; }
-    .fc .vbtn svg { width: 16px; height: 16px; }
-    .fc.tall { padding-bottom: 0; }
-    .fc-shot { margin-top: auto; padding-top: 28px; display: flex; justify-content: center; }
-    .fc-shot img { width: 72%; max-width: 260px; border-radius: 34px 34px 0 0; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 20px 40px -24px rgba(0, 0, 0, 0.35); }
-    .fc.mini { padding-bottom: 34px; min-height: 200px; }
-    .fc.mini h3 { margin-top: 0; font-size: 24px; line-height: 1.17; }
-    @media (max-width: 1068px) {
-      .fc.w3 { grid-column: span 6; } .fc.w4, .fc.w6 { grid-column: span 6; } .fc.w8 { grid-column: span 12; }
-      .fc#phone { grid-column: span 12; }
-      .fc#phone .fc-shot img { width: 40%; }
-    }
-    @media (max-width: 734px) {
-      .fgrid { gap: 12px; margin-top: 40px; }
-      .fc, .fc.w3, .fc.w4, .fc.w6, .fc.w8, .fc#phone { grid-column: span 12; }
-      .fc { padding: 28px 24px 0; border-radius: 22px; }
-      .fc.mini { padding-bottom: 28px; min-height: 0; }
-      .fc h3, .fc.hero-card h3 { font-size: 26px; }
-      .fc.hero-card .fc-text > p:not(.fc-eye):not(.fc-more) { font-size: 17px; }
-      .fc#phone .fc-shot img { width: 62%; }
-    }
-
     /* The small things: a bento of #f5f5f7 tiles, 28px corners, mixed sizes */
     .bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; margin-top: 80px; }
     .det { background: #f5f5f7; border-radius: 28px; padding: 36px 32px 38px; display: flex; flex-direction: column; min-height: 220px; }
@@ -3411,46 +3374,441 @@
       </div>
     </section>
 
-    <section id="features" class="feature fsec">
+    <section id="agents" class="feature">
       <div class="content">
         <div class="head">
-          <p class="eyebrow">What it does<span class="jp" lang="ja">できること</span></p>
-          <h2>Everything your agents need. One window.</h2>
+          <p class="eyebrow">Every agent<span class="jp" lang="ja">すべてのエージェント</span></p>
+          <h2>Claude, Codex, Gemini. Never stuck.</h2>
+          <p class="intro">Pick Claude Code, Codex or Antigravity (Gemini) for each chat. When an account runs out, the chat moves to your next one in a moment, another agent included, and the work never stops.</p>
         </div>
       </div>
-      <div class="fgrid">
-          <article class="fc w8 hero-card" id="agents">
-            <div class="fc-text"><p class="fc-eye">Automatic account switching</p><h3>Runs out? It doesn&rsquo;t stop.</h3><p>When an account hits its limit, the chat moves to your next one in a moment: another Claude account, then Codex or Antigravity with the conversation so far. The work never stops.</p><p class="fc-more">Turn on Automatic in Settings &rarr; Agents.</p></div>
-            <div class="media"><div class="gfx" data-g="agents" role="img" aria-label="Animated drawing of Superagent: a chat is working on the pricing page when the Personal Claude account runs out; the chat moves to the Work account at once and keeps working; when Work runs out too it moves to Codex with the conversation so far, and the answer arrives without the work ever stopping" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w4 tall" id="phone">
-            <div class="fc-text"><p class="fc-eye">iPhone and iPad</p><h3>Your agent, in your pocket.</h3><p>Follow every chat, approve what it asks, hand it the next job.</p><p class="fc-more"><a class="link" href="https://apps.apple.com/de/app/superagent-companion-app/id6806598776?l=en-GB">App Store</a></p></div>
-            <div class="fc-shot"><img src="phone-app.png" alt="The Superagent iPhone app: a list of chats, one working" width="506" height="1100" loading="lazy" /></div>
-          </article>
-          <article class="fc w6" id="build">
-            <div class="fc-text"><p class="fc-eye">The browser</p><h3>You ask. It builds. You watch.</h3><p>Your site opens next to the chat, in a real browser the agent clicks through itself.</p></div>
-            <div class="media"><div class="gfx" data-g="build" role="img" aria-label="Animated drawing of Superagent: you ask for the Sign up button to be blue, and the shop page in the browser beside the chat changes" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/build.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w6" id="split">
-            <div class="fc-text"><p class="fc-eye">Split view</p><h3>Eight agents. One window.</h3><p>Chats from any project, side by side, all working at once.</p></div>
-            <div class="media"><div class="gfx" data-g="split" role="img" aria-label="Animated drawing of split view: chats from different projects glide into the window one by one until there are four side by side" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/split.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w4" id="simulator">
-            <div class="fc-text"><p class="fc-eye">The simulator</p><h3>An iPhone, right in the window.</h3><p>The agent boots the Simulator, taps through your app and tells you what broke.</p></div>
-            <div class="media"><div class="gfx" data-g="simulator" role="img" aria-label="Animated drawing of the simulator: an iPhone boots beside the chat, the agent taps an order and Confirm, and reports that it works" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w4" id="worktrees">
-            <div class="fc-text"><p class="fc-eye">Worktrees</p><h3>Try anything. Break nothing.</h3><p>Each chat can work on its own branch. Keep what it made, or throw it away.</p></div>
-            <div class="media"><div class="gfx" data-g="worktrees" role="img" aria-label="Animated drawing of a worktree chat: a branch splits off from main while the chat works, then Keep changes merges it back" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/worktrees.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w4" id="snip">
-            <div class="fc-text"><p class="fc-eye">Snip</p><h3>Show it. Don&rsquo;t describe it.</h3><p>Drag a box over the page or the phone screen, and the crop lands in your message.</p></div>
-            <div class="media"><div class="gfx" data-g="snip" role="img" aria-label="Animated drawing of the Snip tool: Command-Shift-S, a box is dragged over the Pro card on the page in the browser pane, the crop appears above the message box, the question is sent, and the agent fixes the card" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
-          </article>
-          <article class="fc w3 mini" id="dot"><div class="fc-text"><h3>Ask from any app.</h3><p>Press <kbd>&#8997;</kbd> <kbd>Space</kbd>. It sees what you see, then answers or does it.</p></div></article>
-          <article class="fc w3 mini" id="computer-use"><div class="fc-text"><h3>It can use your Mac.</h3><p>If you say so. It asks first, for every app, and <kbd>&#8997;</kbd> <kbd>Esc</kbd> stops it.</p></div></article>
-          <article class="fc w3 mini" id="lid"><div class="fc-text"><h3>Close the lid. It carries on.</h3><p>A long job finishes while your MacBook is in your bag.</p></div></article>
-          <article class="fc w3 mini" id="open"><div class="fc-text"><h3>Open source.</h3><p>An agent with your logins should have nothing to hide. <a class="link" href="https://github.com/pungme/superagent-desktop">Read every line</a></p></div></article>
+      <div class="media clip"><div class="gfx" data-g="agents" role="img" aria-label="Animated drawing of Superagent: a chat is working on the pricing page when the Personal Claude account runs out; the chat moves to the Work account at once and keeps working; when Work runs out too it moves to Codex with the conversation so far, and the answer arrives without the work ever stopping" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Add more than one account, and turn on Automatic under Settings &rarr; Agents &rarr; When an account hits its limit; otherwise the chat asks first, with a button to switch. Put every account of every agent in one order there, and the chat follows it. If only one model runs out (Fable&rsquo;s weekly limit, or one Antigravity model&rsquo;s quota), the chat moves to the next model and goes back once it can.</p>
+      </div>
+    </section>
+    <section id="build" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Browser<span class="jp" lang="ja">ブラウザ</span></p>
+          <h2>You ask. It builds. You watch.</h2>
+          <p class="intro">Your site opens next to the chat, in a real browser the agent clicks through itself. No more &ldquo;does it work?&rdquo;</p>
+          <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="build" role="img" aria-label="Animated drawing of Superagent: you ask for the Sign up button to be blue, and the shop page in the browser beside the chat changes" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/build.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Filmed in the app: the agent signs up on the page, checks it at phone size and reports back.</p>
+      </div>
+    </section>
+    <section id="features" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The sidebar<span class="jp" lang="ja">サイドバー</span></p>
+          <h2>Every task gets its own chat.</h2>
+          <p class="intro">Spinning while it works. A dot when it&rsquo;s done. Nothing to babysit.</p>
+          <p class="more"><a class="link" href="docs/#sidebar">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="home" role="img" aria-label="Animated drawing of the Superagent sidebar: several chats spin while they work, one finishes and gets a dot, and opening it shows its answer" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/home.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Chats survive restarts and remember their own work. Projects wear their real icons: the site&rsquo;s favicon, or your app&rsquo;s icon from Xcode.</p>
+      </div>
+    </section>
+    <section id="worktrees" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Worktree chats<span class="jp" lang="ja">各チャット、各ブランチ</span></p>
+          <h2>Try anything. Break nothing.</h2>
+          <p class="intro">A chat can work on its own branch, in its own copy of your project. Like what it made? Keep it. If not, throw it away.</p>
+          <p class="more"><a class="link" href="docs/#chats">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="worktrees" role="img" aria-label="Animated drawing of a worktree chat: a branch splits off from main while the chat works, then Keep changes merges it back" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/worktrees.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Under the hood it&rsquo;s a git worktree named after the chat. Your folder doesn&rsquo;t change until you press Keep, and then it lands as one change.</p>
+      </div>
+    </section>
+    <section id="simulator" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The simulator<span class="jp" lang="ja">シミュレーター</span></p>
+          <h2>An iPhone, right in the window.</h2>
+          <p class="intro">The agent boots the Simulator, taps through your app and tells you what broke.</p>
+          <p class="more"><a class="link" href="docs/#simulator">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="simulator" role="img" aria-label="Animated drawing of the simulator: an iPhone boots beside the chat, the agent taps an order and Confirm, and reports that it works" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">It uses the Simulator that comes with Xcode. Nothing else to install.</p>
+      </div>
+    </section>
+    <section id="twice" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Desktop &amp; phone at once<span class="jp" lang="ja">二重表示</span></p>
+          <h2>Desktop and phone. At once.</h2>
+          <p class="intro">One page at two sizes, side by side, both live. Fix it once, see it twice.</p>
+          <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="twice" role="img" aria-label="Animated drawing of the browser pane: stripe.com opens beside the chat, then the same page appears on an iPhone next to it" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/twice.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">One session behind both, so a sign-in counts for both. The agent switches between phone, desktop or both on its own.</p>
+      </div>
+    </section>
+    <section id="split" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Split view<span class="jp" lang="ja">分割表示</span><span class="beta">Beta</span></p>
+          <h2>Eight agents. One window.</h2>
+          <p class="intro">Chats from any project, side by side, all working at once.</p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="split" role="img" aria-label="Animated drawing of split view: chats from different projects glide into the window one by one until there are four side by side" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/split.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">⌘-click a chat, or drag one in from the sidebar or ⌘K. Resize, rearrange, or give one the whole screen. Splits are saved in the sidebar, and ⌘1–8 jumps between windows. Up to eight on the Mac, four on iPad. In the 2.1 beta.</p>
+      </div>
+    </section>
+    <section id="automation" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Browser automation<span class="jp" lang="ja">自動操作</span></p>
+          <h2>It does the clicking.</h2>
+          <p class="intro">On the sites you&rsquo;re signed in to, it reads, fills in, clicks and sends. Like you would, minus the tedium.</p>
+          <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="automation" role="img" aria-label="Animated drawing of browser automation: the agent works down a signed-in inbox, replying to each message in turn while the count goes up" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">It works in its own tab, so yours stays yours. Stop it whenever you like.</p>
+      </div>
+    </section>
+    <section id="snip" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Snip<span class="jp" lang="ja">切り取り</span></p>
+          <h2>Show it. Don&rsquo;t describe it.</h2>
+          <p class="intro">Drag a box over the page or the phone screen, and the crop lands in your message.</p>
+          <p class="more"><a class="link" href="docs/#files">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="snip" role="img" aria-label="Animated drawing of the Snip tool: Command-Shift-S, a box is dragged over the Pro card on the page in the browser pane, the crop appears above the message box, the question is sent, and the agent fixes the card" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Works on the browser and on the simulator, with ⌘⇧S or the scissors button. It never steals your focus.</p>
+      </div>
+    </section>
+    <section id="notifications" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Notifications<span class="jp" lang="ja">通知</span></p>
+          <h2>It knocks. It never barges in.</h2>
+          <p class="intro">Finished, or needs your yes? You get a notification. Whatever you&rsquo;re doing stays in front.</p>
+        </div>
+      </div>
+      <div class="media scene" role="img" aria-label="A macOS notification slides in at the corner, first a chat that wants you, then one that finished, while the window you are typing in stays in front"><div class="scene-fit" aria-hidden="true"><div class="tour-scene" style="--still:-9.4s"><div class="d7-desk">
+<div class="d7-other"><div class="d7-otop"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Something else you are doing</span></div>
+<div class="d7-obody"><div class="d7-oside"><span class="ln" style="width:70%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:44%"></span></div><div class="d7-code"><span class="ln dk" style="width:38%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:30%"></span><span class="ln" style="width:58%"></span><span class="ln" style="width:44%"></span><span class="ln" style="width:66%"></span><span class="ln" style="width:36%"></span><span class="ln dk d7-typing"></span></div></div></div>
+<div class="d7-note d7-n1"><span class="d7-icon"><i></i></span><div class="d7-txt"><div class="d7-hd"><b>Superagent</b><span class="d7-time">now</span></div><span class="d7-kind asks">Wants you</span><div class="d7-ttl">Fix the flaky auth test</div><div class="d7-bd">Asking before it runs <code>git push</code></div></div></div>
+<div class="d7-note d7-n2"><span class="d7-icon"><i></i></span><div class="d7-txt"><div class="d7-hd"><b>Superagent</b><span class="d7-time">now</span></div><span class="d7-kind done">Finished</span><div class="d7-ttl">Migrate to pnpm</div><div class="d7-bd">26 steps, 4 files changed. CI is green on the branch.</div></div></div>
+<div class="d7-dock"><span class="d7-app"></span><span class="d7-app"></span><span class="d7-app sa"><span class="d7-badge"><span class="d7-count"><span>1</span><span>2</span></span></span></span><span class="d7-app"></span><span class="d7-app"></span></div>
+</div></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">A normal macOS notification with the gist of the reply. Click it to jump straight to that chat.</p>
+      </div>
+    </section>
+    <section id="lid" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Lid closed<span class="jp" lang="ja">蓋を閉じても</span></p>
+          <h2>Close the lid. It carries on.</h2>
+          <p class="intro">Turn it on once, and a long job finishes while your MacBook is in your bag.</p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="lid" role="img" aria-label="Animated drawing of a MacBook: a chat on the screen is working, the lid closes, a status reads still working with a progress bar that fills, and then a notification says it is done, finished with the lid closed" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Off by default. macOS asks for your password once, and while Superagent is open your Mac will not sleep, so it stays awake, and warm, in a bag. On battery you pick the level under which it is let sleep (20% unless you change it). Settings, General, Power.</p>
+      </div>
+    </section>
+    <section id="phone" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">iPhone and iPad<span class="jp" lang="ja">電話</span></p>
+          <h2>Your agent, in your pocket.</h2>
+          <p class="intro">Follow every chat, approve what it asks, hand it the next job. From the sofa, the train, anywhere.</p>
+          <p class="more"><a class="link" href="https://apps.apple.com/de/app/superagent-companion-app/id6806598776?l=en-GB" target="_blank" rel="noopener">Get the app on the App Store</a><a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Build it yourself</a></p>
+        </div>
+      </div>
+      <div class="media scene" role="img" aria-label="The iPad and iPhone apps side by side. On the iPad, the sidebar of chats with Claude at 64% left at its foot, and a chat whose reply streams in. On the iPhone, the agent asks to run git push, a tap on Allow, and a note says it was pushed"><div class="scene-fit" aria-hidden="true"><div class="tour-scene p8" style="--still:-12.4s"><div class="p8-desk">
+<div class="p8-ipad"><div class="p8-scr"><div class="p8-sb"><span>9:41&nbsp;&nbsp;Fri 30 Oct</span><span class="p8-sbr"><svg viewBox="0 0 16 12"><path d="M8 11.5l2.2-2.6a3.4 3.4 0 0 0-4.4 0zM3.4 6.3l1.3 1.6a5 5 0 0 1 6.6 0l1.3-1.6a7.1 7.1 0 0 0-9.2 0zM1 3.4l1.3 1.6a8.6 8.6 0 0 1 11.4 0L15 3.4a10.7 10.7 0 0 0-14 0z"/></svg><i class="p8-bat"></i></span></div>
+<aside class="p8-side"><div class="p8-tools"><span class="p8-live"><i></i>Live</span><span class="p8-rb"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6L5 5M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4"/></svg></span><span class="p8-rb"><svg class="ico" viewBox="0 0 16 16"><path d="M7 3H3.6a1 1 0 0 0-1 1v8.4a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V9M11.4 2.6l2 2L8 10H6V8z"/></svg></span><span class="p8-rb"><svg class="ico" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6.5 3v10"/></svg></span></div>
+<div class="p8-search"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg>Search every conversation</div>
+<div class="p8-seg"><span class="on">Activity</span><span>Projects</span></div>
+<div class="p8-h">Pinned</div>
+<div class="p8-chat"><i class="tpi d"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.4"/></svg></i><div><b>Read the pricing page</b><small>stripe.com</small><p>Three tiers, and the middle one is the only one with SSO.</p></div><svg class="tag" viewBox="0 0 24 24"><use href="#mk-codex"/></svg></div>
+<div class="p8-h">Chats</div>
+<div class="p8-chat on"><i class="tpi d"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.4"/><path d="M3 6.5h10"/></svg></i><div><b>Tighten the hero copy<span class="p8-sspin"><i class="p8-spin"></i></span></b><small>landing-page</small><p class="p8-pv"><span class="p8-pold">Make the headline shorter, keep the tone.</span><span class="p8-pnew">Two lines instead of three. The middle one was doing nothing.</span></p></div><svg class="tag" viewBox="0 0 24 24"><use href="#mk-claude"/></svg></div>
+<div class="p8-chat"><i class="tpi l"><svg viewBox="0 0 16 16"><rect x="5" y="2.5" width="6" height="11" rx="1.4"/><path d="M7 11.6h2"/></svg></i><div><b>Fix the flaky auth test</b><small>mobile-app</small><p>It was the clock, not the code. Green ten times running.</p></div><svg class="tag" viewBox="0 0 24 24"><use href="#mk-codex"/></svg></div>
+<div class="p8-chat"><i class="tpi d"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.4"/><path d="M3 6.5h10"/></svg></i><div><b>Darken the footer</b><small>landing-page</small><p>Same ink as the header now.</p></div><svg class="tag" viewBox="0 0 24 24"><use href="#mk-antigravity"/></svg></div>
+<div class="p8-use"><svg><use href="#mk-claude"/></svg>Claude<span class="p8-tr"><i></i></span><b>64% left</b><small>Week</small></div></aside>
+<div class="p8-conv"><div class="p8-top"><i class="tpi d"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.4"/><path d="M3 6.5h10"/></svg></i><span><b>Tighten the hero copy</b><small>landing-page</small></span><span class="p8-rbs"><i><svg class="ico" viewBox="0 0 16 16"><path d="M8 9.5V14M5 2.5h6M6 2.5v4L4.5 9.5h7L10 6.5v-4"/></svg></i><i><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.2 8h.01M8 8h.01M10.8 8h.01" stroke-width="1.9"/></svg></i></span></div>
+<div class="p8-msgs"><div class="p8-u">Make the headline shorter, keep the tone.</div><div class="p8-from">from this iPad</div>
+<div class="p8-a"><span class="p8-l l1">Two lines instead of three. I cut &ldquo;for teams of any size&rdquo;:</span><span class="p8-l l2">it was doing nothing, and the sentence lands harder</span><span class="p8-l l3">without it.</span><span class="p8-l l4 gap">It&rsquo;s live in the pane next door; have a look.</span></div>
+<div class="p8-foot"><span class="p8-work"><i class="p8-spin"></i>Working &middot; 9s</span><span class="p8-stamp">Today 9:41</span></div></div>
+<div class="p8-comp"><span class="p8-plus"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg></span><span class="p8-field"><svg><use href="#mk-claude"/></svg>Message Claude&hellip;<svg class="ico" viewBox="0 0 16 16"><rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4"/><path d="M3.4 8a4.6 4.6 0 0 0 9.2 0M8 12.6v1.8"/></svg></span><span class="p8-send"><svg class="ico" viewBox="0 0 16 16"><path d="M8 12.8V3.6M4.2 7.4L8 3.6l3.8 3.8"/></svg></span></div></div>
+</div></div>
+<div class="p8-phone"><div class="p8-pscr"><div class="p8-isl"></div><div class="p8-psb"><span>9:41</span><span class="p8-sbr"><svg viewBox="0 0 16 12"><path d="M8 11.5l2.2-2.6a3.4 3.4 0 0 0-4.4 0zM3.4 6.3l1.3 1.6a5 5 0 0 1 6.6 0l1.3-1.6a7.1 7.1 0 0 0-9.2 0zM1 3.4l1.3 1.6a8.6 8.6 0 0 1 11.4 0L15 3.4a10.7 10.7 0 0 0-14 0z"/></svg><i class="p8-bat"></i></span></div>
+<div class="p8-ban"><span class="p8-app"></span><span><b>Fix the flaky auth test</b>Pushed. The pull request is open.</span></div>
+<div class="p8-pt">Chats</div>
+<div class="p8-list"><div class="p8-row"><i class="tpi l"><svg viewBox="0 0 16 16"><rect x="5" y="2.5" width="6" height="11" rx="1.4"/><path d="M7 11.6h2"/></svg></i>Fix the flaky auth test<svg class="tag" viewBox="0 0 24 24"><use href="#mk-codex"/></svg><small><span class="p8-was">mobile-app &middot; wants you</span><span class="p8-now">mobile-app &middot; pushed</span></small></div>
+<div class="p8-row"><i class="tpi d"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.4"/><path d="M3 6.5h10"/></svg></i>Tighten the hero copy<svg class="tag" viewBox="0 0 24 24"><use href="#mk-claude"/></svg><small>landing-page &middot; finished</small></div>
+<div class="p8-row"><i class="tpi d"><svg viewBox="0 0 16 16"><rect x="3.2" y="3.2" width="4" height="4" rx="1"/><rect x="8.8" y="3.2" width="4" height="4" rx="1"/><rect x="3.2" y="8.8" width="4" height="4" rx="1"/></svg></i>Dark mode tokens<svg class="tag" viewBox="0 0 24 24"><use href="#mk-antigravity"/></svg><small>design-system &middot; working</small><i class="p8-spin"></i></div>
+<div class="p8-row"><i class="tpi l"><svg viewBox="0 0 16 16"><rect x="5" y="2.5" width="6" height="11" rx="1.4"/><path d="M7 11.6h2"/></svg></i>Migrate to pnpm<svg class="tag" viewBox="0 0 24 24"><use href="#mk-claude"/></svg><small>mobile-app &middot; finished</small></div></div>
+<div class="p8-sheet"><b>Run git push?</b><span>Fix the flaky auth test wants to push its branch.</span><code>git push origin fix-auth-test</code><div class="p8-btns"><i>Deny</i><i class="yes">Allow<em class="p8-tap"></em></i></div></div>
+</div></div>
+</div></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Pair once with a QR code. Messages are encrypted end to end and pass through a relay that can&rsquo;t read them; you can run your own. The same sidebar and pins as on your Mac, and you can switch between Macs. Live while the app is open, a notification when it isn&rsquo;t. iPhone and iPad &middot; iOS&nbsp;26 &middot; Free and open source.</p>
+      </div>
+    </section>
+    <section id="routines" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Routines<span class="jp" lang="ja">ルーティン</span></p>
+          <h2>Set it and forget it.</h2>
+          <p class="intro">Say “do this every morning”, or add a job in View › Routines. Then it just happens.</p>
+          <p class="more"><a class="link" href="docs/#board">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="routines" role="img" aria-label="Animated drawing of Routines: the clock reaches nine, the Every morning job runs by itself and its chat appears with a dot" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/routines.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Routines run while Superagent is open.</p>
+      </div>
+    </section>
+    <section id="board" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The board<span class="jp" lang="ja">ボード</span></p>
+          <h2>A board the agent keeps.</h2>
+          <p class="intro">Todo, Doing, Testing, Done, for each project. Watch the cards move while it works.</p>
+          <p class="more"><a class="link" href="docs/#board">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="board" role="img" aria-label="Animated drawing of a project board: the agent builds the Yearly switch and its card moves from Todo to Doing, Testing and Done" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Add a card yourself or ask the agent to. Click a card to hand it over, and the agent starts on it. Your phone shows the same board.</p>
+      </div>
+    </section>
+    <section id="skills" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Skills<span class="jp" lang="ja">スキル</span></p>
+          <h2>Teach it once.</h2>
+          <p class="intro">Skills and commands from your project and your own setup, in one list. Save what worked as a new one.</p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="skills" role="img" aria-label="Animated drawing of the Skills list: three skills, then Save last session as a skill is pressed and a new skill, release-notes, joins the top of the list" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Open it from View, Skills, or from ⌘K. It shows the skills and commands the chat&rsquo;s agent can run, marked project or global. Saving asks the agent to write the skill file for you: Claude Code skills, Codex prompts or Antigravity skills.</p>
+      </div>
+    </section>
+    <section id="dot" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The dot<span class="jp" lang="ja">点</span><span class="beta">Beta</span></p>
+          <h2>Ask from any app.</h2>
+          <p class="intro">Press ⌥ Space. It sees what you see, then answers or does it.</p>
+          <p class="more"><a class="link" href="docs/#dot">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media scene" role="img" aria-label="Option-Space opens the dot over another app; a request to go to a chat is typed, and Superagent opens that chat"><div class="scene-fit" aria-hidden="true"><div class="tour-scene" style="--still:-13.6s"><div class="d7-desk">
+<div class="dq-win d9-other"><div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">invoice.tsx &mdash; editor</span></div><div class="dq-code"><span class="ln dk" style="width:38%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:30%"></span><span class="ln" style="width:58%"></span><span class="ln" style="width:44%"></span><span class="ln" style="width:66%"></span><span class="ln" style="width:36%"></span><span class="ln dk" style="width:48%"></span><span class="ln" style="width:61%"></span><span class="ln" style="width:40%"></span></div></div>
+<div class="dq-win d9-sa"><div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Superagent</span></div><div class="d9-body"><div class="d9-side"><div class="d9-grp">Projects</div><div class="d9-row proj"><i class="tpi d"><svg viewBox="0 0 16 16"><path d="M4.5 11.5V7.8a3.5 3.5 0 0 1 7 0v3.7zM3.4 11.5h9.2M7 13.4h2"/></svg></i><span>wepush</span></div><div class="d9-row sub on"><span>e2e test and harness</span><svg class="tag" viewBox="0 0 24 24"><use href="#mk-codex"/></svg></div><div class="d9-row sub"><span>Slow loads on the feed</span><svg class="tag" viewBox="0 0 24 24"><use href="#mk-claude"/></svg></div><div class="d9-row proj"><i class="tpi l"><svg viewBox="0 0 16 16"><rect x="5" y="2.5" width="6" height="11" rx="1.4"/><path d="M7 11.6h2"/></svg></i><span>wepush-portal</span></div><div class="d9-row sub"><span>Pricing page copy</span><svg class="tag" viewBox="0 0 24 24"><use href="#mk-antigravity"/></svg></div></div>
+<div class="d9-chat"><div class="d9-ttl">e2e test and harness<small>wepush &middot; 2 days ago</small></div><div class="d9-msg">Add a harness so the checkout flow runs headless.</div><div class="d9-reply">Done. <code>npm run e2e</code> now boots the app with a seeded shop and runs 14 flows.</div></div></div></div>
+<div class="dq-panel d9-panel"><div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div><div class="d9-q"><span>go to the wepush chat about e2e testing</span></div>
+<div class="dq-step d9-s1"><i></i>Looking for the chat &middot; e2e testing wepush</div><div class="dq-step d9-s2"><i></i>Opening it</div>
+<div class="dq-ans d9-ans">You&rsquo;re now in <b>e2e test and harness</b>, in wepush.</div><div class="dq-foot d9-foot"><span>Open in Superagent &#8599;</span><span>Clear</span></div></div>
+<div class="d9-keys"><kbd>&#8997;</kbd><kbd>Space</kbd></div>
+<div class="dq-tile d9-tile"><i></i></div>
+</div></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Nothing is recorded in the background. The answer appears by the dot, and the chat is saved for later. Turn it on in Settings › General.</p>
+      </div>
+    </section>
+    <section id="computer-use" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Computer use<span class="jp" lang="ja">コンピューター操作</span><span class="beta">Beta</span></p>
+          <h2>It can use your Mac. If you say so.</h2>
+          <p class="intro">It asks first, then again for every app. ⌥ Esc stops it instantly.</p>
+          <p class="more"><a class="link" href="docs/#computer">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media scene" role="img" aria-label="The agent asks to use the Mac, is allowed, clicks Export in an invoices app, and stops when a password manager comes on screen"><div class="scene-fit" aria-hidden="true"><div class="tour-scene" style="--still:-14s"><div class="d7-desk">
+<div class="dq-win d10-app"><div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div><div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn go">Export&hellip;</span></div>
+<div class="d10-table"><div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div><div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div><div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div><div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div><div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div><div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div></div><div class="d10-sheet"><i></i>Exported invoices-october.pdf</div></div>
+<div class="d10-ring"></div>
+<svg class="d10-cursor" viewBox="0 0 16 22" aria-hidden="true"><path d="M1 1v17l4.5-4.2 3 6.6 2.6-1.2-3-6.4H14z"/></svg>
+<div class="d10-pw"><div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Passwords</span></div><div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div><div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div><div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div><div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div></div>
+<div class="dq-panel d10-panel"><div class="dq-in">In <span class="dq-chip">Computer &#9662;</span><span style="margin-left:auto">export this month&rsquo;s invoices</span></div>
+<div class="d10-ask">Use this Mac: see the screen, click and type in your apps, for this task.<small>&#8997; Esc stops it at any time.</small></div>
+<div class="d10-btns"><span>Not now</span><span class="yes">Allow</span></div>
+<div class="d10-using"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+<div class="dq-step d10-s1"><i></i>Reading the controls &middot; Invoices</div><div class="dq-step d10-s2"><i></i>Clicking &middot; Export&hellip;</div><div class="dq-step d10-s3"><i></i>Exported invoices-october.pdf</div>
+<div class="d10-stop"><b>Stopped.</b> Passwords is on screen, and it does not look at that.</div></div>
+<div class="dq-tile d10-tile"><i></i></div>
+</div></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Off until you say yes. Password managers, Keychain and the lock screen are always off limits.</p>
+      </div>
+    </section>
+    <section id="desk" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The Computer<span class="jp" lang="ja">机</span></p>
+          <h2>A desk for your agents.</h2>
+          <p class="intro">A desktop inside Superagent, with windows, a dock and room for several agents at once.</p>
+          <p class="more"><a class="link" href="docs/#computer">Learn more</a></p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="desk" role="img" aria-label="Animated drawing of the Computer view: a chat, a browser and a calendar open from the dock as windows on the desk, and the chat comes forward" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/computer.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Chat, browser, dashboard, skills, routines and calendar, each in its own window. Everything your agents are up to, on one screen.</p>
+      </div>
+    </section>
+    <section id="who" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Who it&rsquo;s for<span class="jp" lang="ja">誰のために</span></p>
+          <h2>See the work. Not the code.</h2>
+          <p class="intro">The page, the app and the phone sit right next to the chat, so anyone can tell whether it&rsquo;s right.</p>
+          <p class="who-jp" lang="ja">コードは、二番目。</p>
+        </div>
+        <div class="cmp-scroll">
+          <table class="cmp">
+            <caption>How Superagent compares to T3 Code, agent IDEs, app builders and cloud agents</caption>
+            <colgroup><col class="c0" /><col /><col /><col /><col /><col /></colgroup>
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col" class="us"><img src="logo.png" alt="" width="40" height="40" />Superagent<small class="jp" lang="ja">スーパーエージェント</small></th>
+                <th scope="col"><span class="cmp-ic" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="6" y="10" width="20" height="15" rx="2.5"/><rect x="25" y="14" width="9" height="16" rx="2"/><path d="M12 29h8"/></svg></span>T3 Code<small>Desktop, web and phone</small></th>
+                <th scope="col"><span class="cmp-ic" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="7" y="9" width="26" height="20" rx="3"/><path d="M14 17l-3 3 3 3M26 17l3 3-3 3M21 15l-2 10"/></svg></span>Agent IDEs<small>Orca, Conductor, Emdash, Cursor, Antigravity</small></th>
+                <th scope="col"><span class="cmp-ic" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="8" y="8" width="24" height="24" rx="4"/><path d="M8 15h24M14 21h12M14 26h8"/></svg></span>App builders<small>Lovable, Bolt, Replit, v0</small></th>
+                <th scope="col"><span class="cmp-ic" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M13 28h15a6 6 0 0 0 .8-11.95A8 8 0 0 0 13.3 17.5 5.3 5.3 0 0 0 13 28z"/></svg></span>Cloud agents<small>Manus, Operator</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">No git or terminal needed</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Keep it or throw it away</span></td><td data-col="T3 Code"><i class="n">&mdash;</i><span>Worktrees, diffs and PRs</span></td><td data-col="Agent IDEs"><i class="n">&mdash;</i><span>Worktrees and diffs</span></td><td data-col="App builders"><i class="y">&#10003;</i></td><td data-col="Cloud agents"><i class="y">&#10003;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Works on your own project</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Any folder on your Mac</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>Any repo, any machine</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>Any git repo</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>New apps, in their cloud</span></td><td data-col="Cloud agents"><i class="p">&#9680;</i><span>Manus has a local mode</span></td>
+              </tr>
+              <tr>
+                <th scope="row">A browser signed in as you</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Sign in once</span></td><td data-col="T3 Code"><i class="p">&#9680;</i><span>Imports cookies</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Orca imports cookies</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>A preview only</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>A fresh sandbox</span></td>
+              </tr>
+              <tr>
+                <th scope="row">A live iPhone in the window</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Built in</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>iOS and Android</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Orca only</span></td><td data-col="App builders"><i class="n">&mdash;</i></td><td data-col="Cloud agents"><i class="n">&mdash;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Your Mac, from your phone</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Scan a QR code</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>iOS, Android and web</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Orca, over LAN or Tailscale</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Nothing to connect to</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Their machines</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Your existing subscription</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No second bill</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>Bring your own agent</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>Bring your own agent</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>A plan, plus credits</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>A plan, plus credits</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Open source (MIT)</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>App, phone app and relay</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>MIT</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Orca and Emdash</span></td><td data-col="App builders"><i class="n">&mdash;</i></td><td data-col="Cloud agents"><i class="n">&mdash;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Private on your phone</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Encrypted end to end</span></td><td data-col="T3 Code"><i class="p">&#9680;</i><span>Through a Cloudflare tunnel</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Unencrypted on your network</span></td><td data-col="App builders"><i class="p">&#9680;</i><span>A browser tab</span></td><td data-col="Cloud agents"><i class="p">&#9680;</i><span>Their app, their account</span></td>
+              </tr>
+              <tr>
+                <th scope="row">No account needed</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No sign-up, no tracking</span></td><td data-col="T3 Code"><i class="p">&#9680;</i><span>Remote access needs one</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Hosted parts need one</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Account required</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Account required</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Runs on your Mac</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No server of ours</span></td><td data-col="T3 Code"><i class="y">&#10003;</i><span>Or a machine you choose</span></td><td data-col="Agent IDEs"><i class="p">&#9680;</i><span>Until you use the cloud</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Their servers</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Their servers</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Moves to your next account or agent when one runs out</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>In the order you set</span></td><td data-col="T3 Code"><i class="n">&mdash;</i><span>You switch by hand</span></td><td data-col="Agent IDEs"><i class="n">&mdash;</i></td><td data-col="App builders"><i class="n">&mdash;</i><span>Buy more credits</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Buy more credits</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Uses the apps on your Mac, if you say so</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Asks for each app</span></td><td data-col="T3 Code"><i class="n">&mdash;</i><span>Screenshots only</span></td><td data-col="Agent IDEs"><i class="n">&mdash;</i></td><td data-col="App builders"><i class="n">&mdash;</i></td><td data-col="Cloud agents"><i class="p">&#9680;</i><span>On their own computer</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="cmp-legend"><span><i>&#10003;</i> Yes</span><span><i>&#9680;</i> Partly, or only some</span><span><i>&mdash;</i> No</span></p>
+        <p class="note cmp-note">Checked against each product&rsquo;s own documentation, August 2026; T3 Code in November 2026. <a class="link" href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Tell us if something is wrong</a></p>
+        <p class="intro who-foot">Describe what you want and <b>watch it get built</b>, on your own Mac, with your own accounts and the subscription you already have.</p>
+      </div>
+    </section>
+    <section id="open" class="feature alt">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Open &amp; local<span class="jp" lang="ja">オープン・ローカル</span></p>
+          <h2>Don&rsquo;t trust us. Read us.</h2>
+          <p class="intro">An agent with your logins should have nothing to hide. Every line of Superagent is public.</p>
+          <p class="more"><a class="link" href="docs/#privacy">Learn more</a></p>
+        </div>
+        <div class="facts">
+          <div class="fact"><p class="fact-big">Open source.</p><p>The Mac app, the iPhone app and the relay, MIT licensed.</p></div>
+          <div class="fact"><p class="fact-big">No server of ours.</p><p>Chats, code and pages stay on your Mac.</p></div>
+          <div class="fact"><p class="fact-big">No account.</p><p>No sign-up, no tracking, no second bill.</p></div>
+        </div>
+        <p class="note">Signed and notarized by Apple: the app you download is the build that was published. Bugs and plans are discussed in public. Claude Code talks to Anthropic, Codex to OpenAI, Antigravity to Google, directly, on your own subscription. Browser sessions are stored on your Mac, like any browser&rsquo;s. Only when you pair a phone does the Mac use a relay, and it sees nothing but encrypted data; you can run your own with one command.</p>
+        <p class="note open-foot">Read the code for the <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">Mac app</a>, the <a href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">iPhone app</a> and the <a href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">relay</a>, or see <a href="https://github.com/pungme?tab=repositories&amp;q=superagent" target="_blank" rel="noopener">all three in one place</a>.</p>
+      </div>
+    </section>
+    <section id="details" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">The small things<span class="jp" lang="ja">小さな事</span></p>
+          <h2>Sweat the small stuff.</h2>
+        </div>
+        <div class="bento">
+          <div class="det w4 big"><b>Survives restarts</b><span>Panes, files and chats come back as you left them, even after an update.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w a-restart" style="left:0;top:4px;width:190px;height:76px"><em class="b" style="left:16px;top:16px;font-size:12px">Pricing page</em><em class="g" style="left:16px;top:35px">app.tsx &middot; Preview</em><em class="g" style="left:16px;top:52px">3 panes, 2 files</em><i class="d bl" style="right:16px;top:17px"></i></i><svg class="a-turn" style="left:216px;top:18px;width:32px;height:32px" viewBox="0 0 48 48"><path d="M38 24a14 14 0 1 1-4.1-9.9"/><path d="M34.5 6.5v8h-8"/></svg><em class="g a-late" style="left:204px;top:62px;--dl:1.6s">Back as it was</em></div></div></div>
+          <div class="det w2"><b>Never steals focus</b><span>Agents finish quietly. The window comes forward only when you ask.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:4px;width:150px;height:58px"><em class="g" style="left:12px;top:11px">notes.md</em><em style="left:12px;top:30px">Ship on Friday</em><i class="a-cur" style="left:89px;top:28px;width:1.5px;height:14px;background:var(--blue)"></i></i><i class="w a-r" style="left:106px;top:0;width:126px;height:26px;box-shadow:0 0 0 0.5px rgba(0,0,0,.14),0 6px 16px -6px rgba(0,0,0,.28)"><i class="d bl" style="left:10px;top:9px"></i><em style="left:24px;top:8px">Finished &middot; Pricing</em></i></div></div></div>
+          <div class="det w2"><b>Talk mid-task</b><span>Type while the agent works. It reads your message before it finishes.</span><div class="art" aria-hidden="true"><div class="sc"><i class="sp a-spin" style="left:2px;top:2px"></i><em class="g" style="left:24px;top:4px">Working on pricing&hellip;</em><i class="w" style="left:0;top:28px;width:200px;height:30px"><em class="typ a-type" style="left:12px;top:8.5px;--c1:29px;--c2:52px;--c3:108px">also add dark mode</em><i class="ck a-in" style="right:8px;top:7.5px;background:var(--ink);--dl:1.2s"><svg viewBox="0 0 16 16" style="left:3px;top:3px;width:9px;height:9px"><path d="M8 12.5V3.8M4.4 7.2L8 3.6l3.6 3.6"/></svg></i></i></div></div></div>
+          <div class="det w2"><b>Context gauge</b><span>Every chat shows how much of the agent&rsquo;s memory it has used.</span><div class="art" aria-hidden="true"><div class="sc"><svg viewBox="0 0 56 56" style="left:0;top:4px;width:56px;height:56px;transform:rotate(-90deg)"><circle cx="28" cy="28" r="22" stroke="#d2d2d7"/><circle class="a-ring" cx="28" cy="28" r="22" stroke-dasharray="138.2" stroke-dashoffset="54"/></svg><em style="left:0;width:56px;text-align:center;top:27px;font-weight:600;font-size:12px">61%</em><em class="g" style="left:66px;top:28px">of context used</em></div></div></div>
+          <div class="det w2"><b>Useful notifications</b><span>Done, or a question, with a summary of the reply.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w a-dn" style="left:0;top:8px;width:200px;height:48px;box-shadow:0 0 0 0.5px rgba(0,0,0,.14),0 6px 16px -6px rgba(0,0,0,.26)"><i style="left:10px;top:12px;width:24px;height:24px;border-radius:7px;background:var(--ink)"></i><em style="left:44px;top:12px;font-weight:600">Finished &middot; Pricing page</em><em class="g" style="left:44px;top:28px">Added the yearly switch</em></i></div></div></div>
+          <div class="det w3"><b>Stop and answer</b><span>A message sent mid-step waits for it. One tap stops the step and hands it over.</span><div class="art" aria-hidden="true"><div class="sc"><i class="sp a-spin a-fade" style="left:2px;top:3px;--t:5.5s"></i><i class="ck a-pop" style="left:1px;top:2px"><svg viewBox="0 0 16 16"><path d="M3.5 8.4l3 3 6-6.6"/></svg></i><em style="left:26px;top:5px">Running tests</em><i class="w" style="left:0;top:28px;width:230px;height:32px"><em class="g" style="left:12px;top:11px">1 message waits</em><i class="pill a-press" style="right:8px;top:7px">Stop and answer</i></i></div></div></div>
+          <div class="det w3"><b>A plan above the chat</b><span>When the agent writes a to-do list, it stays pinned. Tap a step to send it back.</span><div class="art" aria-hidden="true"><div class="sc"><i class="ck a-pop" style="left:0;top:0"><svg viewBox="0 0 16 16"><path d="M3.5 8.4l3 3 6-6.6"/></svg></i><em class="g" style="left:26px;top:2px">Read the page</em><i class="sp a-spin" style="left:1px;top:24px;width:13px;height:13px"></i><em style="left:26px;top:25px;font-weight:600">Add the yearly switch</em><i style="left:0;top:46px;width:15px;height:15px;border-radius:50%;border:1.7px solid #c7c7cc"></i><em class="g" style="left:26px;top:48px">Write the tests</em><i class="a-pulse" style="left:-1px;top:45px;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--blue)"></i></div></div></div>
+          <div class="det w2"><b>&#8984;K goes anywhere</b><span>Projects, chats and commands by name. &#8984;&#8617; opens a chat beside this one.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:0;width:210px;height:26px"><em class="g" style="left:12px;top:8px">&#8984;K</em><em class="typ a-type" style="left:38px;top:6.5px;--c1:11px;--c2:16px;--c3:18px">pri</em></i><i class="w a-late" style="left:0;top:32px;width:210px;height:30px;background:#e8e8ed;box-shadow:none"><i style="left:8px;top:7px;width:16px;height:16px;border-radius:5px;background:var(--ink)"></i><em style="left:32px;top:10px;font-weight:600">Pricing page</em><em class="g" style="right:10px;top:10px">Chat</em></i></div></div></div>
+          <div class="det w2"><b>Files beside the chat</b><span>Read any file next to the conversation. A change is marked the moment it happens.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:2px;width:70px;height:60px"><em style="left:10px;top:11px;font-weight:600">app.tsx</em><em class="g" style="left:10px;top:27px">page.css</em><em class="g" style="left:10px;top:43px">README</em></i><i class="w a-r" style="left:78px;top:0;width:160px;height:64px"><em class="g" style="left:12px;top:8px">app.tsx</em><em class="m" style="left:12px;top:24px">const plan = {</em><i class="a-hl" style="left:0;right:0;top:35px;height:14px;background:rgba(0,113,227,.1);border-left:2px solid var(--blue)"></i><em class="m" style="left:12px;top:37.5px;color:var(--blue)">  yearly: true,</em><em class="m" style="left:12px;top:51px">}</em></i></div></div></div>
+          <div class="det w2"><b>@ reaches everything</b><span>Type @ for files, other projects, or any folder on your disk.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:0;width:170px;height:22px"><em style="left:10px;top:5px;font-size:12px;font-weight:600;color:var(--blue)">@</em><em class="typ a-type" style="left:23px;top:4.5px;--c1:21px;--c2:44px;--c3:62px">src/app.tsx</em></i><i class="w a-in" style="left:0;top:27px;width:170px;height:17px;background:#e8e8ed;box-shadow:none"><i class="d" style="left:8px;top:4.5px;width:8px;height:8px;border-radius:2px"></i><em style="left:24px;top:3.5px">src/app.tsx</em></i><i class="w a-in" style="left:0;top:46px;width:170px;height:17px;--dl:.2s"><i class="d" style="left:8px;top:4.5px;width:8px;height:8px;border-radius:2px;background:#86868b"></i><em class="g" style="left:24px;top:3.5px">~/Projects/mobile-app</em></i></div></div></div>
+          <div class="det w3"><b>Updates itself</b><span>Signed updates in the background. It waits for running chats before it restarts.</span><div class="art" aria-hidden="true"><div class="sc"><i class="sp a-spin" style="left:2px;top:1px"></i><em class="g" style="left:24px;top:3px">Downloading the update</em><i class="l" style="left:0;top:22px;width:200px"></i><i class="l a-x" style="left:0;top:22px;width:200px;background:var(--ink)"></i><i class="w a-late" style="left:0;top:34px;width:170px;height:28px"><svg viewBox="0 0 48 48" style="left:9px;top:7px;width:14px;height:14px"><path d="M38 24a14 14 0 1 1-4.1-9.9"/><path d="M34.5 6.5v8h-8"/></svg><em style="left:31px;top:9.5px;font-weight:600">Restart when finished</em></i></div></div></div>
+          <div class="det w3"><b>Models stay current</b><span>New models in your Claude Code appear without an app update.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0px;top:14px;width:52px;height:30px"><em style="left:0;width:52px;text-align:center;top:10px;font-weight:600">Opus</em></i><i class="w" style="left:58px;top:14px;width:52px;height:30px"><em class="g" style="left:0;width:52px;text-align:center;top:10px">Sonnet</em></i><i class="w" style="left:116px;top:14px;width:52px;height:30px"><em class="g" style="left:0;width:52px;text-align:center;top:10px">Haiku</em></i><i class="w a-pop" style="left:174px;top:14px;width:56px;height:30px"><i class="d bl" style="left:10px;top:11px"></i><em style="left:23px;top:10px;font-weight:600">New</em></i></div></div></div>
+          <div class="det w2"><b>Quit means quit</b><span>Quitting stops everything it started: agents, background tasks, routines.</span><div class="art" aria-hidden="true"><div class="sc"><i class="kb a-keyp" style="left:0;top:18px"><em>&#8984;</em></i><i class="kb a-keyp" style="left:34px;top:18px;--dl:.35s"><em>Q</em></i><i class="sp a-quit" style="left:96px;top:14px"></i><i class="sp a-quit" style="left:122px;top:14px"></i><i class="sp a-quit" style="left:148px;top:14px"></i><em class="g a-late" style="left:96px;top:38px">All stopped</em></div></div></div>
+          <div class="det w2"><b>Stop really stops</b><span>Stopping a turn also stops the builds and servers it started.</span><div class="art" aria-hidden="true"><div class="sc"><em class="m" style="left:0;top:0">npm run dev</em><i class="l" style="left:0;top:15px;width:160px"></i><i class="l a-halt" style="left:0;top:15px;width:160px;background:#c7c7cc;transform:scaleX(.6);transform-origin:0 50%"></i><em class="m" style="left:0;top:30px">next build</em><i class="l" style="left:0;top:45px;width:160px"></i><i class="l a-halt" style="left:0;top:45px;width:160px;background:#c7c7cc;transform:scaleX(.6);transform-origin:0 50%;--dl:.5s"></i><i class="a-press" style="left:182px;top:13px;width:34px;height:34px;border-radius:50%;border:1.7px solid var(--ink)"><i style="left:10px;top:10px;width:10px;height:10px;border-radius:2.5px;background:var(--ink)"></i></i></div></div></div>
+          <div class="det w2"><b>Pins in your order</b><span>Drag pinned chats into any order. Your phone follows.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w a-pc" style="left:0;top:0px;width:170px;height:18px"><i class="d" style="left:8px;top:5px;width:8px;height:8px;background:var(--blue)"></i><em style="left:24px;top:4px;font-weight:600">Launch plan</em></i><i class="w a-pab" style="left:0;top:22px;width:170px;height:18px"><i class="d" style="left:8px;top:5px;width:8px;height:8px;"></i><em style="left:24px;top:4px">Pricing page</em></i><i class="w a-pab" style="left:0;top:44px;width:170px;height:18px"><i class="d" style="left:8px;top:5px;width:8px;height:8px;"></i><em style="left:24px;top:4px">Fix the login</em></i></div></div></div>
+          <div class="det w2"><b>Every picture, kept</b><span>All the images in a chat, by day. Download one, or jump to its message.</span><div class="art" aria-hidden="true"><div class="sc"><em class="g" style="left:0;top:0">Today</em><i class="w a-in" style="left:0px;top:20px;width:42px;height:42px;--dl:0.0s"><svg viewBox="0 0 48 48" style="left:8px;top:11px;width:26px;height:20px"><circle cx="15" cy="14" r="4"/><path d="M5 38l11-10 8 7 8-7 11 10"/></svg></i><i class="w a-in" style="left:50px;top:20px;width:42px;height:42px;--dl:0.25s"><svg viewBox="0 0 48 48" style="left:8px;top:11px;width:26px;height:20px"><circle cx="15" cy="14" r="4"/><path d="M5 38l11-10 8 7 8-7 11 10"/></svg></i><i class="w a-in" style="left:100px;top:20px;width:42px;height:42px;--dl:0.5s"><svg viewBox="0 0 48 48" style="left:8px;top:11px;width:26px;height:20px"><circle cx="15" cy="14" r="4"/><path d="M5 38l11-10 8 7 8-7 11 10"/></svg></i></div></div></div>
+          <div class="det w2"><b>Light when idle</b><span>A window with nothing to do uses very little CPU.</span><div class="art" aria-hidden="true"><div class="sc"><em class="g" style="left:0;top:0">CPU</em><svg viewBox="0 0 230 50" style="left:0;top:12px;width:200px;height:50px"><path class="a-draw" d="M2 36 L30 36 L38 10 L48 44 L58 14 L68 38 L78 30 L88 36 L228 36" pathLength="1" stroke-dasharray="1" stroke-dashoffset="0" vector-effect="non-scaling-stroke"/></svg><em class="g a-late" style="left:208px;top:39px">idle</em></div></div></div>
+          <div class="det w2"><b>Your names stay</b><span>A chat you named keeps its name.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:2px;width:150px;height:28px"><em style="left:12px;top:9px;font-weight:600">Launch plan</em><svg viewBox="0 0 16 16" style="left:124px;top:7px;width:13px;height:13px"><rect x="3.5" y="7" width="9" height="6.5" rx="1.6"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg></i><i class="w a-gone" style="left:30px;top:36px;width:150px;height:24px;opacity:0;background:#ececf0;box-shadow:none"><em class="g" style="left:12px;top:7px">Fix pricing &middot; new name?</em></i></div></div></div>
+          <div class="det w3 keys"><b>One key away</b><span>&#8963;&#8997; S brings Superagent forward from any app, and back again.</span><p class="keycaps" aria-hidden="true"><kbd class="a-keyp">&#8963;</kbd><kbd class="a-keyp" style="--dl:.35s">&#8997;</kbd><kbd class="a-keyp" style="--dl:.7s">S</kbd></p></div>
+          <div class="det w3"><b>Dictation on your Mac</b><span>Hold a key and speak. It&rsquo;s transcribed on your Mac, not on a server.</span><div class="art" aria-hidden="true"><div class="sc"><i class="a-pulse" style="left:0;top:14px;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--ink)"></i><i style="left:0;top:14px;width:34px;height:34px;border-radius:50%;background:var(--ink)"></i><svg viewBox="0 0 48 48" style="left:9px;top:23px;width:16px;height:16px;stroke:#fff"><rect x="18" y="7" width="12" height="21" rx="6"/><path d="M12 23a12 12 0 0 0 24 0M24 35v6"/></svg><i class="a-wave" style="left:54px;top:25.0px;width:4px;height:14px;border-radius:2px;background:var(--ink);animation-delay:0.0s"></i><i class="a-wave" style="left:64px;top:17.0px;width:4px;height:30px;border-radius:2px;background:var(--ink);animation-delay:0.13s"></i><i class="a-wave" style="left:74px;top:22.0px;width:4px;height:20px;border-radius:2px;background:var(--ink);animation-delay:0.26s"></i><i class="a-wave" style="left:84px;top:14.0px;width:4px;height:36px;border-radius:2px;background:var(--ink);animation-delay:0.39s"></i><i class="a-wave" style="left:94px;top:23.0px;width:4px;height:18px;border-radius:2px;background:var(--ink);animation-delay:0.52s"></i><i class="a-wave" style="left:104px;top:19.0px;width:4px;height:26px;border-radius:2px;background:var(--ink);animation-delay:0.65s"></i><i class="a-wave" style="left:114px;top:26.0px;width:4px;height:12px;border-radius:2px;background:var(--ink);animation-delay:0.78s"></i></div></div></div>
+          <div class="det w2"><b>Each agent, its own lane</b><span>An agent gets only its own chat&rsquo;s tools. A yes in one chat isn&rsquo;t a yes in another.</span><div class="art" aria-hidden="true"><div class="sc"><em class="g" style="left:-1px;width:42px;text-align:center;top:0">pricing</em><i style="left:20px;top:16px;width:1.7px;height:48px;border-radius:1px;background:#c7c7cc"></i><i class="d a-lane" style="left:16.5px;top:12px;--t:3.2s;--dl:-0.0s"></i><em class="g" style="left:51px;width:42px;text-align:center;top:0">login</em><i style="left:72px;top:16px;width:1.7px;height:48px;border-radius:1px;background:#c7c7cc"></i><i class="d a-lane" style="left:68.5px;top:12px;--t:4.1s;--dl:-0.9s"></i><em class="g" style="left:103px;width:42px;text-align:center;top:0">docs</em><i style="left:124px;top:16px;width:1.7px;height:48px;border-radius:1px;background:#c7c7cc"></i><i class="d a-lane" style="left:120.5px;top:12px;--t:3.6s;--dl:-1.8s"></i></div></div></div>
+          <div class="det w2"><b>Smooth replies</b><span>Replies arrive word by word at an even pace. Never half a word.</span><div class="art" aria-hidden="true"><div class="sc"><i style="left:0;top:2px;width:230px;display:flex;flex-wrap:wrap;gap:7px 4px"><em class="a-blur" style="position:static;font-size:12px;--dl:0.00s">The</em><em class="a-blur" style="position:static;font-size:12px;--dl:0.24s">pricing</em><em class="a-blur" style="position:static;font-size:12px;--dl:0.48s">page</em><em class="a-blur" style="position:static;font-size:12px;--dl:0.72s">now</em><em class="a-blur" style="position:static;font-size:12px;--dl:0.96s">has</em><em class="a-blur" style="position:static;font-size:12px;--dl:1.20s">a</em><em class="a-blur" style="position:static;font-size:12px;--dl:1.44s">yearly</em><em class="a-blur" style="position:static;font-size:12px;--dl:1.68s">switch,</em><em class="a-blur" style="position:static;font-size:12px;--dl:1.92s">and</em><em class="a-blur" style="position:static;font-size:12px;--dl:2.16s">the</em><em class="a-blur" style="position:static;font-size:12px;--dl:2.40s">tests</em><em class="a-blur" style="position:static;font-size:12px;--dl:2.64s">pass.</em></i></div></div></div>
+          <div class="det w2"><b>Quieter loops</b><span>Each round of a loop shows only what you asked.</span><div class="art" aria-hidden="true"><div class="sc"><i class="pill" style="left:0;top:2px;height:17px;background:#e4e4e9;color:var(--ink)">Loop</i><em style="left:44px;top:5.5px;font-weight:600">Round 3: no new issues</em><i class="a-gone" style="left:0;top:28px;width:200px;height:34px;opacity:0"><em class="g" style="left:0;top:0">Read 40 files</em><em class="g" style="left:0;top:12px">Ran the tests</em><em class="g" style="left:0;top:24px">Checked the logs</em></i></div></div></div>
+          <div class="det w2"><b>Light, dark or Auto</b><span>Choose in Settings, or follow your system.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w sg" style="left:0;top:20px;width:132px;height:24px;border-radius:12px"><i class="a-sw" style="left:2px;top:2px;width:44px;height:20px;border-radius:10px;background:#e4e4e9;transform:translateX(88px);--s1:44px;--s2:88px"></i><em style="left:10px;top:7px">Light</em><em style="left:56px;top:7px">Dark</em><em style="left:100px;top:7px">Auto</em></i><i class="w a-win" style="left:152px;top:8px;width:66px;height:48px"><i class="l k" style="left:10px;top:12px;width:34px;"></i><i class="l " style="left:10px;top:24px;width:46px;"></i><i class="l " style="left:10px;top:36px;width:28px;"></i></i></div></div></div>
+          <div class="det w2"><b>Two Macs, one phone</b><span>Switch between paired Macs from the title in the phone app.</span><div class="art" aria-hidden="true"><div class="sc"><svg viewBox="0 0 230 64" style="left:0;top:0;width:230px;height:64px"><rect x="2" y="12" width="22" height="42" rx="5"/><path class="a-pa" d="M26 33H118L140 14H160" stroke="var(--blue)" stroke-dasharray="2 4"/><path class="a-pb" style="opacity:0" d="M26 33H118L140 52H160" stroke="var(--blue)" stroke-dasharray="2 4"/><g class="a-ma"><rect x="164" y="2" width="56" height="26" rx="4"/><text x="192" y="18.5" text-anchor="middle" style="stroke:none;fill:var(--ink);font-size:10px;font-family:inherit">Studio</text></g><g class="a-mb"><rect x="164" y="36" width="56" height="26" rx="4"/><text x="192" y="52.5" text-anchor="middle" style="stroke:none;fill:var(--ink);font-size:10px;font-family:inherit">MacBook</text></g></svg></div></div></div>
+          <div class="det w2"><b>Search on the phone</b><span>Find the conversation where a word was said, across every chat on your Mac.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:0;width:210px;height:24px"><svg viewBox="0 0 16 16" style="left:9px;top:6px;width:12px;height:12px"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg><em class="typ a-type" style="left:28px;top:5.5px;--c1:14px;--c2:21px;--c3:34px">stripe</em></i><i class="w a-late" style="left:0;top:30px;width:210px;height:15px"><em class="g" style="left:10px;top:2.5px;font-size:10.5px">Pricing page &middot; add the <strong>stripe</strong> keys</em></i><i class="w a-late" style="left:0;top:49px;width:210px;height:15px;--dl:.25s"><em class="g" style="left:10px;top:2.5px;font-size:10.5px">Shop &middot; <strong>stripe</strong> webhook fails</em></i></div></div></div>
+          <div class="det w2"><b>A dashboard, locally</b><span>Turns per day, tasks done, a streak. Worked out on your Mac.</span><div class="art" aria-hidden="true"><div class="sc"><em class="g" style="left:0;top:0">Turns per day</em><i class="l" style="left:0;top:60px;width:210px;height:2px;background:#d2d2d7"></i><i class="a-y" style="left:0px;top:40px;width:18px;height:18px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.0s"></i><i class="a-y" style="left:30px;top:28px;width:18px;height:30px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.12s"></i><i class="a-y" style="left:60px;top:36px;width:18px;height:22px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.24s"></i><i class="a-y" style="left:90px;top:18px;width:18px;height:40px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.36s"></i><i class="a-y" style="left:120px;top:32px;width:18px;height:26px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.48s"></i><i class="a-y" style="left:150px;top:10px;width:18px;height:48px;border-radius:5px 5px 2px 2px;background:var(--ink);--dl:0.6s"></i><i class="a-y" style="left:180px;top:24px;width:18px;height:34px;border-radius:5px 5px 2px 2px;background:#c7c7cc;--dl:0.72s"></i></div></div></div>
+          <div class="det w2"><b>Make it yours</b><span>Pick the accent and the app icon&rsquo;s colour, or use your own picture.</span><div class="art" aria-hidden="true"><div class="sc"><i class="a-ic" style="left:0;top:8px;width:48px;height:48px;border-radius:12px;background:var(--ink)"><i style="left:14px;top:14px;width:20px;height:20px;border-radius:5px;background:#fff"></i></i><i class="d" style="left:80px;top:26px;width:14px;height:14px;background:var(--ink)"></i><i class="d" style="left:106px;top:26px;width:14px;height:14px;background:#86868b"></i><i class="d bl" style="left:132px;top:26px;width:14px;height:14px"></i><i class="a-sw" style="left:77px;top:23px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ink);--s1:26px;--s2:52px"></i></div></div></div>
+          <div class="det w2"><b>Mail, with your say-so</b><span>It can search, read and draft. Sending waits for your approval.</span><div class="art" aria-hidden="true"><div class="sc"><i class="w" style="left:0;top:4px;width:150px;height:56px"><em style="left:12px;top:10px;font-weight:600">Send this email?</em><em class="g" style="left:12px;top:25px">To Anna &middot; Invoice</em><i class="pill a-press" style="right:8px;bottom:6px;height:16px;font-size:10px;padding:0 8px">Send</i></i><svg class="a-send" viewBox="0 0 16 16" style="left:170px;top:20px;width:30px;height:30px"><rect x="1.8" y="3.2" width="12.4" height="9.6" rx="1.4"/><path d="M2.2 4l5.8 4.6L13.8 4"/></svg></div></div></div>
+        </div>
       </div>
     </section>
 
