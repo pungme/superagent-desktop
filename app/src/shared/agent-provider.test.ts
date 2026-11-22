@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { modelBelongsTo, modeBelongsTo } from './agent-provider'
+import { modelBelongsTo, modeBelongsTo, startModel } from './agent-provider'
 
 /**
  * A phone sends the model and mode from its own pickers, which are Claude
@@ -9,7 +9,16 @@ import { modelBelongsTo, modeBelongsTo } from './agent-provider'
  */
 describe('a setting belongs to one agent', () => {
   it('keeps Claude Code models for Claude Code', () => {
-    for (const m of ['opus', 'sonnet', 'haiku', 'fable', 'mythos', 'default', 'opus[1m]', 'Sonnet']) {
+    for (const m of [
+      'opus',
+      'sonnet',
+      'haiku',
+      'fable',
+      'mythos',
+      'default',
+      'opus[1m]',
+      'Sonnet'
+    ]) {
       expect(modelBelongsTo(m, 'claude')).toBe(true)
       expect(modelBelongsTo(m, 'codex')).toBe(false)
     }
@@ -49,5 +58,22 @@ describe('a setting belongs to one agent', () => {
       expect(modeBelongsTo(m, 'antigravity')).toBe(true)
     }
     expect(modeBelongsTo(undefined, 'codex')).toBe(true)
+  })
+})
+
+describe('startModel', () => {
+  it('drops a saved Claude model when the chat has moved to another agent', () => {
+    expect(startModel('codex', undefined, 'opus', 'sonnet')).toBeUndefined()
+    expect(startModel('antigravity', undefined, 'opus', 'gemini-4-neon-high')).toBe(
+      'gemini-4-neon-high'
+    )
+  })
+  it("keeps the chat's own model, then the app default, when they fit", () => {
+    expect(startModel('claude', undefined, 'opus', 'sonnet')).toBe('opus')
+    expect(startModel('claude', undefined, undefined, 'sonnet')).toBe('sonnet')
+  })
+  it('honours a model asked for only if the agent can run it', () => {
+    expect(startModel('claude', 'haiku', 'opus', undefined)).toBe('haiku')
+    expect(startModel('codex', 'opus', undefined, undefined)).toBeUndefined()
   })
 })

@@ -53,6 +53,22 @@ const CLAUDE_MODELS = /^(default|opus|sonnet|haiku|fable|mythos|claude-[\w.-]+)(
 // `claude-…` id is not proof of Claude Code. Its bare aliases (`opus`) are.
 const ANTIGRAVITY_MODELS = /^(gemini-|gpt-oss-|claude-(opus|sonnet|haiku)-\d)[\w.-]*$/i
 
+/**
+ * The model a chat starts on when no window decides: the one asked for, else the
+ * chat's own, else the app default — but only one the agent can run. A chat moved
+ * from Claude to Codex still has "opus" saved; handing that on failed the start.
+ */
+export function startModel(
+  provider: AgentProvider,
+  asked: string | undefined,
+  chatModel: string | undefined,
+  appDefault: string | undefined
+): string | undefined {
+  if (asked) return modelBelongsTo(asked, provider) ? asked : undefined
+  for (const m of [chatModel, appDefault]) if (m && modelBelongsTo(m, provider)) return m
+  return undefined
+}
+
 export function modelBelongsTo(model: string | undefined, provider: AgentProvider): boolean {
   if (!model) return true
   const id = model.trim()

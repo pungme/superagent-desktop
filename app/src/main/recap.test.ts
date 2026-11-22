@@ -52,9 +52,16 @@ describe('recap', () => {
     const recap = takeRecap('c1')
     expect(recap).toContain('you have no memory of it')
     expect(recap).toContain('User: Deploy the staging branch')
-    expect(recap).toContain('Claude: Deployed, and the smoke test passed.')
+    expect(recap).toContain('Assistant: Deployed, and the smoke test passed.')
     // It is a prefix: the message itself follows it.
     expect(recap.endsWith('---\n\n')).toBe(true)
+  })
+
+  it('does not tell the agent it switched to that it said the earlier replies', () => {
+    // A switch sets the new provider before the recap is built.
+    store.provider = 'codex'
+    expect(buildRecap('c1')).not.toContain('Codex:')
+    expect(buildRecap('c1')).toContain('Assistant: Deployed')
   })
 
   /** Once, or every turn would re-send the whole conversation. */
@@ -92,25 +99,28 @@ describe('recap', () => {
     expect(recap.split('\n')).toHaveLength(24)
     expect(recap).not.toContain('message 10')
     expect(recap).toContain('message 39')
-    expect(recap.split('\n').every((l) => l.length <= 708)).toBe(true)
+    expect(recap.split('\n').every((l) => l.length <= 711)).toBe(true)
   })
 
   it('collapses the whitespace, so a long reply is one line of recap', () => {
     store.items.set('c3', [msg('assistant', 'one\n\n  two\t\tthree')])
     markContextLost('c3')
-    expect(buildRecap('c3')).toBe('Claude: one two three')
+    expect(buildRecap('c3')).toBe('Assistant: one two three')
   })
 })
 
 describe('recap speaker', () => {
-  it("names the agent that actually said it, so a recap isn't a claim about who you are", () => {
+  // The log does not say which agent wrote each reply, and the chat's provider is
+  // already the new one when the recap is built: a name would be a claim about who
+  // the new agent is. So the speaker is neutral, whichever agent reads it.
+  it("names no agent, so a recap isn't a claim about who you are", () => {
     store.items.set('c-codex', [
       msg('user', 'What is in this repo?'),
       msg('assistant', 'A desktop app.')
     ])
-    store.provider = 'codex'
-    expect(buildRecap('c-codex')).toContain('Codex: A desktop app.')
-    store.provider = 'claude'
-    expect(buildRecap('c-codex')).toContain('Claude: A desktop app.')
+    for (const p of ['codex', 'claude'] as const) {
+      store.provider = p
+      expect(buildRecap('c-codex')).toContain('Assistant: A desktop app.')
+    }
   })
 })

@@ -263,9 +263,11 @@ export function takeRecap(chatId: string | undefined): string {
 }
 
 export function buildRecap(chatId: string): string {
-  // Name the speaker as whichever agent actually said it, so a recap handed to a
-  // new backend reads as a transcript rather than as a claim about who it is.
-  const label = PROVIDER_LABEL[safeChatProvider(chatId)]
+  // The log does not record which agent said each reply, and after a switch the
+  // chat's provider is already the NEW one: naming replies after it told Codex or
+  // Antigravity that it had said Claude's words (and one answered "I'm Gemini" in
+  // a chat Claude had been running). A neutral speaker reads as a transcript.
+  const label = 'Assistant'
   let items: LegacyItem[] = []
   try {
     items = loadChatItems(chatId) as LegacyItem[]

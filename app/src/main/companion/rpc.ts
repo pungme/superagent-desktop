@@ -48,7 +48,7 @@ import {
   takeQueuedSends,
   agentSaidInChat
 } from '../store'
-import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
+import { modeBelongsTo, startModel, toProvider } from '../../shared/agent-provider'
 import { accountForChat, listAccounts, pinChatAccount, refreshUsage } from '../accounts'
 import { createHash } from 'crypto'
 import { homedir, tmpdir } from 'os'
@@ -1449,9 +1449,12 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       // Explicit choice on the message, else the conversation's own model, else
       // the app default — the same order the Mac's picker resolves in, so a chat
       // pinned to a model runs on it no matter which device pressed send.
-      model: modelBelongsTo(p.model, provider)
-        ? (p.model ?? getChatModel(chat.id) ?? (kvGet('cove.model') || undefined))
-        : undefined
+      model: startModel(
+        provider,
+        p.model,
+        getChatModel(chat.id) ?? undefined,
+        kvGet('cove.model') || undefined
+      )
     }
     const id = startAgent(null, opts)
     session = { id, chatId: chat.id, workspaceId: ws.id, owned: false }
