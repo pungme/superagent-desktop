@@ -12,7 +12,8 @@ import { describeRepoSet } from '../repo-set'
 import { findAgy } from '../claude-cli'
 import { clearTurn } from '../guardrail'
 import { forgetHookCalls, hookSawStep, needsHook } from './approvals'
-import { limitFromEvent } from '../accounts'
+import { limitFromEvent, modelLimitedUntil } from '../accounts'
+import { agyRunModel } from '../../shared/agy-fallback'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { modelBelongsTo } from '../../shared/agent-provider'
 import {
@@ -21,7 +22,7 @@ import {
   parseAgyLine,
   type StreamJsonEvent
 } from './translate'
-import { agyModels, agyRun, lastLine } from './exec'
+import { agyDefaultModel, agyModels, agyRun, cachedAgyModelIds, lastLine } from './exec'
 import { claimSidecar, releaseSidecar, sidecarName, sweepSidecars, writeSidecar } from './sidecar'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
@@ -265,9 +266,20 @@ export function startAntigravitySession(
     const modelsReady = agyModels().catch(() => [])
 
     const hooked = !!sidecar && !!getHookUrl()
+    // A model whose quota is out starts on the next one that is not (agy-fallback.ts).
+    const picked = opts.model && modelBelongsTo(opts.model, 'antigravity') ? opts.model : undefined
+    const runOpts = {
+      ...opts,
+      model: agyRunModel(
+        picked,
+        agyDefaultModel(),
+        cachedAgyModelIds(),
+        (g) => !!modelLimitedUntil(`agy:${g}`)
+      )
+    }
     const p = spawn(
       findAgy(),
-      buildAgyArgs(opts, {
+      buildAgyArgs(runOpts, {
         resume,
         sidecar,
         attachments: pastedImagesDir(),

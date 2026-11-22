@@ -183,6 +183,25 @@ export function parseAgyModels(out: string): AgyModel[] {
 }
 
 let cachedModels: AgyModel[] | null = null
+
+/** The line-up as last fetched, at once; empty before the first answer. */
+export function cachedAgyModels(): AgyModel[] {
+  return cachedModels ?? []
+}
+
+/** The line-up's slugs as last fetched, at once; empty before the first answer. */
+export function cachedAgyModelIds(): string[] {
+  return (cachedModels ?? []).map((m) => m.id)
+}
+
+/** What Default turned out to run, as the last Default session reported it. */
+let defaultModel: string | undefined
+export function noteAgyDefaultModel(id: string): void {
+  defaultModel = id
+}
+export function agyDefaultModel(): string | undefined {
+  return defaultModel
+}
 let inflight: Promise<AgyModel[]> | null = null
 
 /**

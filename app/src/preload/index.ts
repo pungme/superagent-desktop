@@ -1014,7 +1014,15 @@ export interface CoveApi {
   /** The ones that stayed where they were, and why. */
   trashScreenshots: (names: string[]) => Promise<{ name: string; error: string }[]>
   onModelLimit: (
-    cb: (n: { chatId: string; model: string; fallback: string; until: number }) => void
+    cb: (n: {
+      chatId: string
+      model: string
+      fallback: string
+      until: number
+      /** Antigravity's names for the two ("Gemini 4 Neon (High)"). */
+      modelLabel?: string
+      fallbackLabel?: string
+    }) => void
   ) => () => void
   onBrowsersSigningIn: (
     cb: (s: { name: string; on: boolean; signedIn?: boolean }) => void

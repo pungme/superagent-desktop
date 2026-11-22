@@ -26,6 +26,7 @@ import {
   CURRENT_MODEL,
   markAuth,
   markModelLimited,
+  modelLimitedUntil,
   recordUsage,
   reportLimit,
   type LimitNotice
@@ -35,6 +36,13 @@ import { connectorsAskedFor, knownConnectors } from './connectors'
 import { fallbackModelFor, modelFallbackFrom, modelFamily } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import { startAntigravitySession, suggestTitleWithAntigravity } from './antigravity/session'
+import {
+  agyDefaultModel,
+  cachedAgyModelIds,
+  cachedAgyModels,
+  noteAgyDefaultModel
+} from './antigravity/exec'
+import { agyFallback, agyGroup } from '../shared/agy-fallback'
 import type {
   AgentBackend,
   AgentImage,
@@ -423,8 +431,10 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
         }
       }
       // Which model this session really runs (Default resolves to one here).
-      if (event?.type === 'system' && event.subtype === 'init' && typeof event.model === 'string')
+      if (event?.type === 'system' && event.subtype === 'init' && typeof event.model === 'string') {
         runningModel = event.model
+        if (provider === 'antigravity' && !opts.model) noteAgyDefaultModel(event.model)
+      }
       // Every Claude turn says how much of this account's allowance is used.
       const usage = usageFromClaudeEvent(event)
       if (usage) recordUsage(account.id, usage)
@@ -445,8 +455,35 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
           // A limit that did not name its model is the one this session runs
           // (Default is Fable where the account has it).
           if (out.model === CURRENT_MODEL) out.model = modelFamily(runningModel) ?? 'fable'
+          // Antigravity's quotas are per model: another model on the same
+          // account usually has plenty. Move to it before calling the account out.
+          const agyFrom =
+            provider === 'antigravity'
+              ? (runningModel ?? agyDefaultModel() ?? cachedAgyModelIds()[0])
+              : null
+          const agyTo = agyFrom
+            ? agyFallback(agyFrom, cachedAgyModelIds(), (g) => !!modelLimitedUntil(`agy:${g}`))
+            : null
           const fallback = out.model ? fallbackModelFor(out.model) : null
-          if (out.model && fallback) {
+          if (agyFrom && agyTo) {
+            const until = markModelLimited(`agy:${agyGroup(agyFrom)}`, out.until)
+            const names = new Map(cachedAgyModels().map((m) => [m.id, m.label]))
+            broadcastToWindows('accounts:model-limit', {
+              chatId: opts.chatId,
+              model: agyFrom,
+              fallback: agyTo,
+              until,
+              modelLabel: names.get(agyFrom) ?? agyFrom,
+              fallbackLabel: names.get(agyTo) ?? agyTo
+            })
+            agentBus.emit('model-fallback', {
+              ...meta,
+              original: agyFrom,
+              fallback: agyTo,
+              trigger: 'usage_limit'
+            })
+            carryOnWithoutWindow(id, opts.chatId, null)
+          } else if (out.model && fallback) {
             // One model is out, not the account: remember it until the reset
             // (runModelFor starts chats on the next one down meanwhile) and
             // have the window restart this one on it and send again.

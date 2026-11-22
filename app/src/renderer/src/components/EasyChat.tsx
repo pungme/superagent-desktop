@@ -5652,7 +5652,7 @@ export function EasyChat({
             id: `sys-model-limit-${Date.now()}`,
             at: Date.now(),
             role: 'assistant',
-            text: `↻ ${prettyModel(n.model)} has used up its allowance until about ${at} — continuing on ${prettyModel(n.fallback)}. New messages go back to ${prettyModel(n.model)} after that.`,
+            text: `↻ ${n.modelLabel ?? prettyModel(n.model)} has used up its allowance until about ${at} — continuing on ${n.fallbackLabel ?? prettyModel(n.fallback)}. New messages go back to ${n.modelLabel ?? prettyModel(n.model)} after that.`,
             system: true
           }
         }
