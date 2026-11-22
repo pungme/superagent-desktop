@@ -82,6 +82,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
+import { registerPromptLinks, promptLinksReady } from './prompt-links'
 import { agyModels } from './antigravity/exec'
 import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
@@ -131,6 +132,10 @@ import {
 } from './computer-use'
 import { setComputerUseProbe } from './prompts'
 import { stopFromDot } from './companion/rpc'
+
+// superagent:// links, before ready: macOS hands the link that launched the app
+// over during launch (prompt-links.ts).
+registerPromptLinks()
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -884,6 +889,7 @@ app.whenReady().then(async () => {
   await mergeLegacyPartitions()
 
   createWindow()
+  promptLinksReady()
 
   // Check GitHub Releases for a newer version and update quietly (packaged only).
   startAutoUpdate()

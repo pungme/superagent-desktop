@@ -88,18 +88,23 @@ describe('recap', () => {
     expect(recap).not.toContain('could not be resumed')
   })
 
-  /** Recent turns only, each clipped: enough for "continue" to mean something
-   *  without spending the context window on the recap itself. */
-  it('keeps the last two dozen turns, clipped', () => {
-    const many = Array.from({ length: 40 }, (_, i) => msg('user', `message ${i}`))
-    many.push(msg('assistant', 'x'.repeat(2000)))
+  /** The first request and the latest exchange, within a budget: enough for
+   *  "continue" to mean something without spending the context on the recap. */
+  it('keeps the first request and the latest messages, and says what it left out', () => {
+    const many = [
+      msg('user', 'Build the pricing page'),
+      ...Array.from({ length: 60 }, (_, i) =>
+        msg(i % 2 ? 'assistant' : 'user', `message ${i} ` + 'x'.repeat(500))
+      )
+    ]
     store.items.set('long', many)
-    markContextLost('long')
     const recap = buildRecap('long')
-    expect(recap.split('\n')).toHaveLength(24)
-    expect(recap).not.toContain('message 10')
-    expect(recap).toContain('message 39')
-    expect(recap.split('\n').every((l) => l.length <= 711)).toBe(true)
+    const lines = recap.split('\n')
+    expect(lines[0]).toBe('User: Build the pricing page')
+    expect(lines[1]).toMatch(/^\[… \d+ earlier messages left out …\]$/)
+    expect(recap).toContain('message 59')
+    expect(recap).not.toContain('message 1 ')
+    expect(recap.length).toBeLessThan(13_000)
   })
 
   it('collapses the whitespace, so a long reply is one line of recap', () => {
@@ -122,5 +127,20 @@ describe('recap speaker', () => {
       store.provider = p
       expect(buildRecap('c-codex')).toContain('Assistant: A desktop app.')
     }
+  })
+})
+
+describe('what the agent did, in the recap', () => {
+  it('folds the steps between messages into one line', () => {
+    store.items.set('steps', [
+      { kind: 'msg', msg: { id: 'u', role: 'user', text: 'Fix the header' } },
+      { kind: 'tool', tool: { id: 't1', name: 'Read', detail: 'header.css' } },
+      { kind: 'tool', tool: { id: 't2', name: 'Bash', detail: 'npm test' } },
+      { kind: 'diff', diff: { id: 'd', file: 'header.css', hunks: [] } },
+      { kind: 'msg', msg: { id: 'a', role: 'assistant', text: 'Tests fail on Safari.' } }
+    ])
+    expect(buildRecap('steps')).toBe(
+      'User: Fix the header\nSteps: read header.css, ran `npm test`, edited header.css\nAssistant: Tests fail on Safari.'
+    )
   })
 })

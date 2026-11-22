@@ -16690,3 +16690,13 @@ button.today-ag:hover {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+/* Copy prompt link: said once, above the message box, then gone. */
+.easy-link-copied {
+  margin: 0 12px 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+}

@@ -245,6 +245,13 @@ export function CommandPalette({
           run: () => dispatch('cove:command-focus-composer')
         },
         {
+          id: 'cmd.copy-prompt-link',
+          label: 'Copy prompt link',
+          subtitle: 'A link that opens this prompt drafted, never sent',
+          keywords: 'share link url prompt',
+          run: () => dispatch('cove:command-copy-prompt-link')
+        },
+        {
           id: 'cmd.stop-agent',
           label: 'Stop agent',
           shortcut: '⌘.',
@@ -284,6 +291,13 @@ export function CommandPalette({
     }
     items.push(
       { id: 'nav.settings', label: 'Settings', run: () => dispatch('cove:open-settings') },
+      {
+        id: 'cmd.diagnose',
+        label: 'Diagnose Superagent',
+        subtitle: 'Your agent reads the logs and finds what went wrong',
+        keywords: 'bug report triage issue crash freeze logs',
+        run: () => void window.cove.diagnoseOpen()
+      },
       { id: 'nav.skills', label: 'Skills', run: () => dispatch('cove:open-skills') },
       { id: 'nav.routines', label: 'Routines', run: () => dispatch('cove:open-routines') },
       {

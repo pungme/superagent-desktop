@@ -2,6 +2,7 @@ import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
+import { promptLink } from '../../../shared/prompt-link'
 import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
@@ -3006,6 +3007,37 @@ export function EasyChat({
     const onFocus = (): void => inputRef.current?.focus()
     window.addEventListener('cove:command-focus-composer', onFocus)
     return () => window.removeEventListener('cove:command-focus-composer', onFocus)
+  }, [focused])
+
+  // Command palette → Copy prompt link: a superagent:// link that opens this
+  // prompt drafted, in this project. What is in the box, else the last thing
+  // you sent here.
+  const [linkCopied, setLinkCopied] = useState(false)
+  const promptLinkSourceRef = useRef<() => { text: string; project?: string }>(() => ({ text: '' }))
+  promptLinkSourceRef.current = () => {
+    const lastSent = [...items]
+      .reverse()
+      .find((it) => it.kind === 'msg' && it.msg.role === 'user' && !it.msg.system)
+    const text =
+      input.trim() || (lastSent && lastSent.kind === 'msg' ? lastSent.msg.text.trim() : '')
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.id === workspaceId)
+    return { text, project: ws?.name }
+  }
+  useEffect(() => {
+    if (!focused) return
+    const onCopy = (): void => {
+      const { text, project } = promptLinkSourceRef.current()
+      if (!text) {
+        inputRef.current?.focus()
+        return
+      }
+      void navigator.clipboard.writeText(promptLink(text, project)).then(() => {
+        setLinkCopied(true)
+        setTimeout(() => setLinkCopied(false), 1800)
+      })
+    }
+    window.addEventListener('cove:command-copy-prompt-link', onCopy)
+    return () => window.removeEventListener('cove:command-copy-prompt-link', onCopy)
   }, [focused])
 
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
@@ -6437,6 +6469,12 @@ export function EasyChat({
       )}
       {/* In the layout, not floating over it: the chip used to cover the last
           message and the "Working" line. The conversation gives up the room. */}
+      {linkCopied && (
+        <div className="easy-link-copied" role="status">
+          Prompt link copied. Anyone with Superagent who opens it gets this prompt drafted, not
+          sent.
+        </div>
+      )}
       {(queued.length > 0 || replyTarget || shots.length > 0) && (
         <div className="easy-above-input">
           {shots.length > 0 && (

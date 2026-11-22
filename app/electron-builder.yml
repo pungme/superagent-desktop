@@ -50,6 +50,11 @@ asarUnpack:
   - resources/**
   # node-pty's spawn-helper must stay executable outside the asar
   - '**/node_modules/node-pty/**'
+# superagent://prompt?text=… opens the app with a prompt drafted (src/main/prompt-links.ts).
+protocols:
+  - name: Superagent prompt link
+    schemes:
+      - superagent
 mac:
   category: public.app-category.developer-tools
   hardenedRuntime: true

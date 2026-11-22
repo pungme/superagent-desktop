@@ -43,6 +43,7 @@ import {
   noteAgyDefaultModel
 } from './antigravity/exec'
 import { agyFallback, agyGroup } from '../shared/agy-fallback'
+import { recapFrom, type RecapItem } from '../shared/recap'
 import type {
   AgentBackend,
   AgentImage,
@@ -275,24 +276,15 @@ export function buildRecap(chatId: string): string {
   // chat's provider is already the NEW one: naming replies after it told Codex or
   // Antigravity that it had said Claude's words (and one answered "I'm Gemini" in
   // a chat Claude had been running). A neutral speaker reads as a transcript.
-  const label = 'Assistant'
+  // The first request, the latest exchange and what was done between them
+  // (shared/recap.ts).
   let items: LegacyItem[] = []
   try {
     items = loadChatItems(chatId) as LegacyItem[]
   } catch {
     return ''
   }
-  const lines: string[] = []
-  for (const it of items) {
-    if (it.kind !== 'msg') continue
-    const m = it.msg
-    if (m.system || !m.text || !m.text.trim()) continue
-    lines.push(
-      `${m.role === 'user' ? 'User' : label}: ${m.text.replace(/\s+/g, ' ').trim().slice(0, 700)}`
-    )
-  }
-  if (lines.length === 0) return ''
-  return lines.slice(-24).join('\n')
+  return recapFrom(items as RecapItem[])
 }
 
 /** The chat's recorded backend, tolerating a chat row that isn't there yet. */
