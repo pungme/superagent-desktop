@@ -992,6 +992,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return fail('unavailable', 'use browser.screenshot')
       case 'device.presence':
       case 'chat.draft':
+      case 'diagnostics.report':
         return { ok: true } // handled per connection in session.ts
       default:
         return fail('bad-params', `unknown method ${String(method)}`)

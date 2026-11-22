@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { join } from 'path'
 import { stringifyForPhone } from './wire-json'
 import { createHash } from 'crypto'
 import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
@@ -7,6 +8,7 @@ import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } fro
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
 import { eventsAfter, logDiverged, tailStart } from './log'
 import { draftOf, saveDraft } from '../drafts'
+import { savePhoneDiagnostic } from './phone-diagnostics'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
@@ -332,6 +334,27 @@ export class ClientConn {
           if (this.deviceId && typeof p?.pushToken === 'string')
             setPushToken(this.deviceId, p.pushToken, p.pushEnv ?? 'production')
           this.send({ t: 'res', id: frame.id, ok: true })
+          return
+        }
+        // The phone's own freeze reports, kept on the Mac under the phone's name
+        // (see phone-diagnostics.ts).
+        if (frame.method === 'diagnostics.report') {
+          const r = savePhoneDiagnostic(
+            join(app.getPath('userData'), 'phone-diagnostics'),
+            this.deviceId ?? 'unknown',
+            frame.params
+          )
+          if (r.ok) console.log(`[companion] phone diagnostic saved: ${r.file}`)
+          this.send(
+            r.ok
+              ? { t: 'res', id: frame.id, ok: true }
+              : {
+                  t: 'res',
+                  id: frame.id,
+                  ok: false,
+                  error: { code: 'bad-params', message: r.error }
+                }
+          )
           return
         }
         // Handled here, not in the RPC table: it needs to know which phone

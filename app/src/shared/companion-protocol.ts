@@ -468,6 +468,8 @@ export type RpcMethod =
   | 'splits.list'
   | 'accounts.list'
   | 'accounts.pick'
+  /** The phone's freeze reports (kind hang | metrickit, id, body JSON), kept on the Mac. */
+  | 'diagnostics.report'
   | 'workspace.add'
   | 'workspace.createBrowser'
   | 'workspace.remove'
