@@ -69,7 +69,10 @@ import {
   reorderAccounts,
   recordUsage,
   reportLimit,
-  setLimitMode
+  setLimitMode,
+  setPriority,
+  priorityList,
+  _setLoginForTests
 } from './accounts'
 
 let dir: string
@@ -314,6 +317,42 @@ describe('accounts', () => {
     const alone = reportLimit('c2', 'codex', LOGIN_ID.codex, null)
     expect(alone.switchedTo).toBeNull()
     expect(alone.alternatives).toEqual([])
+  })
+
+  it('with an order across agents, it moves to the next in it, whichever agent', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    setLimitMode('auto')
+    _setLoginForTests('codex', { detail: 'ChatGPT', signedIn: true })
+    // Claude's own login, then Codex, then Claude Work.
+    setPriority([LOGIN_ID.claude, LOGIN_ID.codex, work.id])
+    expect(
+      priorityList()
+        .map((a) => a.id)
+        .slice(0, 3)
+    ).toEqual([LOGIN_ID.claude, LOGIN_ID.codex, work.id])
+    const n = reportLimit('c1', 'claude', LOGIN_ID.claude, null)
+    expect(n.switchedTo).toBeNull()
+    expect(n.switchedToAgent).toBe('codex')
+    expect(n.switchedToAccount?.id).toBe(LOGIN_ID.codex)
+    expect(accountForChat('codex', 'c1').id).toBe(LOGIN_ID.codex)
+    // Codex out too: back to the next Claude account in the order.
+    const n2 = reportLimit('c1', 'codex', LOGIN_ID.codex, null)
+    expect(n2.switchedToAgent).toBe('claude')
+    expect(n2.switchedToAccount?.id).toBe(work.id)
+  })
+
+  it('reordering one agent keeps its places in the order across agents', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    setPriority([LOGIN_ID.claude, LOGIN_ID.codex, work.id])
+    reorderAccounts('claude', [work.id, LOGIN_ID.claude])
+    expect(
+      priorityList()
+        .map((a) => a.id)
+        .slice(0, 3)
+    ).toEqual([work.id, LOGIN_ID.codex, LOGIN_ID.claude])
+    // Cleared: each agent in turn again, Claude's accounts first.
+    setPriority([])
+    expect(priorityList()[0].provider).toBe('claude')
   })
 
   it('remembers refused credentials until a session starts on the account again', () => {

@@ -5759,7 +5759,9 @@ export function EasyChat({
               id: `sys-limit-${Date.now()}`,
               at: Date.now(),
               role: 'assistant',
-              text: `↻ ${PROVIDER_LABEL[n.provider]} is out of allowance${when} — continuing on ${PROVIDER_LABEL[agent]}, which has the conversation so far.`,
+              text: n.switchedToAccount
+                ? `↻ ${n.account.name} is out of allowance${when} — continuing on ${PROVIDER_LABEL[agent]} · ${n.switchedToAccount.name}, which has the conversation so far.`
+                : `↻ ${PROVIDER_LABEL[n.provider]} is out of allowance${when} — continuing on ${PROVIDER_LABEL[agent]}, which has the conversation so far.`,
               system: true
             }
           }

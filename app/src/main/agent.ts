@@ -636,7 +636,9 @@ function carryOnWithoutWindow(id: string, chatId: string, notice: LimitNotice | 
     setChatProvider(chatId, notice.switchedToAgent)
     clearChatSession(chatId)
     markContextLost(chatId)
-    said = `${PROVIDER_LABEL[notice.provider]} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]}, which has the conversation so far.`
+    said = notice.switchedToAccount
+      ? `${notice.account.name} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]} · ${notice.switchedToAccount.name}, which has the conversation so far.`
+      : `${PROVIDER_LABEL[notice.provider]} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]}, which has the conversation so far.`
   } else return
   agentLog('carry-on', id, `chat=${chatId} ${said}`)
   agentBus.emit('carry-on', { chatId, text: `↻ ${said}` })

@@ -114,3 +114,25 @@ test('Settings lists Antigravity with how to install it and sign in', async () =
   const account = window.locator('.settings-accounts-provider', { hasText: 'Antigravity' })
   await expect(account.locator('.settings-account').first()).toContainText('Your Antigravity login')
 })
+
+test('Settings puts every agent’s accounts in one order, and moving one saves it', async () => {
+  // Settings → Agents is open from the test before.
+  const list = window.locator('.settings-priority-list .settings-account-name')
+  await expect(list).toHaveText([
+    'Claude Code · Your Claude login',
+    'Codex · Your Codex login',
+    'Antigravity · Your Antigravity login'
+  ])
+  await list.nth(0).scrollIntoViewIfNeeded()
+  // Antigravity to the top: one move up, twice.
+  await window.getByRole('button', { name: 'Move Your Antigravity login up' }).click()
+  await window.getByRole('button', { name: 'Move Your Antigravity login up' }).click()
+  await expect(list.first()).toHaveText('Antigravity · Your Antigravity login')
+  const saved = await window.evaluate(() => window.cove.accountsPriority())
+  expect(saved.custom).toBe(true)
+  expect(saved.list[0].provider).toBe('antigravity')
+  if (process.env.SHOT)
+    await window.locator('.settings-priority-list').screenshot({ path: '/tmp/sa-priority.png' })
+  await window.getByRole('button', { name: 'Back to each agent in turn' }).click()
+  await expect(list.first()).toHaveText('Claude Code · Your Claude login')
+})

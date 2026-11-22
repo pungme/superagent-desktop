@@ -20,6 +20,8 @@ import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
 import { antigravityWho, codexWho } from '../shared/login-who'
 import { agentsToTry } from '../shared/agent-fallback'
+import { nextInPriority, perAgentOrder, rankAccounts } from '../shared/account-priority'
+import { AGENT_PROVIDERS } from '../shared/agent-provider'
 import {
   usageFromAntigravity,
   usageFromClaudeApi,
@@ -126,6 +128,11 @@ interface AccountsFile {
   defaults: Partial<Record<AgentProvider, string>>
   /** Priority order of account IDs per agent (index 0 is used first). */
   order?: Partial<Record<AgentProvider, string[]>>
+  /**
+   * One priority order across every agent's accounts, when the user chose one:
+   * a chat that runs out moves to the next in it, whichever agent that is.
+   */
+  priority?: string[]
 }
 
 /** What the window is told when an account runs dry. */
@@ -137,6 +144,8 @@ export interface LimitNotice {
   alternatives: { id: string; name: string }[]
   /** Set when the mode is auto and the chat already moved. */
   switchedTo: { id: string; name: string } | null
+  /** With an order across agents: the other agent's account the chat moved to. */
+  switchedToAccount?: { id: string; name: string } | null
   mode: LimitMode
   /**
    * Other agents that are signed in and have allowance, in the order to try
@@ -192,7 +201,10 @@ function load(): AccountsFile {
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
       usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {},
       defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {},
-      order: raw.order && typeof raw.order === 'object' ? raw.order : {}
+      order: raw.order && typeof raw.order === 'object' ? raw.order : {},
+      priority: Array.isArray(raw.priority)
+        ? raw.priority.filter((x: unknown) => typeof x === 'string')
+        : undefined
     }
   } catch {
     file = {
@@ -366,6 +378,12 @@ export function reorderAccounts(provider: AgentProvider, accountIds: string[]): 
   }
   if (!f.order) f.order = {}
   f.order[provider] = filtered
+  // The order across agents keeps its slots for this agent, filled in the new order.
+  if (f.priority?.length) {
+    const mine = new Set(filtered)
+    const queue = [...filtered]
+    f.priority = f.priority.map((id) => (mine.has(id) ? (queue.shift() ?? id) : id))
+  }
   if (filtered.length > 0) {
     const topId = filtered[0]
     if (topId === LOGIN_ID[provider]) delete f.defaults[provider]
@@ -489,6 +507,51 @@ export function authFailureFromEvent(event: Record<string, unknown>): string | n
   return authFailureFrom(text)
 }
 
+/** Signed in, not out of allowance, and its allowance known. */
+function usableAccount(a: Account): boolean {
+  return !a.limitedUntil && !a.needsAuth && a.detail !== 'Checking…'
+}
+
+/** Every account of every agent, in the priority order across agents. */
+export function priorityList(): Account[] {
+  const per = Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, listAccounts(p)])) as Record<
+    AgentProvider,
+    Account[]
+  >
+  return rankAccounts(per, load().priority)
+}
+
+/**
+ * Put every account in one order across agents. Each agent's own order (and the
+ * account its new chats start on) follows it. An empty list goes back to "each
+ * agent in turn".
+ */
+export function setPriority(ids: string[]): void {
+  const f = load()
+  if (!ids.length) {
+    delete f.priority
+  } else {
+    f.priority = rankAccounts(
+      Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, listAccounts(p)])) as Record<
+        AgentProvider,
+        Account[]
+      >,
+      ids
+    ).map((a) => a.id)
+    const ranked = priorityList()
+    if (!f.order) f.order = {}
+    for (const p of AGENT_PROVIDERS) {
+      const own = perAgentOrder(ranked, p)
+      if (!own.length) continue
+      f.order[p] = own
+      if (own[0] === LOGIN_ID[p]) delete f.defaults[p]
+      else f.defaults[p] = own[0]
+    }
+  }
+  save()
+  broadcastToWindows('accounts:changed')
+}
+
 /** Whether an agent has an account that is signed in and not out of allowance. */
 function agentHasAllowance(p: AgentProvider): boolean {
   return listAccounts(p).some((a) => !a.limitedUntil && !a.needsAuth && a.detail !== 'Checking…')
@@ -510,13 +573,30 @@ export function reportLimit(
   const alternatives = all.filter((a) => a.id !== accountId && !a.limitedUntil)
   const mode = limitMode()
   let switchedTo: Account | null = null
-  if (mode === 'auto' && alternatives.length) {
-    switchedTo = alternatives[0]
-    pinChatAccount(chatId, switchedTo.id)
+  let switchedToAgent: AgentProvider | null = null
+  let switchedToAccount: Account | null = null
+  let agents: AgentProvider[]
+  if (load().priority?.length) {
+    // An order across agents: the next account in it, whichever agent it is.
+    const next = nextInPriority(priorityList(), accountId, usableAccount)
+    agents = next && next.provider !== provider ? [next.provider] : []
+    if (mode === 'auto' && next) {
+      pinChatAccount(chatId, next.id)
+      if (next.provider === provider) switchedTo = next
+      else {
+        switchedToAgent = next.provider
+        switchedToAccount = next
+      }
+    }
+  } else {
+    if (mode === 'auto' && alternatives.length) {
+      switchedTo = alternatives[0]
+      pinChatAccount(chatId, switchedTo.id)
+    }
+    // No account of this agent left: another agent that can take the chat.
+    agents = alternatives.length ? [] : agentsToTry(provider, agentHasAllowance)
+    switchedToAgent = mode === 'auto' && !switchedTo && agents.length ? agents[0] : null
   }
-  // No account of this agent left: another agent that can take the chat.
-  const agents = alternatives.length ? [] : agentsToTry(provider, agentHasAllowance)
-  const switchedToAgent = mode === 'auto' && !switchedTo && agents.length ? agents[0] : null
   const notice: LimitNotice = {
     chatId,
     provider,
@@ -524,6 +604,9 @@ export function reportLimit(
     until: at,
     alternatives: alternatives.map((a) => ({ id: a.id, name: a.name })),
     switchedTo: switchedTo ? { id: switchedTo.id, name: switchedTo.name } : null,
+    switchedToAccount: switchedToAccount
+      ? { id: switchedToAccount.id, name: switchedToAccount.name }
+      : null,
     mode,
     agents,
     switchedToAgent
@@ -1604,6 +1687,13 @@ export function registerAccountsIpc(): void {
   ipcMain.handle('accounts:reorder', (_e, provider: AgentProvider, ids: string[]) =>
     reorderAccounts(provider, ids)
   )
+  ipcMain.handle('accounts:priority', () => ({
+    custom: !!load().priority?.length,
+    list: priorityList()
+  }))
+  ipcMain.handle('accounts:set-priority', (_e, ids: string[]) =>
+    setPriority(Array.isArray(ids) ? ids.filter((x) => typeof x === 'string') : [])
+  )
   ipcMain.handle('accounts:remove', (_e, id: string) => removeAccount(id))
   ipcMain.handle('accounts:set-mode', (_e, mode: LimitMode) => setLimitMode(mode))
   ipcMain.handle('accounts:switch', (_e, chatId: string, id: string) => {
@@ -1649,4 +1739,11 @@ export async function claudeAccountToken(accountId: string): Promise<string | nu
 /** Tests: forget the cached file so the next call re-reads it. */
 export function _resetAccountsForTests(): void {
   file = null
+  for (const p of Object.keys(logins) as AgentProvider[]) delete logins[p]
+}
+
+/** What a CLI says about its own login, without asking it. */
+export function _setLoginForTests(provider: AgentProvider, state: LoginState | null): void {
+  if (state) logins[provider] = state
+  else delete logins[provider]
 }

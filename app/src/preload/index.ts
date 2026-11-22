@@ -50,6 +50,8 @@ export interface LimitNotice {
   agents: ('claude' | 'codex' | 'antigravity')[]
   /** Auto mode with no account left on this agent: the one the chat should move to. */
   switchedToAgent: 'claude' | 'codex' | 'antigravity' | null
+  /** With an order across agents: the other agent's account the chat moved to. */
+  switchedToAccount?: { id: string; name: string } | null
 }
 
 export interface BrowserState {
@@ -974,6 +976,10 @@ export interface CoveApi {
   accountsSetDefault: (provider: Account['provider'], id: string) => Promise<void>
   /** Priority order of accounts for an agent: index 0 is used first, followed by fallbacks. */
   accountsReorder: (provider: Account['provider'], ids: string[]) => Promise<void>
+  /** Every account in one order across agents; `custom` when the user chose it. */
+  accountsPriority: () => Promise<{ custom: boolean; list: Account[] }>
+  /** Set that order (empty: back to each agent in turn). */
+  accountsSetPriority: (ids: string[]) => Promise<void>
   /** A Claude account's claude.ai connectors and whether each is connected (main/connectors.ts). */
   connectorsList: (accountId: string, force?: boolean) => Promise<Connector[]>
   /** Connect one in a sign-in window of ours; resolves with it as it is after. */
@@ -1769,6 +1775,8 @@ const cove: CoveApi = {
     ipcRenderer.invoke('accounts:add-claude-login', name, replaces),
   accountsSetDefault: (provider, id) => ipcRenderer.invoke('accounts:set-default', provider, id),
   accountsReorder: (provider, ids) => ipcRenderer.invoke('accounts:reorder', provider, ids),
+  accountsPriority: () => ipcRenderer.invoke('accounts:priority'),
+  accountsSetPriority: (ids) => ipcRenderer.invoke('accounts:set-priority', ids),
   connectorsList: (accountId, force) => ipcRenderer.invoke('connectors:list', accountId, force),
   connectorsConnect: (accountId, name) => ipcRenderer.invoke('connectors:connect', accountId, name),
   onConnectorsChanged: (cb) => subscribe('connectors:changed', (id) => cb(id as string)),

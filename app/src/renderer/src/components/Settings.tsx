@@ -715,7 +715,89 @@ function AgentsPanel({
           ))}
         </div>
       </Row>
+      <AccountPriority />
     </div>
+  )
+}
+
+/**
+ * One order across every agent's accounts: when one runs out the chat moves to
+ * the next in it, whichever agent that is. Untouched, it is each agent's own
+ * accounts in turn, Claude then Codex then Antigravity.
+ */
+function AccountPriority(): React.JSX.Element | null {
+  const [state, setState] = useState<{ custom: boolean; list: Account[] } | null>(null)
+  useEffect(() => {
+    const load = (): void => void window.cove.accountsPriority?.().then(setState)
+    load()
+    return window.cove.onAccountsChanged?.(load)
+  }, [])
+  if (!state || state.list.length < 2) return null
+  const ids = state.list.map((a) => a.id)
+  const set = async (next: string[]): Promise<void> => {
+    await window.cove.accountsSetPriority(next)
+    setState(await window.cove.accountsPriority())
+  }
+  const move = (from: number, delta: number): void => {
+    const to = from + delta
+    if (to < 0 || to >= ids.length) return
+    const next = [...ids]
+    const [m] = next.splice(from, 1)
+    next.splice(to, 0, m)
+    void set(next)
+  }
+  return (
+    <>
+      <GroupLabel>Order across agents</GroupLabel>
+      <span className="settings-agent-hint">
+        When an account runs out, the chat moves to the next one here that has allowance, whichever
+        agent it is, and the new agent gets the conversation so far.
+        {state.custom ? '' : ' Right now: each agent’s accounts in turn.'}
+      </span>
+      <ul className="settings-accounts-list settings-priority-list">
+        {state.list.map((a, idx) => (
+          <li
+            key={a.id}
+            className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
+          >
+            <div className="settings-account-top">
+              <span className={`settings-account-priority ${idx === 0 ? 'first' : ''}`}>
+                {idx + 1}
+              </span>
+              <span className="settings-account-name">
+                {PROVIDER_PRODUCT[a.provider]} · {a.name}
+              </span>
+              {a.needsAuth && <span className="settings-account-badge">Needs sign-in</span>}
+              <div className="settings-account-reorder">
+                <button
+                  className="settings-account-move"
+                  title="Move up"
+                  aria-label={`Move ${a.name} up`}
+                  disabled={idx === 0}
+                  onClick={() => move(idx, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  className="settings-account-move"
+                  title="Move down"
+                  aria-label={`Move ${a.name} down`}
+                  disabled={idx === ids.length - 1}
+                  onClick={() => move(idx, 1)}
+                >
+                  ↓
+                </button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {state.custom && (
+        <button className="settings-agent-btn ghost" onClick={() => void set([])}>
+          Back to each agent in turn
+        </button>
+      )}
+    </>
   )
 }
 
