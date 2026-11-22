@@ -39,6 +39,7 @@ import {
   attachPanesOnReturn,
   watchWindowGeometry,
   allowUserFocus,
+  isFocusGuardActive,
   wireAppContextMenu
 } from './browser'
 import { startMcpServer } from './mcp'
@@ -164,7 +165,6 @@ if (process.env.COVE_USER_DATA) {
 let appWindow: BrowserWindow | null = null
 /** When the Dock icon was last clicked, and when the window last took focus (see 'activate'). */
 let lastDockClickAt = 0
-let lastWindowFocusAt = 0
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -212,7 +212,6 @@ function createWindow(): BrowserWindow {
   let focusSettleTimer: ReturnType<typeof setTimeout> | null = null
   mainWindow.on('focus', () => {
     paneLog('window-focus', 'window')
-    lastWindowFocusAt = Date.now()
     mainWindow.webContents.send('app:focus', true)
     // If this focus arrived during agent work, the user didn't ask for it —
     // this is separately guarded to fire at most once per guard cycle, so it's
@@ -894,6 +893,27 @@ app.whenReady().then(async () => {
   // Check GitHub Releases for a newer version and update quietly (packaged only).
   startAutoUpdate()
 
+  app.on('did-become-active', () => {
+    if (process.env.COVE_E2E_QUIET === '1' || process.env.COVE_NO_FOCUS) return
+    if (isFocusGuardActive()) return
+    const w = appWindow
+    if (!w || w.isDestroyed()) return
+    const focused = BrowserWindow.getFocusedWindow()
+    if (focused && focused !== w) return
+    paneLog(
+      'app-did-become-active',
+      'window',
+      JSON.stringify({
+        visible: w.isVisible(),
+        minimized: w.isMinimized(),
+        focused: w.isFocused(),
+        hidden: app.isHidden?.() ?? false
+      })
+    )
+    if (w.isMinimized() || !w.isVisible() || app.isHidden?.()) bringAppForward()
+    else w.moveTop()
+  })
+
   app.on('activate', function () {
     // The dot is a window too, and is not the app's window: with only it left,
     // a Dock click still has to bring the app back.
@@ -904,13 +924,14 @@ app.whenReady().then(async () => {
     // ("I cannot open the app from the Dock, the dot prevents it"). Asked for
     // by name, the window comes forward whatever the dot is doing.
     else if (process.env.COVE_E2E_QUIET !== '1') {
-      // Clicked again within a few seconds, and the window never took focus in
-      // between: the first click did not put it in front of them (seen in the
-      // log as runs of Dock clicks with no focus after). Pull harder this time.
+      // Pull onto the current Space if the user clicked the Dock twice in a row
+      // (even when the first click gave the window focus on another Space), or
+      // when the window is already focused on a Dock click (they are clicking
+      // the Dock because they still cannot see it).
       const now = Date.now()
-      const again = now - lastDockClickAt < 4000 && lastWindowFocusAt < lastDockClickAt
-      lastDockClickAt = now
       const w = appWindow
+      const again = now - lastDockClickAt < 4000 || w.isFocused()
+      lastDockClickAt = now
       // What the window was like when the click arrived, to explain the next "it did not come".
       paneLog(
         'dock-click',

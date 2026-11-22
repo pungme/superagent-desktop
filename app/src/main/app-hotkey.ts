@@ -43,6 +43,7 @@ export function bringAppForward(hard = false): BrowserWindow | null {
   if (!w) return null
   // Asked for by the user, by name: not a focus to bounce back.
   host.wanted()
+  if (app.isHidden?.()) app.show()
   if (w.isMinimized()) w.restore()
   // Left on a display that is gone, the window is "shown" and nowhere to be seen.
   try {
@@ -52,19 +53,18 @@ export function bringAppForward(hard = false): BrowserWindow | null {
   } catch {
     // no display information: leave it where it is
   }
-  if (hard) {
+  if (hard && !w.isFullScreen()) {
     try {
       // On every Space for a moment, then only this one: that moves it here.
       // Without the process transform, which would take the Dock icon away.
       w.setVisibleOnAllWorkspaces(true, { skipTransformProcessType: true })
       w.setVisibleOnAllWorkspaces(false, { skipTransformProcessType: true })
-      if (app.isHidden?.()) app.show()
     } catch {
       // the ordinary way below still runs
     }
   }
   w.show()
-  if (hard) w.moveTop()
+  w.moveTop()
   w.focus()
   app.focus({ steal: true })
   return w

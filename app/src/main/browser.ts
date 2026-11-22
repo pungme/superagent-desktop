@@ -703,6 +703,10 @@ function rememberFrontApp(): void {
  * back. The tail matters — a page's activation request can be queued while the
  * policy forbids it and only land once the policy is restored.
  */
+export function isFocusGuardActive(): boolean {
+  return focusGuardActive
+}
+
 export function allowUserFocus(): void {
   frontAppBeforeGuard = null
 }
