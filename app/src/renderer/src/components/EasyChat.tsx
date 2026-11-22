@@ -49,6 +49,7 @@ import {
   groupTasks,
   isQuiet,
   liveShellTasks,
+  liveTaskIds,
   reconcileTasks,
   type BgKind,
   type LiveTask
@@ -3271,7 +3272,9 @@ export function EasyChat({
       }
       if (type === 'system' && (event.subtype as string) === 'background_tasks_changed') {
         const liveTasks = liveShellTasks(event as { tasks?: LiveTask[] })
-        const live = new Set(liveTasks.map((t) => t.task_id))
+        // Sub-agents included: they are not in the shell list, and checking
+        // them against it dropped every background agent as finished.
+        const live = liveTaskIds(event as { tasks?: LiveTask[] })
         // The full live set, replace semantics: a pill the CLI no longer lists is
         // a finished (or never-registered) task, not "running".
         setBgTasks((prev) => reconcileTasks(prev, liveTasks, Date.now(), bgIdsKnownRef.current))

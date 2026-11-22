@@ -54,6 +54,18 @@ export interface LiveTask {
   description?: string
 }
 
+/**
+ * Every live task's id in a `background_tasks_changed` event, sub-agents
+ * included. What decides whether a background sub-agent is still working: the
+ * shell list below leaves them out, and checking agents against it called every
+ * one of them finished, so an idle chat was reaped with its agents mid-task.
+ */
+export function liveTaskIds(event: { tasks?: LiveTask[] }): Set<string> {
+  return new Set(
+    (event.tasks ?? []).map((t) => t.task_id).filter((id): id is string => typeof id === 'string')
+  )
+}
+
 /** The live tasks of a `background_tasks_changed` event, minus sub-agents. */
 export function liveShellTasks(event: { tasks?: LiveTask[] }): LiveTask[] {
   return (event.tasks ?? []).filter(

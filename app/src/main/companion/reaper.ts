@@ -1,4 +1,5 @@
 import { agentBus, listSessions, stopAgent } from '../agent'
+import { liveTaskIds, type LiveTask } from '../../shared/bg-tasks'
 
 /**
  * Sessions the phone started have no window to close them. The renderer reaps
@@ -8,6 +9,12 @@ import { agentBus, listSessions, stopAgent } from '../agent'
  */
 const IDLE_MS = 10 * 60 * 1000
 const lastActivity = new Map<string, number>()
+/**
+ * Background jobs (sub-agents included) each session has running, as its
+ * last `background_tasks_changed` said. A sub-agent can work for a long time
+ * without a word to the main stream; idle by events is not idle then.
+ */
+const liveBackground = new Map<string, number>()
 let timer: ReturnType<typeof setInterval> | null = null
 
 export function startReaper(): void {
@@ -17,12 +24,19 @@ export function startReaper(): void {
   }
   agentBus.on('started', touch)
   agentBus.on('event', touch)
+  agentBus.on('event', ({ id, event }: { id: string; event?: Record<string, unknown> }) => {
+    if (event?.type === 'system' && event.subtype === 'background_tasks_changed')
+      liveBackground.set(id, liveTaskIds(event as { tasks?: LiveTask[] }).size)
+  })
   agentBus.on('user', touch)
-  agentBus.on('exit', ({ id }: { id: string }) => lastActivity.delete(id))
+  agentBus.on('exit', ({ id }: { id: string }) => {
+    lastActivity.delete(id)
+    liveBackground.delete(id)
+  })
   timer = setInterval(() => {
     const now = Date.now()
     for (const s of listSessions()) {
-      if (s.owned) continue
+      if (s.owned || (liveBackground.get(s.id) ?? 0) > 0) continue
       const last = lastActivity.get(s.id) ?? now
       if (now - last > IDLE_MS) {
         stopAgent(s.id, 'started from the phone and idle for ten minutes')

@@ -10,7 +10,8 @@ import {
   isQuiet,
   liveShellTasks,
   reconcileTasks,
-  type TrackedTask
+  type TrackedTask,
+  liveTaskIds
 } from './bg-tasks'
 
 const T0 = 1_000_000
@@ -144,5 +145,19 @@ describe('backgroundCapVerdict', () => {
     expect(backgroundCapVerdict('Bash', { command: 'ls' }, 99)).toBeNull()
     expect(backgroundCapVerdict('Bash', { command: 'ls', run_in_background: false }, 99)).toBeNull()
     expect(backgroundCapVerdict('Edit', {}, 99)).toBeNull()
+  })
+})
+
+describe('liveTaskIds', () => {
+  it('counts sub-agents as live, which the shell list leaves out', () => {
+    const event = {
+      tasks: [
+        { task_id: 'a1', task_type: 'local_agent', description: 'Colour pass' },
+        { task_id: 'b1', task_type: 'local_bash', description: 'dev server' },
+        { task_type: 'local_bash' }
+      ]
+    }
+    expect([...liveTaskIds(event)]).toEqual(['a1', 'b1'])
+    expect(liveShellTasks(event).map((t) => t.task_id)).toEqual(['b1'])
   })
 })

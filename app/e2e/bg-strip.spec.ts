@@ -26,6 +26,8 @@ test('the background strip folds duplicates and lets go of tasks the CLI dropped
     await page.evaluate(() => {
       localStorage.setItem('cove.onboarded', '1')
       localStorage.setItem('cove.connectionsOffered', '1')
+      // The store, to read how much background work the chat reports.
+      localStorage.setItem('cove.e2e', '1')
     })
     await app.evaluate(({ ipcMain }) => {
       const g = globalThis as unknown as { fake: string[]; sent: string[] }
@@ -134,6 +136,68 @@ test('the background strip folds duplicates and lets go of tasks the CLI dropped
     // And an empty list takes the strip away.
     await send({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
     await expect(page.locator('.easy-runs:visible')).toHaveCount(0)
+
+    // A sub-agent sent to the background stays "working" while the CLI lists it
+    // live. It used to be checked against the shell-only list and dropped at once,
+    // which let an idle hidden chat be reaped with its agents mid-task.
+    await send({
+      type: 'assistant',
+      message: {
+        id: 'm-agent',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_agent',
+            name: 'Agent',
+            input: {
+              description: 'Colour pass',
+              prompt: 'Do the colour pass',
+              run_in_background: true
+            }
+          }
+        ]
+      }
+    })
+    await send({
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'toolu_agent',
+            content: 'Async agent launched successfully.'
+          }
+        ]
+      }
+    })
+    await send({
+      type: 'system',
+      subtype: 'task_started',
+      task_id: 'a1',
+      tool_use_id: 'toolu_agent',
+      task_type: 'local_agent',
+      description: 'Colour pass',
+      is_backgrounded: true
+    })
+    const agent = page.locator('.easy-run-agent:visible', { hasText: 'Colour pass' })
+    await expect(agent).toHaveCount(1)
+    const busyBackground = (): Promise<number> =>
+      page.evaluate(() => {
+        type S = { getState: () => { busy: Record<string, { background?: number }> } }
+        const busy = (window as unknown as { __store?: S }).__store?.getState().busy ?? {}
+        return Object.values(busy).reduce((n, b) => n + (b.background ?? 0), 0)
+      })
+    await send({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [{ task_id: 'a1', task_type: 'local_agent', description: 'Colour pass' }]
+    })
+    await page.waitForTimeout(500)
+    await expect(agent).toHaveCount(1)
+    expect(await busyBackground()).toBe(1)
+    // Gone from the live list: finished.
+    await send({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
+    await expect(agent).toHaveCount(0)
   } finally {
     await app.close()
     rmSync(data, { recursive: true, force: true })
