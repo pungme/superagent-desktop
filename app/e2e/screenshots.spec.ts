@@ -42,7 +42,11 @@ test.beforeAll(async () => {
   })
   window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
-  await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
+  await window.evaluate(() => {
+    localStorage.setItem('cove.onboarded', '1')
+    // The Chats page test selects a loose chat through the store.
+    localStorage.setItem('cove.e2e', '1')
+  })
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
   await window.evaluate(async () => {
@@ -176,4 +180,28 @@ test('in a narrow chat no button runs off the strip', async () => {
   if (process.env.SHOT)
     await window.locator('.easy-shots').screenshot({ path: '/tmp/sa-shots-narrow.png' })
   await window.getByRole('button', { name: 'Dismiss' }).click()
+})
+
+test('a chat on the Chats page offers it too', async () => {
+  // Loose chats live in the chat home, never the active project: the strip and
+  // the paste listener asked only for the active project and never showed there.
+  const ids = await window.evaluate(async () => {
+    const home = (await window.cove.desktopChatHome!()).workspaceId
+    return { home, chat: await window.cove.chatCreate(home) }
+  })
+  await window.evaluate(({ home, chat }) => {
+    type S = { selectChat: (w: string, c: string) => void; setOverlay: (o: 'chats') => void }
+    const st = (window as unknown as { __store: { getState: () => S } }).__store.getState()
+    st.selectChat(home, chat)
+    st.setOverlay('chats')
+  }, ids)
+  const desk = window.locator(`[data-desk="${ids.chat}"]`)
+  await expect(desk.locator('textarea.easy-input')).toBeVisible({ timeout: 20_000 })
+  shoot('Screenshot 2026-09-30 at 08.00.00.png')
+  await expect(desk.locator('.easy-shots')).toContainText('Screenshot just taken', {
+    timeout: 10_000
+  })
+  await desk.getByRole('button', { name: 'Attach & delete' }).click()
+  await expect(desk.locator('.easy-shots')).toHaveCount(0)
+  await expect(desk.locator('.easy-attachment')).toHaveCount(1)
 })

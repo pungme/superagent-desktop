@@ -19,7 +19,14 @@ import {
   memo
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useStore, useOverlayLock, TodoItem, PermissionMode, type Shot } from '../state'
+import {
+  useStore,
+  useOverlayLock,
+  onScreenWorkspace,
+  TodoItem,
+  PermissionMode,
+  type Shot
+} from '../state'
 import { ChatImagesView, Lightbox, SaveCorner, type Shown } from './ChatImages'
 import { chatImageRefs, type ChatImageRef } from '../../../shared/chat-images'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
@@ -2397,7 +2404,7 @@ export function EasyChat({
   // so switching conversations mounts a fresh one with these refs re-initialised
   // from the incoming chat's own session.
   const registerAgent = useStore((s) => s.registerAgent)
-  const isActive = useStore((s) => s.activeWorkspaceId === workspaceId)
+  const isActive = useStore((s) => onScreenWorkspace(s) === workspaceId)
   // Offered in the chat on screen only.
   const shots = isActive && visible ? allShots : NO_SHOTS
   // Model + agent-mode pickers under the composer. Changing either respawns the

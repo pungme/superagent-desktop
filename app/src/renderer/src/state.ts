@@ -792,6 +792,20 @@ if (typeof window !== 'undefined')
     if (h) chatHomeId = h.workspaceId
   })
 
+/**
+ * The workspace whose chat is on screen. Chats and the Computer show loose chats,
+ * which live in the chat home, never the active project: asking only
+ * `activeWorkspaceId` left them without the screenshot strip, image paste, ⌘⇧A
+ * and the snip tool.
+ */
+export function onScreenWorkspace(
+  s: Pick<CoveState, 'overlay' | 'activeWorkspaceId'>
+): string | null {
+  return (s.overlay === 'chats' || s.overlay === 'computer') && chatHomeId
+    ? chatHomeId
+    : s.activeWorkspaceId
+}
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
