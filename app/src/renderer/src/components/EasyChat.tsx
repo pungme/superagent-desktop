@@ -2457,6 +2457,22 @@ export function EasyChat({
   const [sessionModels, setSessionModels] = useState<
     { value: string; label: string; hint: string; older?: true }[] | null
   >(null)
+  /** Antigravity's line-up, asked up front the same way: its session gives the
+   * CLI 1.5 s to list them and it is often slower, which left Default alone. */
+  const [agyList, setAgyList] = useState<
+    { value: string; label: string; hint: string; older?: true }[] | null
+  >(null)
+  useEffect(() => {
+    if (provider !== 'antigravity' || agyList) return
+    let alive = true
+    void window.cove.agyModels?.().then((list) => {
+      if (alive && list?.length)
+        setAgyList(list.map((m) => ({ value: m.id, label: m.label, hint: m.hint })))
+    })
+    return () => {
+      alive = false
+    }
+  }, [provider, agyList])
   /** Claude's line-up asked of the CLI up front, so the picker is right before
    * the first message starts a session. */
   const [claudeModels, setClaudeModels] = useState<
@@ -5821,7 +5837,12 @@ export function EasyChat({
    * Claude's line-up, which it cannot run.
    */
   const modelOptions =
-    sessionModels ?? (provider === 'claude' ? (claudeModels ?? MODEL_OPTIONS) : [MODEL_OPTIONS[0]])
+    sessionModels ??
+    (provider === 'claude'
+      ? (claudeModels ?? MODEL_OPTIONS)
+      : provider === 'antigravity' && agyList
+        ? [{ value: '', label: 'Default', hint: 'Whatever your account uses' }, ...agyList]
+        : [MODEL_OPTIONS[0]])
   /**
    * The CLI lists every version still available (Opus 4.6 up to 5.5); the menu
    * shows the current one per family and keeps the rest behind "Older models",

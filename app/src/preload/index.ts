@@ -1020,6 +1020,8 @@ export interface CoveApi {
   onBrowsersChanged: (cb: (c: { scope: string; id: BrowserChoice }) => void) => () => void
   /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
   claudeModels: () => Promise<{ id: string; label: string; hint: string; older?: true }[] | null>
+  /** Antigravity's model line-up (`agy models`); empty if it couldn't say. */
+  agyModels: () => Promise<{ id: string; label: string; hint: string }[]>
   envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
   /** Install an agent's CLI; onLine streams the installer's progress. */
   installAgent: (
@@ -1741,6 +1743,7 @@ const cove: CoveApi = {
   mailPermissions: () => ipcRenderer.invoke('mail:permissions'),
   envDetect: () => ipcRenderer.invoke('env:detect'),
   claudeModels: () => ipcRenderer.invoke('claude:models'),
+  agyModels: () => ipcRenderer.invoke('agy:models'),
   browsersList: () => ipcRenderer.invoke('browsers:list'),
   browsersGet: (scope) => ipcRenderer.invoke('browsers:get', scope),
   browsersSet: (scope, id) => ipcRenderer.invoke('browsers:set', scope, id),

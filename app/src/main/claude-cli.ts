@@ -119,7 +119,8 @@ export function findCodex(): string {
 
 /** Absolute path to `agy`, Antigravity's CLI. */
 export function findAgy(): string {
-  return findBinary('agy')
+  // A stand-in for tests, as COVE_E2E_CLAUDE_BIN is for Claude (stripped when packaged).
+  return process.env.COVE_E2E_AGY_BIN || findBinary('agy')
 }
 
 /** The binary that drives a given provider. */

@@ -82,6 +82,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
+import { agyModels } from './antigravity/exec'
 import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
@@ -397,6 +398,12 @@ app.whenReady().then(async () => {
   registerLidAwakeIpc()
   registerMailIpc()
   registerClaudeModelsIpc()
+  // Antigravity's line-up, asked of `agy models` up front like Claude's: the
+  // session only waits 1.5 s for it at start, and the CLI is often slower, so a
+  // chat's picker offered Default alone. Warmed after launch (finding `agy` asks
+  // a login shell), so the first open and the phone's sessions have it.
+  ipcMain.handle('agy:models', () => agyModels())
+  setTimeout(() => void agyModels(), 8_000)
   registerExternalBrowserIpc(icon)
   // A message from the user, on the Mac or the phone, means they're back from
   // any sign-in window: hand the browser back to the agent without being asked.
