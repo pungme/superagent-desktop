@@ -8045,41 +8045,55 @@ button {
   flex: 1;
 }
 
+/* View | Edit: a macOS segmented control. */
 .file-viewer-tabs {
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: var(--bg-content);
-  border-radius: 7px;
+  background: var(--accent-soft);
+  border-radius: 8px;
 }
 
 .file-viewer-tab {
   border: none;
   background: none;
   color: var(--text-secondary);
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 14px;
+  border-radius: 6px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.file-viewer-tab:not(.on):hover {
+  color: var(--text-primary);
 }
 
 .file-viewer-tab.on {
-  background: var(--bg-panel);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px var(--shadow);
-}
-
-.file-viewer-save {
-  border: 1px solid var(--border-strong);
   background: var(--bg-content);
   color: var(--text-primary);
-  font-size: 11px;
-  padding: 3px 12px;
-  border-radius: 6px;
+  box-shadow:
+    0 1px 2px var(--shadow),
+    0 0 0 0.5px var(--border);
+}
+
+/* Filled once there is something to save; quiet otherwise. */
+.file-viewer-save {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 14px;
+  border-radius: 7px;
+  transition: opacity 0.15s;
 }
 
 .file-viewer-save:disabled {
+  background: var(--accent-soft);
   color: var(--text-tertiary);
-  opacity: 0.7;
 }
 
 .file-viewer-close {
@@ -8099,35 +8113,155 @@ button {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--bg-content);
+  cursor: text;
 }
 
 .file-viewer-md {
-  padding: 16px 20px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 40px 64px;
+  cursor: auto;
 }
 
 .file-viewer-code {
   margin: 0;
-  padding: 16px 20px;
+  padding: 20px 24px 48px;
   font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.65;
   color: var(--text-primary);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+  cursor: auto;
 }
 
-.file-viewer-edit {
+/* ---- The editor: a transparent textarea over a coloured copy of its text. ---- */
+.fv-editor {
+  display: grid;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 20px 24px 40vh;
+}
+/* Prose (Markdown) reads as a centred column, like a page. */
+.fv-editor-prose {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 36px 40px 40vh;
+}
+
+.fv-editor-layer,
+.fv-editor-input {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  tab-size: 4;
+  font-variant-ligatures: none;
+}
+.fv-editor-prose .fv-editor-layer,
+.fv-editor-prose .fv-editor-input {
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.fv-editor-layer {
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+.fv-editor-input {
+  display: block;
   width: 100%;
   height: 100%;
-  box-sizing: border-box;
+  min-height: 60vh;
   resize: none;
-  border: none;
   outline: none;
+  overflow: hidden;
   background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--text-primary);
+}
+.fv-editor-input::selection {
+  background: color-mix(in srgb, var(--syn-number) 28%, transparent);
+}
+
+/* Markdown colouring: structure in weight and colour, syntax marks pushed back. */
+.mde-mark,
+.mde-dim,
+.mde-fence {
+  color: var(--text-tertiary);
+}
+.mde-h {
+  font-weight: 700;
   color: var(--text-primary);
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 16px 20px;
+}
+.mde-h3 {
+  font-weight: 600;
+}
+.mde-strong {
+  font-weight: 700;
+}
+.mde-em {
+  font-style: italic;
+}
+.mde-strike {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+.mde-code,
+.mde-codeblock {
+  color: var(--syn-function);
+}
+.mde-code {
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.mde-link {
+  color: var(--syn-number);
+}
+.mde-url {
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+}
+.mde-bullet,
+.mde-task {
+  color: var(--syn-builtin);
+  font-weight: 600;
+}
+.mde-quote {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Quiet status line under the editor. */
+.file-viewer-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  user-select: none;
+}
+.file-viewer-foot-spacer {
+  flex: 1;
+}
+.file-viewer-foot-edited {
+  color: var(--text-secondary);
 }
 
 .file-viewer-msg {
