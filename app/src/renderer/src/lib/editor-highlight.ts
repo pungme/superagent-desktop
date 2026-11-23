@@ -72,7 +72,14 @@ export function highlightMarkdown(text: string): string {
   const lines = text.split('\n')
   const out: string[] = []
   let fence: string | null = null
+  // Rows seen in the current table (0 = its header), reset when a table ends.
+  let tableRow = 0
+  let inTable = false
   for (const line of lines) {
+    if (inTable && !/^\s*\|.*\|\s*$/.test(line)) {
+      inTable = false
+      tableRow = 0
+    }
     if (fence !== null) {
       const closes = new RegExp(
         `^\\s{0,3}${fence[0] === '`' ? '`' : '~'}{${fence.length},}\\s*$`
@@ -104,15 +111,26 @@ export function highlightMarkdown(text: string): string {
           inline(m[5])
       )
     } else if (/^\s*\|.*\|\s*$/.test(line)) {
-      // Table row: dim the pipes and the |---|---| rule, keep cell text readable.
-      if (/^[\s|:-]+$/.test(line)) out.push(span('mde-dim', esc(line)))
-      else
+      // Table row: each row its own band (alternating), so a row that wraps
+      // still reads as one row; the header bold, pipes and the |---| rule faint.
+      if (/^[\s|:-]+$/.test(line)) {
+        out.push(span('mde-dim', esc(line)))
+      } else {
+        const head = tableRow === 0
+        const cells = line
+          .split('|')
+          .map((cell) => inline(cell))
+          .join(span('mde-pipe', '|'))
         out.push(
-          line
-            .split('|')
-            .map((cell) => inline(cell))
-            .join(span('mde-dim', '|'))
+          span(
+            `mde-row ${head ? 'mde-row-head' : tableRow % 2 ? 'mde-row-odd' : 'mde-row-even'}`,
+            cells
+          )
         )
+        tableRow++
+      }
+      inTable = true
+      continue
     } else {
       out.push(inline(line))
     }

@@ -27,9 +27,12 @@ Small teams now build what used to take big ones. See [Gamma](https://gamma.app)
 
 > People do the judging. Agents do the work.
 
-| | Revenue per employee |
-|---|---|
-| Classic software company | $0.2M |
+| Focus area | What it covers | Who |
+|---|---|---|
+| **Product** | What we build and why. Organises customer conversations for the whole team. Writes the 1-page spec, measures. | Product manager |
+| **Experience** | How it looks and feels. Web apps, iOS, Android. The "wow" moments. | UI/UX, app builders |
+| **Platform** | Backend, cloud, data, security. Fast, safe, cheap, always on. | Backend & infrastructure |
+| **AI agents (shared)** | Build, review, test. Watch production 24/7. Answer support. | Used by everyone |
 `
 
 test.beforeAll(async () => {
@@ -76,6 +79,11 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   await expect(window.locator('.file-viewer-foot')).toContainText('Markdown')
   await expect(window.locator('.file-viewer-foot')).toContainText('Saved')
   if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-edit.png' })
+  if (process.env.SHOT) {
+    await window.locator('.file-viewer-body').evaluate((el) => (el.scrollTop = el.scrollHeight))
+    await window.locator('.mde-row-head').scrollIntoViewIfNeeded()
+    await window.screenshot({ path: process.env.SHOT + '/file-edit-table.png' })
+  }
 
   // Return at the end of a list item starts the next one; Return on an empty one ends the list.
   const ta = window.locator('.fv-editor-input')

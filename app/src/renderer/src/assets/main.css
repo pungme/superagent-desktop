@@ -8239,6 +8239,26 @@ button {
   color: var(--syn-builtin);
   font-weight: 600;
 }
+/* Table rows as bands. Vertical padding on an inline box paints the full line
+   height without moving a single glyph, so the caret still lines up; clone
+   repeats the band on every line a long row wraps onto. */
+.mde-row {
+  padding-block: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.mde-row-head {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
+}
+.mde-row-odd {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+.mde-pipe {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  font-weight: 400;
+}
 .mde-quote {
   color: var(--text-secondary);
   font-style: italic;
