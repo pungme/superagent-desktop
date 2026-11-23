@@ -4766,7 +4766,14 @@ export function EasyChat({
       inFlightSendRef.current = { text: agentText, images: payload, replyTo: reply ?? undefined }
       retriedEmptyTurnRef.current = false
     }
-    if (id) {
+    // A better account is free again: take it now, at the start of a new turn,
+    // unless anything still runs in the background (a restart would end it).
+    const back = pendingSwitchBackRef.current
+    const backgroundBusy = bgTasks.length > 0 || runningAgents.some((a) => a.background)
+    if (id && back && !interjecting && !backgroundBusy) {
+      pendingSwitchBackRef.current = null
+      applySwitchBack(back, { text: agentText, images: payload, replyTo: reply ?? undefined })
+    } else if (id) {
       sendToAgent(id, agentText, payload, reply ?? undefined)
     } else {
       // First message of a dormant chat: this is the moment the session starts.
@@ -5640,6 +5647,8 @@ export function EasyChat({
    */
   const pickAccount = (accountId: string): void => {
     setControlMenu(null)
+    // Your pick wins over a switch-back waiting for your next message.
+    pendingSwitchBackRef.current = null
     if (accountId === accounts.current?.id) return
     void window.cove.accountsPick(chatId, accountId).then(() => {
       if (!generating) applyRespawnRef.current()
@@ -5666,6 +5675,7 @@ export function EasyChat({
   }, [chatId])
   const switchAccount = (accountId: string): void => {
     setLimitNotice(null)
+    pendingSwitchBackRef.current = null
     limitPendingRef.current = false
     void window.cove.accountsSwitch(chatId, accountId)
     const again = inFlightSendRef.current
@@ -5883,37 +5893,54 @@ export function EasyChat({
   moveToAgentRef.current = moveToAgent
   /**
    * An account this chat was moved off (it had run out) has allowance again, or
-   * one higher in the priority order does: go back to it between turns. Main
-   * asks once a minute until the chat is there, so a turn in flight is simply
-   * left to finish and the next ask moves it.
+   * one higher in the priority order does. Never acted on then and there: a
+   * restart to change account kills whatever is running, background tasks and
+   * sub-agents included, even with no reply on screen (a real chat lost its
+   * work this way). It is remembered, and taken when you next send a message,
+   * the moment a new turn starts anyway, and only if nothing runs in the
+   * background (see submit).
    */
+  const pendingSwitchBackRef = useRef<{
+    provider: AgentProvider
+    account: { id: string; name: string }
+  } | null>(null)
   const switchBack = (n: {
     provider: AgentProvider
     account: { id: string; name: string }
   }): void => {
-    if (generatingRef.current || limitPendingRef.current || turnInFlightRef.current) return
+    pendingSwitchBackRef.current = n
+  }
+  /** Go back now, carrying the message that is being sent. */
+  const applySwitchBack = (
+    n: { provider: AgentProvider; account: { id: string; name: string } },
+    send: {
+      text: string
+      images: { mediaType: string; data: string }[]
+      replyTo?: { role: 'user' | 'assistant'; text: string }
+    }
+  ): void => {
     const from = accounts.current?.name
-    void window.cove.accountsSwitch(chatId, n.account.id).then(() => {
-      setItems((prev) => [
-        ...prev,
-        {
-          kind: 'msg',
-          msg: {
-            id: `sys-switch-back-${Date.now()}`,
-            at: Date.now(),
-            role: 'assistant',
-            text:
-              n.provider === provider
-                ? `↻ ${n.account.name} has allowance again — back on it${from ? ` from ${from}` : ''}.`
-                : `↻ ${PROVIDER_LABEL[n.provider]} · ${n.account.name} has allowance again — back on it, with the conversation so far.`,
-            system: true
-          }
+    // IPC is ordered: main has the pin before the restarted agent asks for its account.
+    void window.cove.accountsSwitch(chatId, n.account.id)
+    setItems((prev) => [
+      ...prev,
+      {
+        kind: 'msg',
+        msg: {
+          id: `sys-switch-back-${Date.now()}`,
+          at: Date.now(),
+          role: 'assistant',
+          text:
+            n.provider === provider
+              ? `↻ ${n.account.name} has allowance again — back on it${from ? ` from ${from}` : ''}.`
+              : `↻ ${PROVIDER_LABEL[n.provider]} · ${n.account.name} has allowance again — back on it, with the conversation so far.`,
+          system: true
         }
-      ])
-      if (n.provider !== provider) pickProvider(n.provider)
-      // A sleeping chat picks the account when it wakes; a live one restarts on it.
-      else if (agentIdRef.current) applyRespawnRef.current()
-    })
+      }
+    ])
+    if (n.provider !== provider) pickProvider(n.provider)
+    else applyRespawnRef.current()
+    pendingSendsRef.current.push(send)
   }
   const switchBackRef = useRef(switchBack)
   switchBackRef.current = switchBack
