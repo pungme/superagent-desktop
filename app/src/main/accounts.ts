@@ -20,7 +20,12 @@ import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
 import { antigravityWho, codexWho } from '../shared/login-who'
 import { agentsToTry } from '../shared/agent-fallback'
-import { nextInPriority, perAgentOrder, rankAccounts } from '../shared/account-priority'
+import {
+  nextInPriority,
+  perAgentOrder,
+  rankAccounts,
+  switchBackTarget
+} from '../shared/account-priority'
 import { AGENT_PROVIDERS } from '../shared/agent-provider'
 import {
   usageFromAntigravity,
@@ -120,6 +125,13 @@ interface AccountsFile {
   modeChosen: boolean
   limits: Record<string, number>
   chats: Record<string, string>
+  /**
+   * Chats moved off an account automatically because it ran out: the agent they
+   * were on before the first move, and the account they were moved to. They go
+   * back up the order once a preferred account has allowance again. A chat the
+   * user moves by hand (its pin no longer `to`) is left where they put it.
+   */
+  moved: Record<string, { from: AgentProvider; to: string }>
   /** Accounts whose credentials the CLI last refused, with its reason. */
   auth: Record<string, string>
   /** What each account last said about its allowance (see usage.ts). */
@@ -198,6 +210,7 @@ function load(): AccountsFile {
       modeChosen: chosen,
       limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
+      moved: raw.moved && typeof raw.moved === 'object' ? raw.moved : {},
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
       usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {},
       defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {},
@@ -213,6 +226,7 @@ function load(): AccountsFile {
       modeChosen: false,
       limits: {},
       chats: {},
+      moved: {},
       auth: {},
       usage: {},
       defaults: {},
@@ -398,7 +412,19 @@ export function reorderAccounts(provider: AgentProvider, accountIds: string[]): 
  * the default the user chose while that has, else the first that has (the
  * CLI's own login first). With every account out: the pick, else the default.
  */
-export function accountForChat(provider: AgentProvider, chatId: string | undefined): Account {
+export function accountForChat(
+  provider: AgentProvider,
+  chatId: string | undefined,
+  opts: { switchBack?: boolean } = {}
+): Account {
+  // Starting the agent: a chat moved off an account that has allowance again goes back now.
+  if (chatId && opts.switchBack) {
+    const back = switchBackFor(chatId)
+    if (back && back.provider === provider) {
+      pinChatAccount(chatId, back.id)
+      return back
+    }
+  }
   const all = listAccounts(provider)
   const pinned = chatId ? all.find((a) => a.id === load().chats[chatId]) : undefined
   if (pinned && !pinned.limitedUntil) return pinned
@@ -552,6 +578,59 @@ export function setPriority(ids: string[]): void {
   broadcastToWindows('accounts:changed')
 }
 
+/** Remember an automatic move, keeping the agent the chat was on before the first one. */
+function noteMoved(chatId: string, provider: AgentProvider, from: string, to: string): void {
+  const f = load()
+  const prev = f.moved[chatId]
+  // Moved again from where the last move put it: still the same chain.
+  f.moved[chatId] = { from: prev?.to === from ? prev.from : provider, to }
+  save()
+}
+
+/**
+ * Where a chat that was moved automatically should go back to now, or null: it
+ * is on the best account it can have, or it was not moved (or the user moved it
+ * since, which ends the arrangement).
+ */
+export function switchBackFor(chatId: string): Account | null {
+  const f = load()
+  const m = f.moved[chatId]
+  if (!m) return null
+  if (f.chats[chatId] !== m.to || limitMode() !== 'auto') {
+    delete f.moved[chatId]
+    save()
+    return null
+  }
+  const preferred: Account[] = f.priority?.length ? priorityList() : listAccounts(m.from)
+  const target = switchBackTarget(preferred, m.to, usableAccount)
+  if (!target && preferred[0]?.id === m.to) {
+    // Back on the top account: nothing left to go back to.
+    delete f.moved[chatId]
+    save()
+  }
+  return target
+}
+
+/** What a window is told when a chat it shows can go back to a preferred account. */
+export interface SwitchBackNotice {
+  chatId: string
+  provider: AgentProvider
+  account: { id: string; name: string }
+}
+
+/** Every chat that can go back now; the windows move the ones they show. */
+function announceSwitchBacks(): void {
+  for (const chatId of Object.keys(load().moved)) {
+    const to = switchBackFor(chatId)
+    if (to)
+      broadcastToWindows('accounts:switch-back', {
+        chatId,
+        provider: to.provider,
+        account: { id: to.id, name: to.name }
+      } satisfies SwitchBackNotice)
+  }
+}
+
 /** Whether an agent has an account that is signed in and not out of allowance. */
 function agentHasAllowance(p: AgentProvider): boolean {
   return listAccounts(p).some((a) => !a.limitedUntil && !a.needsAuth && a.detail !== 'Checking…')
@@ -582,6 +661,7 @@ export function reportLimit(
     agents = next && next.provider !== provider ? [next.provider] : []
     if (mode === 'auto' && next) {
       pinChatAccount(chatId, next.id)
+      noteMoved(chatId, provider, accountId, next.id)
       if (next.provider === provider) switchedTo = next
       else {
         switchedToAgent = next.provider
@@ -592,10 +672,17 @@ export function reportLimit(
     if (mode === 'auto' && alternatives.length) {
       switchedTo = alternatives[0]
       pinChatAccount(chatId, switchedTo.id)
+      noteMoved(chatId, provider, accountId, switchedTo.id)
     }
     // No account of this agent left: another agent that can take the chat.
     agents = alternatives.length ? [] : agentsToTry(provider, agentHasAllowance)
     switchedToAgent = mode === 'auto' && !switchedTo && agents.length ? agents[0] : null
+    if (switchedToAgent) {
+      // The new agent's account is the one it picks when it starts.
+      const to = accountForChat(switchedToAgent, undefined)
+      pinChatAccount(chatId, to.id)
+      noteMoved(chatId, provider, accountId, to.id)
+    }
   }
   const notice: LimitNotice = {
     chatId,
@@ -1651,6 +1738,8 @@ export function refreshUsage(force = false): Promise<void> {
 }
 
 export function registerAccountsIpc(): void {
+  // Limits end at a time, not on an event: look once a minute for chats that can go back.
+  setInterval(announceSwitchBacks, 60_000).unref?.()
   ipcMain.handle('accounts:list', async (_e, recheck?: boolean) => {
     // Asked to re-check, the answer waits for the checks. Otherwise the list
     // goes back at once — a login not heard from yet says "Checking…" — and

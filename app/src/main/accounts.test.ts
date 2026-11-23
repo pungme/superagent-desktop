@@ -72,6 +72,8 @@ import {
   setLimitMode,
   setPriority,
   priorityList,
+  clearLimit,
+  switchBackFor,
   _setLoginForTests
 } from './accounts'
 
@@ -339,6 +341,53 @@ describe('accounts', () => {
     const n2 = reportLimit('c1', 'codex', LOGIN_ID.codex, null)
     expect(n2.switchedToAgent).toBe('claude')
     expect(n2.switchedToAccount?.id).toBe(work.id)
+  })
+
+  it('goes back to the account it ran out on once that one has allowance again', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    setLimitMode('auto')
+    _setLoginForTests('claude', { detail: 'Max', signedIn: true })
+    const n = reportLimit('c1', 'claude', LOGIN_ID.claude, Date.now() + 3_600_000)
+    expect(n.switchedTo?.id).toBe(work.id)
+    // Still out: it stays on Work.
+    expect(switchBackFor('c1')).toBeNull()
+    expect(accountForChat('claude', 'c1', { switchBack: true }).id).toBe(work.id)
+    // The reset passes: the next start is on the login again.
+    clearLimit(LOGIN_ID.claude)
+    expect(switchBackFor('c1')?.id).toBe(LOGIN_ID.claude)
+    expect(accountForChat('claude', 'c1', { switchBack: true }).id).toBe(LOGIN_ID.claude)
+    // Back on top: nothing more to do.
+    expect(switchBackFor('c1')).toBeNull()
+  })
+
+  it('leaves a chat the user moved by hand where they put it', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    const other = addClaudeToken('Other', TOKEN)
+    setLimitMode('auto')
+    _setLoginForTests('claude', { detail: 'Max', signedIn: true })
+    reportLimit('c1', 'claude', LOGIN_ID.claude, Date.now() + 3_600_000)
+    pinChatAccount('c1', other.id)
+    clearLimit(LOGIN_ID.claude)
+    expect(switchBackFor('c1')).toBeNull()
+    expect(accountForChat('claude', 'c1', { switchBack: true }).id).toBe(other.id)
+    expect(work.id).toBeTruthy()
+  })
+
+  it('a chat moved to another agent goes back to the first once it is free', () => {
+    const work = addClaudeToken('Work', TOKEN)
+    setLimitMode('auto')
+    _setLoginForTests('claude', { detail: 'Max', signedIn: true })
+    _setLoginForTests('codex', { detail: 'ChatGPT', signedIn: true })
+    setPriority([LOGIN_ID.claude, LOGIN_ID.codex, work.id])
+    const n = reportLimit('c1', 'claude', LOGIN_ID.claude, Date.now() + 3_600_000)
+    expect(n.switchedToAgent).toBe('codex')
+    expect(switchBackFor('c1')).toBeNull()
+    clearLimit(LOGIN_ID.claude)
+    const back = switchBackFor('c1')
+    expect(back?.id).toBe(LOGIN_ID.claude)
+    expect(back?.provider).toBe('claude')
+    // A Codex start does not take a Claude account; the window moves the agent.
+    expect(accountForChat('codex', 'c1', { switchBack: true }).id).toBe(LOGIN_ID.codex)
   })
 
   it('reordering one agent keeps its places in the order across agents', () => {

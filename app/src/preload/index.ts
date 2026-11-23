@@ -1005,6 +1005,14 @@ export interface CoveApi {
   onAccountsLimit: (cb: (n: LimitNotice) => void) => () => void
   /** The phone moved a chat to another account. */
   onAccountsPicked: (cb: (p: { chatId: string; accountId: string }) => void) => () => void
+  /** An account this chat was moved off has allowance again: go back to it. */
+  onAccountsSwitchBack: (
+    cb: (n: {
+      chatId: string
+      provider: Account['provider']
+      account: { id: string; name: string }
+    }) => void
+  ) => () => void
   /** One model's allowance is used up: move this chat to the next one down. */
   /** A screenshot macOS just saved, to offer above the composer. */
   onScreenshot: (
@@ -1805,6 +1813,8 @@ const cove: CoveApi = {
   onAccountsLimit: (cb) => subscribe('accounts:limit', (n) => cb(n as LimitNotice)),
   onAccountsPicked: (cb) =>
     subscribe('accounts:picked', (p) => cb(p as { chatId: string; accountId: string })),
+  onAccountsSwitchBack: (cb) =>
+    subscribe('accounts:switch-back', (n) => cb(n as Parameters<typeof cb>[0])),
   onScreenshot: (cb) => subscribe('screenshots:new', (s) => cb(s as Parameters<typeof cb>[0])),
   trashScreenshots: (names) => ipcRenderer.invoke('screenshots:trash', names),
   onModelLimit: (cb) => subscribe('accounts:model-limit', (n) => cb(n as Parameters<typeof cb>[0])),

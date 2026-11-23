@@ -345,7 +345,7 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   const provider = opts.provider ?? (opts.chatId ? safeChatProvider(opts.chatId) : DEFAULT_PROVIDER)
   // Which subscription this run is on. The chat's own pick when it still has
   // allowance, else the first that does; the CLI's own login by default.
-  const account = accountForChat(provider, opts.chatId)
+  const account = accountForChat(provider, opts.chatId, { switchBack: true })
   let limitReported = false
   /** claude.ai connectors the session started without (init says needs-auth). */
   let unconnected: string[] = []

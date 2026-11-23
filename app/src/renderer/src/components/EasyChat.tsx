@@ -5869,6 +5869,47 @@ export function EasyChat({
   const moveToAgentRef = useRef(moveToAgent)
   moveToAgentRef.current = moveToAgent
   /**
+   * An account this chat was moved off (it had run out) has allowance again, or
+   * one higher in the priority order does: go back to it between turns. Main
+   * asks once a minute until the chat is there, so a turn in flight is simply
+   * left to finish and the next ask moves it.
+   */
+  const switchBack = (n: {
+    provider: AgentProvider
+    account: { id: string; name: string }
+  }): void => {
+    if (generatingRef.current || limitPendingRef.current || turnInFlightRef.current) return
+    const from = accounts.current?.name
+    void window.cove.accountsSwitch(chatId, n.account.id).then(() => {
+      setItems((prev) => [
+        ...prev,
+        {
+          kind: 'msg',
+          msg: {
+            id: `sys-switch-back-${Date.now()}`,
+            at: Date.now(),
+            role: 'assistant',
+            text:
+              n.provider === provider
+                ? `↻ ${n.account.name} has allowance again — back on it${from ? ` from ${from}` : ''}.`
+                : `↻ ${PROVIDER_LABEL[n.provider]} · ${n.account.name} has allowance again — back on it, with the conversation so far.`,
+            system: true
+          }
+        }
+      ])
+      if (n.provider !== provider) pickProvider(n.provider)
+      // A sleeping chat picks the account when it wakes; a live one restarts on it.
+      else if (agentIdRef.current) applyRespawnRef.current()
+    })
+  }
+  const switchBackRef = useRef(switchBack)
+  switchBackRef.current = switchBack
+  useEffect(() => {
+    return window.cove.onAccountsSwitchBack?.((n) => {
+      if (n.chatId === chatId) switchBackRef.current(n)
+    })
+  }, [chatId])
+  /**
    * Never show one agent's models while another is running. Codex's arrive with
    * its init event; until they do, a Codex chat offers Default alone rather than
    * Claude's line-up, which it cannot run.

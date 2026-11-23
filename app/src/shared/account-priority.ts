@@ -46,3 +46,22 @@ export function nextInPriority<T extends Ranked>(
 export function perAgentOrder(ranked: Ranked[], provider: AgentProvider): string[] {
   return ranked.filter((a) => a.provider === provider).map((a) => a.id)
 }
+
+/**
+ * A chat that moved off an account because it ran out goes back once an account
+ * it prefers has allowance again. `preferred` is the order the chat would pick in
+ * (the order across agents, or else its first agent's accounts); `current` is the
+ * account it is on now. The first usable account before `current` in that order,
+ * or null when the chat is already on the best one it can have.
+ */
+export function switchBackTarget<T extends Ranked>(
+  preferred: T[],
+  current: string,
+  usable: (a: T) => boolean
+): T | null {
+  for (const a of preferred) {
+    if (a.id === current) return null
+    if (usable(a)) return a
+  }
+  return null
+}
