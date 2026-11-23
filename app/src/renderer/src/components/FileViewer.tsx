@@ -37,11 +37,17 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
   const [saving, setSaving] = useState(false)
   // The last saved text, so we know whether the draft has unsaved changes.
   const savedRef = useRef('')
+  /**
+   * The file changed on disk while you had unsaved edits in it: what it says
+   * now. You choose: take that version, or keep yours (Save then writes yours).
+   */
+  const [conflict, setConflict] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
     setContent(null)
     setEditing(false)
+    setConflict(null)
     // Optional-chained so a stale preload (mid hot-reload) can't crash the app.
     const read = window.cove.fileRead?.(path)
     if (!read) {
@@ -65,35 +71,80 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
     }
   }, [path])
 
-  // Re-read the file after Claude finishes a turn, so a file the agent just
-  // edited updates on screen instead of showing stale content. Skipped while you
-  // are editing it yourself, so it can never clobber your unsaved changes.
+  // The draft as of now, for the listeners below (they outlive a render).
+  const draftRef = useRef(draft)
   useEffect(() => {
-    if (editing) return
-    const onIdle = (): void => {
+    draftRef.current = draft
+  }, [draft])
+
+  // Re-read the file when an agent finishes a turn (and when you come back to
+  // the window), so a file the agent just edited shows its new text, in View
+  // and in Edit alike. Unsaved edits of yours are never replaced: then the
+  // viewer says the file changed and lets you choose.
+  useEffect(() => {
+    let alive = true
+    const check = (): void => {
       window.cove.fileRead?.(path)?.then((text) => {
-        if (typeof text === 'string' && text !== savedRef.current) {
+        if (!alive || typeof text !== 'string' || text === savedRef.current) return
+        if (draftRef.current === savedRef.current) {
+          // Nothing of yours to lose: show the new text.
           setContent(text)
           setDraft(text)
           savedRef.current = text
+          setConflict(null)
+        } else if (text !== draftRef.current) setConflict(text)
+        else {
+          // It now says exactly what you typed: nothing left unsaved.
+          savedRef.current = text
+          setContent(text)
+          setConflict(null)
         }
       })
     }
-    window.addEventListener('cove:workspace-idle', onIdle)
-    return () => window.removeEventListener('cove:workspace-idle', onIdle)
-  }, [path, editing])
+    window.addEventListener('cove:workspace-idle', check)
+    window.addEventListener('focus', check)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', check)
+      window.removeEventListener('focus', check)
+    }
+  }, [path])
 
-  const dirty = editing && draft !== savedRef.current
+  const dirty = draft !== savedRef.current
   // Not while there are unsaved edits — Escape must not be how you lose them.
   useEscapeClose(onClose, !dirty)
 
+  const takeTheirs = (): void => {
+    if (conflict === null) return
+    setContent(conflict)
+    setDraft(conflict)
+    savedRef.current = conflict
+    setConflict(null)
+  }
+  const keepMine = (): void => {
+    if (conflict === null) return
+    // Yours is measured against what the file says now, so Save writes it over that.
+    savedRef.current = conflict
+    setContent(conflict)
+    setConflict(null)
+  }
+
   const save = async (): Promise<void> => {
     setSaving(true)
+    // Someone else (an agent) wrote the file since you opened it: never write
+    // over that unasked. Show the choice instead.
+    const onDisk = await window.cove.fileRead?.(path)
+    if (typeof onDisk === 'string' && onDisk !== savedRef.current && onDisk !== draft) {
+      setSaving(false)
+      setConflict(onDisk)
+      return
+    }
     const ok = await window.cove.fileWrite?.(path, draft)
     setSaving(false)
     if (ok) {
       savedRef.current = draft
       setContent(draft)
+      setConflict(null)
     }
   }
 
@@ -125,7 +176,11 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
           </div>
         )}
         {editing && (
-          <button className="file-viewer-save" disabled={!dirty || saving} onClick={save}>
+          <button
+            className="file-viewer-save"
+            disabled={!dirty || saving || conflict !== null}
+            onClick={save}
+          >
             {saving ? 'Saving…' : 'Save'}
           </button>
         )}
@@ -135,6 +190,16 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
           </button>
         )}
       </div>
+      {conflict !== null && (
+        <div className="file-viewer-conflict" role="alert">
+          <span className="file-viewer-conflict-text">Changed while you were editing.</span>
+          <span className="file-viewer-spacer" />
+          <button onClick={takeTheirs}>Use New Version</button>
+          <button className="primary" onClick={keepMine}>
+            Keep Mine
+          </button>
+        </div>
+      )}
       <div className="file-viewer-body">
         {content === null && <div className="file-viewer-msg">Loading…</div>}
         {content === false && (
@@ -151,7 +216,7 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
               ext={extOf(path)}
               onChange={setDraft}
               onSave={() => {
-                if (dirty && !saving) save()
+                if (dirty && !saving && conflict === null) save()
               }}
             />
           ) : isMarkdown(path) ? (

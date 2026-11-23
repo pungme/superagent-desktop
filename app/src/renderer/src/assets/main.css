@@ -8244,6 +8244,40 @@ button {
   font-style: italic;
 }
 
+/* The file changed on disk under unsaved edits: say so, and offer both ways out. */
+.file-viewer-conflict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--syn-builtin) 14%, var(--bg-panel));
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.file-viewer-conflict-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.file-viewer-conflict button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+.file-viewer-conflict button.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
 /* Quiet status line under the editor. */
 .file-viewer-foot {
   display: flex;

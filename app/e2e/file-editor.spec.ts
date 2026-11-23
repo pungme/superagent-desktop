@@ -101,4 +101,34 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   await expect(window.locator('.file-viewer-foot')).toContainText('Saved')
   expect(readFileSync(join(projectDir, 'vision.md'), 'utf8')).toBe(value)
   if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-edit-typed.png' })
+
+  // An agent edits the file while it is open in Edit with nothing unsaved: it shows the new text.
+  const file = join(projectDir, 'vision.md')
+  writeFileSync(file, value + '\nAdded by the agent.\n')
+  await window.evaluate(() => window.dispatchEvent(new Event('cove:workspace-idle')))
+  await expect(ta).toHaveValue(value + '\nAdded by the agent.\n')
+
+  // With unsaved edits of yours, it never replaces them: it asks, and Save does not write over it.
+  await ta.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, 0))
+  await ta.pressSequentially('MINE ')
+  writeFileSync(file, 'Agent rewrote everything.\n')
+  await window.evaluate(() => window.dispatchEvent(new Event('cove:workspace-idle')))
+  await expect(window.locator('.file-viewer-conflict')).toBeVisible()
+  expect(await ta.inputValue()).toContain('MINE ')
+  await expect(window.locator('.file-viewer-save')).toBeDisabled()
+  if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-edit-conflict.png' })
+  // Keep my edits: Save writes mine.
+  await window.click('.file-viewer-conflict button:has-text("Keep Mine")')
+  await ta.press('Meta+s')
+  await expect(window.locator('.file-viewer-foot')).toContainText('Saved')
+  expect(readFileSync(file, 'utf8')).toContain('MINE ')
+
+  // Save checks the disk too: a change that landed without a turn ending is not overwritten.
+  await ta.pressSequentially('again ')
+  writeFileSync(file, 'Agent, mid-turn.\n')
+  await ta.press('Meta+s')
+  await expect(window.locator('.file-viewer-conflict')).toBeVisible()
+  expect(readFileSync(file, 'utf8')).toBe('Agent, mid-turn.\n')
+  await window.click('.file-viewer-conflict button:has-text("Use New Version")')
+  await expect(ta).toHaveValue('Agent, mid-turn.\n')
 })
