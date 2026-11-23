@@ -111,8 +111,6 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
   }, [path])
 
   const dirty = draft !== savedRef.current
-  // Not while there are unsaved edits — Escape must not be how you lose them.
-  useEscapeClose(onClose, !dirty)
 
   const takeTheirs = (): void => {
     if (conflict === null) return
@@ -129,24 +127,66 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
     setConflict(null)
   }
 
+  /**
+   * Write what you typed to disk. It runs by itself (below), so the file the
+   * agent reads is always what you see; ⌘S just does it now. Never over a
+   * change someone else (an agent) made since: that shows the choice instead.
+   */
+  const savingRef = useRef(false)
+  const conflictRef = useRef<string | null>(null)
+  useEffect(() => {
+    conflictRef.current = conflict
+  }, [conflict])
   const save = async (): Promise<void> => {
+    if (savingRef.current || conflictRef.current !== null) return
+    const text = draftRef.current
+    if (text === savedRef.current) return
+    savingRef.current = true
     setSaving(true)
-    // Someone else (an agent) wrote the file since you opened it: never write
-    // over that unasked. Show the choice instead.
-    const onDisk = await window.cove.fileRead?.(path)
-    if (typeof onDisk === 'string' && onDisk !== savedRef.current && onDisk !== draft) {
+    try {
+      const onDisk = await window.cove.fileRead?.(path)
+      if (typeof onDisk === 'string' && onDisk !== savedRef.current && onDisk !== text) {
+        setConflict(onDisk)
+        return
+      }
+      const ok = await window.cove.fileWrite?.(path, text)
+      if (ok) {
+        savedRef.current = text
+        setContent(text)
+      }
+    } finally {
+      savingRef.current = false
       setSaving(false)
-      setConflict(onDisk)
-      return
-    }
-    const ok = await window.cove.fileWrite?.(path, draft)
-    setSaving(false)
-    if (ok) {
-      savedRef.current = draft
-      setContent(draft)
-      setConflict(null)
     }
   }
+  const saveRef = useRef(save)
+  useEffect(() => {
+    saveRef.current = save
+  })
+
+  // Autosave: shortly after you stop typing, and at once whenever you leave
+  // the editor, switch to View, close it, or send the agent a message.
+  useEffect(() => {
+    if (!dirty || conflict !== null) return
+    const t = setTimeout(() => void saveRef.current(), 600)
+    return () => clearTimeout(t)
+  }, [draft, dirty, conflict, saving])
+  useEffect(() => {
+    const flush = (): void => void saveRef.current()
+    window.addEventListener('cove:flush-edits', flush)
+    window.addEventListener('blur', flush)
+    return () => {
+      window.removeEventListener('cove:flush-edits', flush)
+      window.removeEventListener('blur', flush)
+      // Closed with something unsaved (the window around it went away): still write it.
+      void saveRef.current()
+    }
+  }, [path])
+  const close = (): void => {
+    void save().finally(onClose)
+  }
+  // Escape saves and closes; not while the choice above is open.
+  useEscapeClose(close, conflict === null)
 
   return (
     <div className="file-viewer">
@@ -157,13 +197,16 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
             {relDir && <span className="file-viewer-path">{relDir}</span>}
           </span>
         )}
-        {dirty && <span className="file-viewer-dot" title="Unsaved changes" />}
+        {conflict !== null && <span className="file-viewer-dot" title="Not saved" />}
         <div className="file-viewer-spacer" />
         {content !== false && (
           <div className="file-viewer-tabs">
             <button
               className={`file-viewer-tab ${!editing ? 'on' : ''}`}
-              onClick={() => setEditing(false)}
+              onClick={() => {
+                void save()
+                setEditing(false)
+              }}
             >
               View
             </button>
@@ -175,17 +218,8 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
             </button>
           </div>
         )}
-        {editing && (
-          <button
-            className="file-viewer-save"
-            disabled={!dirty || saving || conflict !== null}
-            onClick={save}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        )}
         {!embedded && (
-          <button className="file-viewer-close" onClick={onClose} title="Close">
+          <button className="file-viewer-close" onClick={close} title="Close">
             ✕
           </button>
         )}
@@ -215,9 +249,8 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
               text={draft}
               ext={extOf(path)}
               onChange={setDraft}
-              onSave={() => {
-                if (dirty && !saving && conflict === null) save()
-              }}
+              onSave={() => void save()}
+              onBlur={() => void save()}
             />
           ) : isMarkdown(path) ? (
             <div className="file-viewer-md">
@@ -234,7 +267,7 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
           <span>{countWords(draft).toLocaleString()} words</span>
           <span>{draft.split('\n').length.toLocaleString()} lines</span>
           <span className={dirty ? 'file-viewer-foot-edited' : ''}>
-            {saving ? 'Saving…' : dirty ? 'Edited · ⌘S to save' : 'Saved'}
+            {conflict !== null ? 'Not saved' : saving || dirty ? 'Saving…' : 'Saved'}
           </span>
         </div>
       )}
@@ -265,12 +298,14 @@ function CodeEditor({
   text,
   ext,
   onChange,
-  onSave
+  onSave,
+  onBlur
 }: {
   text: string
   ext: string
   onChange: (s: string) => void
   onSave: () => void
+  onBlur: () => void
 }): React.JSX.Element {
   const md = ext === 'md' || ext === 'markdown'
   const html = useMemo(() => highlightFile(text, ext), [text, ext])
@@ -377,6 +412,7 @@ function CodeEditor({
         autoCapitalize="off"
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
       />
     </div>
   )

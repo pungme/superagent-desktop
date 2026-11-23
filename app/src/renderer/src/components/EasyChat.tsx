@@ -4628,6 +4628,9 @@ export function EasyChat({
     const id = agentIdRef.current
     const files = opts?.files ?? pendingFiles
     if (!text && images.length === 0 && files.length === 0) return
+    // A file open in the editor is written before the agent hears anything, so
+    // it works from what you see, not from the last save.
+    window.dispatchEvent(new Event('cove:flush-edits'))
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send

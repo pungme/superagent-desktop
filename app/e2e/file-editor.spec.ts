@@ -88,8 +88,9 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   const value = await ta.inputValue()
   expect(value).toContain('delivered\n- the trust that we handle the money correctly\n\n')
   expect(await layerMatches()).toBe(true)
-  await expect(window.locator('.file-viewer-foot')).toContainText('Edited')
-  await expect(window.locator('.file-viewer-save')).toBeEnabled()
+  // Saved by itself, without ⌘S: what the agent reads is what you see.
+  await expect.poll(() => readFileSync(join(projectDir, 'vision.md'), 'utf8')).toBe(value)
+  await expect(window.locator('.file-viewer-save')).toHaveCount(0)
 
   // ⌘Z undoes through the browser's own stack (our inserts go through execCommand).
   await ta.press('Meta+z')
@@ -115,13 +116,20 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   await window.evaluate(() => window.dispatchEvent(new Event('cove:workspace-idle')))
   await expect(window.locator('.file-viewer-conflict')).toBeVisible()
   expect(await ta.inputValue()).toContain('MINE ')
-  await expect(window.locator('.file-viewer-save')).toBeDisabled()
+  // Autosave stops at the choice: neither version is written over the other.
+  await window.waitForTimeout(1000)
+  expect(readFileSync(file, 'utf8')).toBe('Agent rewrote everything.\n')
+  await expect(window.locator('.file-viewer-foot')).toContainText('Not saved')
   if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-edit-conflict.png' })
   // Keep my edits: Save writes mine.
   await window.click('.file-viewer-conflict button:has-text("Keep Mine")')
-  await ta.press('Meta+s')
+  await expect.poll(() => readFileSync(file, 'utf8')).toContain('MINE ')
   await expect(window.locator('.file-viewer-foot')).toContainText('Saved')
-  expect(readFileSync(file, 'utf8')).toContain('MINE ')
+
+  // Forgot to save and sent the agent a message: the send writes it first, at once.
+  await ta.pressSequentially('sent ')
+  await window.evaluate(() => window.dispatchEvent(new Event('cove:flush-edits')))
+  await expect.poll(() => readFileSync(file, 'utf8'), { timeout: 400 }).toContain('sent ')
 
   // Save checks the disk too: a change that landed without a turn ending is not overwritten.
   await ta.pressSequentially('again ')
