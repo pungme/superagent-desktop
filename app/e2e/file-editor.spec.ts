@@ -1,4 +1,10 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import {
+  test,
+  expect,
+  _electron as electron,
+  type ElectronApplication,
+  type Page
+} from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -41,7 +47,12 @@ test.beforeAll(async () => {
   writeFileSync(join(projectDir, 'vision.md'), DOC)
   app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
-    env: { ...process.env, COVE_USER_DATA: userDataDir, COVE_E2E_PROJECT: projectDir, NODE_ENV: 'production' }
+    env: {
+      ...process.env,
+      COVE_USER_DATA: userDataDir,
+      COVE_E2E_PROJECT: projectDir,
+      NODE_ENV: 'production'
+    }
   })
   window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
@@ -71,7 +82,7 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   await window.waitForSelector('.file-viewer-md', { timeout: 10_000 })
   if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-view.png' })
 
-  await window.click('.file-viewer-tab:has-text("Edit")')
+  await window.click('.file-viewer-tab:has-text("Source")')
   await window.waitForSelector('.fv-editor-input')
   await expect(window.locator('.fv-editor-layer .mde-h1')).toHaveCount(1)
   await expect(window.locator('.fv-editor-layer .mde-strong').first()).toBeVisible()
@@ -128,7 +139,8 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   await window.waitForTimeout(1000)
   expect(readFileSync(file, 'utf8')).toBe('Agent rewrote everything.\n')
   await expect(window.locator('.file-viewer-foot')).toContainText('Not saved')
-  if (process.env.SHOT) await window.screenshot({ path: process.env.SHOT + '/file-edit-conflict.png' })
+  if (process.env.SHOT)
+    await window.screenshot({ path: process.env.SHOT + '/file-edit-conflict.png' })
   // Keep my edits: Save writes mine.
   await window.click('.file-viewer-conflict button:has-text("Keep Mine")')
   await expect.poll(() => readFileSync(file, 'utf8')).toContain('MINE ')
@@ -147,4 +159,45 @@ test('the Markdown editor colours, continues lists and saves', async () => {
   expect(readFileSync(file, 'utf8')).toBe('Agent, mid-turn.\n')
   await window.click('.file-viewer-conflict button:has-text("Use New Version")')
   await expect(ta).toHaveValue('Agent, mid-turn.\n')
+})
+
+test('Markdown edits as the page (WYSIWYG) and keeps the file Markdown', async () => {
+  const file = join(projectDir, 'vision.md')
+  writeFileSync(file, DOC)
+  // Reopen so it loads the fresh file.
+  await window.click('.file-viewer-close')
+  await window.click('.file-tree :text("vision.md")')
+  await window.waitForSelector('.file-viewer-md', { timeout: 10_000 })
+  await window.click('.file-viewer-tab:has-text("Edit")')
+  const doc = window.locator('.fv-wysiwyg-doc')
+  await expect(doc).toBeVisible()
+  // A real heading and a real table, not marks.
+  await expect(doc.locator('h1')).toContainText('WePush: How we build in 2026')
+  await expect(doc.locator('table th').first()).toContainText('Focus area')
+  await expect(doc.locator('table tr')).toHaveCount(5)
+  // Opening it in the editor writes nothing.
+  await window.waitForTimeout(1200)
+  expect(readFileSync(file, 'utf8')).toBe(DOC)
+  if (process.env.SHOT) {
+    await doc.locator('table').scrollIntoViewIfNeeded()
+    await window.screenshot({ path: process.env.SHOT + '/file-wysiwyg.png' })
+  }
+
+  // Type into a table cell: it saves by itself, still as a Markdown table.
+  const cell = doc.locator('table td:has-text("Used by everyone")')
+  await cell.click()
+  await doc.press('End')
+  await doc.pressSequentially(' (and Codex)')
+  await expect
+    .poll(() => readFileSync(file, 'utf8'), { timeout: 5000 })
+    .toContain('Used by everyone (and Codex)')
+  const saved = readFileSync(file, 'utf8')
+  if (process.env.SHOT) writeFileSync(process.env.SHOT + '/wysiwyg-saved.md', saved)
+  expect(saved).toMatch(/\|\s*\*\*AI agents \(shared\)\*\*\s*\|/)
+  expect(saved).toContain('# WePush: How we build in 2026')
+
+  // An agent's change shows up in the page.
+  writeFileSync(file, saved.replace('Everything has changed', 'Everything changed again'))
+  await window.evaluate(() => window.dispatchEvent(new Event('cove:workspace-idle')))
+  await expect(doc.locator('h2').first()).toContainText('Everything changed again')
 })

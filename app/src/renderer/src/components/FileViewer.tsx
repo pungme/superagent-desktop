@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { highlightFile, languageLabel } from '../lib/editor-highlight'
 import { Markdown } from './Markdown'
+import { MarkdownWysiwyg } from './MarkdownWysiwyg'
 
 interface FileViewerProps {
   path: string
@@ -34,6 +35,9 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
   const [content, setContent] = useState<string | null | false>(null)
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
+  const md = isMarkdown(path)
+  // Markdown edits as the formatted page; Source is the plain text, for when you want the marks.
+  const [source, setSource] = useState(false)
   const [saving, setSaving] = useState(false)
   // The last saved text, so we know whether the draft has unsaved changes.
   const savedRef = useRef('')
@@ -211,11 +215,27 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
               View
             </button>
             <button
-              className={`file-viewer-tab ${editing ? 'on' : ''}`}
-              onClick={() => setEditing(true)}
+              className={`file-viewer-tab ${editing && !(md && source) ? 'on' : ''}`}
+              onClick={() => {
+                void save()
+                setSource(false)
+                setEditing(true)
+              }}
             >
               Edit
             </button>
+            {md && (
+              <button
+                className={`file-viewer-tab ${editing && source ? 'on' : ''}`}
+                onClick={() => {
+                  void save()
+                  setSource(true)
+                  setEditing(true)
+                }}
+              >
+                Source
+              </button>
+            )}
           </div>
         )}
         {!embedded && (
@@ -244,7 +264,16 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
         )}
         {content !== null &&
           content !== false &&
-          (editing ? (
+          (editing && md && !source ? (
+            <div className="file-viewer-md">
+              <MarkdownWysiwyg
+                value={draft}
+                onChange={setDraft}
+                onSave={() => void save()}
+                onBlur={() => void save()}
+              />
+            </div>
+          ) : editing ? (
             <CodeEditor
               text={draft}
               ext={extOf(path)}

@@ -34,6 +34,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@huggingface/transformers": "^4.2.0",
+    "@milkdown/kit": "^7.23.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/react-virtual": "^3.14.11",
     "better-sqlite3": "^13.0.1",

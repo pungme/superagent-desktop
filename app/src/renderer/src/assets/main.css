@@ -8298,6 +8298,65 @@ button {
   color: var(--accent-fg);
 }
 
+/* WYSIWYG Markdown: the View page, editable. Same typography as .md. */
+.fv-wysiwyg {
+  min-height: 60vh;
+  cursor: text;
+}
+.fv-wysiwyg-doc {
+  outline: none;
+  min-height: 60vh;
+  padding-bottom: 40vh;
+  caret-color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.fv-wysiwyg-doc .tableWrapper {
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.fv-wysiwyg .fv-wysiwyg-doc table {
+  display: table;
+  /* The table library fixes equal columns; let them size to their words. */
+  table-layout: auto;
+  width: 100%;
+  margin: 0;
+}
+.fv-wysiwyg .fv-wysiwyg-doc td,
+.fv-wysiwyg .fv-wysiwyg-doc th {
+  position: relative;
+  overflow-wrap: normal;
+  word-break: normal;
+  vertical-align: top;
+}
+.fv-wysiwyg-doc td > p,
+.fv-wysiwyg-doc th > p {
+  margin: 0;
+}
+/* A selected range of cells, and the handle that resizes a column. */
+.fv-wysiwyg-doc .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--syn-number) 18%, transparent);
+  pointer-events: none;
+}
+.fv-wysiwyg-doc .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--syn-number);
+  pointer-events: none;
+}
+.fv-wysiwyg-doc ::selection {
+  background: color-mix(in srgb, var(--syn-number) 28%, transparent);
+}
+.fv-wysiwyg-doc li > p {
+  margin: 0;
+}
+
 /* Quiet status line under the editor. */
 .file-viewer-foot {
   display: flex;
