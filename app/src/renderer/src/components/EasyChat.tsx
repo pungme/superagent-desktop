@@ -4732,12 +4732,22 @@ export function EasyChat({
     // stops at the next step, takes the new instruction into account, and doesn't
     // just barrel on to finish what it was doing. Only the wrapper is sent — the
     // chat still shows your clean message.
+    // Codex and Antigravity take "pause" literally: the steered message got a
+    // one-line answer and the turn ended, over and over ("why do you keep
+    // stopping?"). They are told plainly to carry on. The first sentence stays
+    // the same, so transcript.ts still hides the wrapper from the chat.
     if (interjecting && text.trim()) {
       agentText =
-        '[The user sent this WHILE you are still working on the previous request. ' +
-        'Treat it as a course-correction: pause at the next safe point, re-read it, and ' +
-        'act on it now rather than finishing the earlier plan unchanged. If it changes ' +
-        'what you should do, adjust; if it reorders priorities, follow the new order.]\n\n' +
+        (provider === 'claude'
+          ? '[The user sent this WHILE you are still working on the previous request. ' +
+            'Treat it as a course-correction: pause at the next safe point, re-read it, and ' +
+            'act on it now rather than finishing the earlier plan unchanged. If it changes ' +
+            'what you should do, adjust; if it reorders priorities, follow the new order.]\n\n'
+          : '[The user sent this WHILE you are still working on the previous request. ' +
+            'Do NOT end your turn because of it, and do not stop to reply to it. Take it into ' +
+            'account and keep working on the task until it is done: if it asks something, ' +
+            'answer in one line and carry straight on; if it changes the plan, follow the new ' +
+            'plan. End your turn only when the work is finished or you truly need the user.]\n\n') +
         agentText
     }
     // Only reset the "did this turn produce anything" flag when starting a fresh
