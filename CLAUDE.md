@@ -147,6 +147,21 @@ switch in the desk toolbar or ⌘⇧B; ⌘J opens the box, ⌘⇧J the whole cha
   ("Computer use: close what the safety review found…").
 - `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
   import, so building a prompt does not drag in Electron.
+- **From behind** (the `app` argument of `computer_read_ui`, `_press`, `_fill`,
+  `_menu`, `_wait_for`; `computer_window_screenshot`; `computer_open_mac_app`
+  with `background`): the helper's `--pid` acts through accessibility on that
+  app's window, in front or not, with no pointer, no keys and nothing brought
+  forward, so the user keeps the Mac. `behindApp` resolves the name to a bundle
+  id and the running pid (`lsappinfo`); `mayWorkBehind` re-checks consent,
+  out-of-bounds and the pid on every call; the tools ask per app (`mayWorkIn`),
+  for risky controls and step by step as in front. The picture is that window
+  alone (`winof`, then the window capture), never the screen. An app that
+  activates itself on a press gets the user's app put back in front.
+- Its e2e (`computer-behind.spec.ts`) runs in a quiet run through
+  `COVE_E2E_BEHIND=1` (unpackaged only, stripped by `harden.ts`), against a test
+  `.app` of its own kept behind every window. Do not compare the front app or
+  the pointer with before: the person at the Mac uses it during the run; check
+  that the test app never came forward instead.
 
 ## Remote control (the phone as this Mac's screen, trackpad and keyboard)
 
