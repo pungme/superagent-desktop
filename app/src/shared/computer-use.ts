@@ -164,6 +164,15 @@ const OFF_LIMITS: [prefix: string, name: string][] = [
   ['com.dashlane.', 'Dashlane'],
   ['in.sinew.Enpass', 'Enpass'],
   ['org.keepassxc.', 'KeePassXC'],
+  ['me.proton.pass', 'Proton Pass'],
+  ['com.keepersecurity.', 'Keeper'],
+  ['com.nordsec.nordpass', 'NordPass'],
+  ['com.siber.roboform', 'RoboForm'],
+  ['com.markmcguill.strongbox', 'Strongbox'],
+  ['com.hicknhacksoftware.macpass', 'MacPass'],
+  ['com.outercorner.secrets', 'Secrets'],
+  ['com.authy.', 'Authy'],
+  ['com.okta.', 'Okta Verify'],
   ['com.apple.SecurityAgent', 'a macOS password prompt'],
   // The apps that draw macOS's own prompts. On macOS 27 these are ordinary
   // bundled apps to us (the helper reports the outermost .app of a window's
@@ -235,19 +244,29 @@ export interface AppRef {
  * The name of the off-limits app this bundle id belongs to, or null when it is
  * fine. `denied` is the user's own list, matched exactly.
  */
+/**
+ * A bundle id as the lists know it: lower case, without the ten-character team
+ * prefix some helpers carry ("2BUA8C4S2C.com.agilebits.onepassword7-helper" is
+ * 1Password's), so a prefix list cannot be stepped round with one.
+ */
+export function plainBundleId(bundleId: string): string {
+  const id = bundleId.toLowerCase()
+  return /^[a-z0-9]{10}\.[a-z0-9-]+\./.test(id) ? id.slice(11) : id
+}
+
 export function offLimitsApp(
   bundleId: string | null | undefined,
   denied: AppRef[] = []
 ): string | null {
   if (!bundleId) return null
-  const id = bundleId.toLowerCase()
+  const id = plainBundleId(bundleId)
   // A window whose owner is not an app at all: known only by its process name.
   if (id.startsWith(UNBUNDLED))
     return SYSTEM_PROMPTS.includes(id.slice(UNBUNDLED.length))
       ? 'a macOS password or permission prompt'
       : null
   const builtIn = OFF_LIMITS.find(([prefix]) => id.startsWith(prefix.toLowerCase()))?.[1]
-  return builtIn ?? denied.find((d) => d.id.toLowerCase() === id)?.name ?? null
+  return builtIn ?? denied.find((d) => plainBundleId(d.id) === id)?.name ?? null
 }
 
 /** The built-in list, as the names Settings shows. */
@@ -263,7 +282,10 @@ const SELF_APPS = ['dev.superagent.app', 'com.github.electron']
  * window: the button it would be clicking could be the Allow on its own request.
  */
 export function isSelfApp(bundleId: string | null | undefined): boolean {
-  return !!bundleId && SELF_APPS.includes(bundleId.toLowerCase())
+  if (!bundleId) return false
+  // Its helper processes too ("dev.superagent.app.helper.Plugin").
+  const id = plainBundleId(bundleId)
+  return SELF_APPS.some((s) => id === s || id.startsWith(`${s}.`))
 }
 
 /** The app in what `lsappinfo info -only bundleid -only name` prints, or null. */
@@ -290,10 +312,23 @@ const TERMINALS = [
   'net.kovidgoyal.kitty',
   'co.zeit.hyper',
   'org.alacritty',
-  'com.github.wez.wezterm'
+  'com.github.wez.wezterm',
+  'org.tabby',
+  'com.raphaelamorim.rio',
+  'dev.commandline.waveterm',
+  'com.termius'
 ]
 /** Editors with a terminal inside them (Xcode has none and is not here). */
-const EDITORS_WITH_SHELL = ['com.microsoft.vscode', 'com.todesktop.', 'com.jetbrains.', 'dev.zed.']
+const EDITORS_WITH_SHELL = [
+  'com.microsoft.vscode',
+  'com.vscodium',
+  'com.exafunction.windsurf',
+  'com.todesktop.',
+  'com.jetbrains.',
+  'dev.zed.',
+  'com.sublimetext.',
+  'com.panic.nova'
+]
 /** Apps whose job is to run scripts, or to show what runs and lets it be ended. */
 const SCRIPTING = [
   'com.apple.scripteditor',
@@ -321,7 +356,7 @@ const SHELL_APPS: [prefixes: string[], name: string][] = [
 /** What kind of shell-class app this is ("a terminal"), or null for any other app. */
 export function shellApp(bundleId: string | null | undefined): string | null {
   if (!bundleId) return null
-  const id = bundleId.toLowerCase()
+  const id = plainBundleId(bundleId)
   return SHELL_APPS.find(([prefixes]) => prefixes.some((p) => id.startsWith(p)))?.[1] ?? null
 }
 
@@ -373,7 +408,7 @@ const CAUTIONS: [prefixes: string[], warning: string][] = [
 
 /** What to warn of before an agent works in this app. Empty for an ordinary one. */
 export function appCaution(bundleId: string): string {
-  const id = bundleId.toLowerCase()
+  const id = plainBundleId(bundleId)
   return CAUTIONS.find(([prefixes]) => prefixes.some((p) => id.startsWith(p)))?.[1] ?? ''
 }
 
@@ -528,6 +563,12 @@ const RISKY_LABELS: [RegExp, string][] = [
   [/^(move to (trash|bin)|delete)$/, 'deletes what is selected'],
   // A named thing deleted: "Delete Note", "Delete Conversation…", "Delete Mailbox".
   [/^delete \S/, 'deletes something'],
+  // A password manager's extension, or the browser's own, filling a saved login or card.
+  [
+    /^(fill|autofill|auto-fill|fill password|fill login|fill credit card|use password|use passkey)\b/,
+    'fills in a saved password, login or card'
+  ],
+  [/^(show clipboard|zwischenablage einblenden)$/, 'shows what you copied'],
   // Common German labels, as macOS shows them on a German Mac.
   [/^(löschen|in den papierkorb legen|papierkorb entleeren)$/, 'deletes something'],
   [/^beenden\b|\bbeenden$/, 'quits an app, and anything unsaved in it may be lost'],

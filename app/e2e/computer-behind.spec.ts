@@ -394,3 +394,28 @@ test('a stop takes the yes back, and nothing from behind gives it back', async (
   expect(r.asked.length).toBeGreaterThan(0)
   expect(r.images).toBe(0)
 })
+
+test('helpers inside another app, Superagent and System Settings are refused, even to open behind', async () => {
+  // Present on most Macs: always checked.
+  const settings = await tool('computer_read_ui', { app: 'System Settings' })
+  expect(settings.isError).toBe(true)
+  expect(settings.text).toMatch(/System Settings is not worked in from behind|not open/)
+  const opening = await tool('computer_open_mac_app', { name: 'Terminal', background: true })
+  expect(opening.isError).toBe(true)
+  expect(opening.text).toContain('terminal')
+  // Refused before anything is asked or opened.
+  expect(opening.asked.filter((q) => q.startsWith('Work in'))).toEqual([])
+  // Only on a Mac that has them: a password manager's helper inside its bundle
+  // (team-prefixed id), and the installed Superagent's own helper.
+  const known = (name: string): boolean =>
+    spawnSync('/usr/bin/osascript', ['-e', `id of app "${name}"`]).status === 0
+  for (const name of ['1Password Extension Helper', 'SuperAgent Helper (Plugin)']) {
+    if (!known(name)) continue
+    const r = await tool('computer_read_ui', { app: name })
+    expect(r.isError, `${name}: ${r.text}`).toBe(true)
+    expect(
+      r.asked.filter((q) => q.startsWith('Work in')),
+      name
+    ).toEqual([])
+  }
+})

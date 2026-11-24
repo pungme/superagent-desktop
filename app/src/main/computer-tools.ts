@@ -42,6 +42,8 @@ import {
   windowPicture,
   waitForControlBehind,
   frontApp,
+  giveBack,
+  notBehindById,
   type BehindApp
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
@@ -62,6 +64,13 @@ import {
   shownText,
   validKeyCombo
 } from '../shared/computer-use'
+
+/**
+ * A Paste menu item, in the languages macOS most often shows it in: Edit >
+ * Paste is ⌘V by another road, and asked about the same way.
+ */
+const PASTE_LABEL =
+  /^(paste|einsetzen|einfügen|coller|pegar|incolla|plakken|klistra in|wklej|вставить|貼り付け|粘贴|붙여넣기)(?!\p{L})/iu
 
 export interface ComputerContext {
   workspaceId: string
@@ -649,7 +658,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
               `Pressed "${name}".`
             )
       // The Paste menu item pressed by its number is Edit > Paste: the same question.
-      if (!/^paste\b/i.test(name.trim())) return press()
+      if (!PASTE_LABEL.test(name.trim())) return press()
       return gate().then(async (no) => {
         const stop = no ?? (await mayPaste())
         return stop ? failed(stop) : press()
@@ -715,7 +724,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
               `Picked ${clean}.`
             )
       // Edit > Paste is ⌘V by another road.
-      if (!/^paste\b/i.test(item)) return pick()
+      if (!PASTE_LABEL.test(item)) return pick()
       return gate().then(async (no) => {
         const stop = no ?? (await mayPaste())
         return stop ? failed(stop) : pick()
@@ -937,6 +946,10 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         return failed(
           `There is no app called "${name}" on this Mac that can be identified. Use its name as it appears in the Applications folder.`
         )
+      // Never to be worked in from behind (a terminal, System Settings,
+      // Superagent): refused before it is asked about or opened, not after.
+      const never = background ? notBehindById(which.id) : null
+      if (never) return failed(never)
       const asked = !appApproved(owner, which.id)
       const stop = await mayWorkIn(which)
       if (stop) return failed(stop)
@@ -973,19 +986,16 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         if (!target)
           return failed(`${which.name} did not start. Try again, or open it in front instead.`)
         // Some apps bring themselves forward as they start: the user gets theirs back.
-        const now = await frontApp()
-        let back = ''
-        if (before && now && now.id === which.id && before.id !== which.id) {
-          execFile('/usr/bin/open', ['-b', before.id], { timeout: 4000 }, () => {})
-          back = ` It came to the front by itself as it started; the user was put back in ${before.name}.`
-        }
+        const back = await giveBack(before, target.app)
         return await lookBehind(
           target,
           `Opened ${target.app.name} behind the user's windows.${back}`
         )
       }
+      // By its bundle id: the app that was checked and asked about, not
+      // whatever another lookup of the name might find.
       const opened = await new Promise<string>((resolve) =>
-        execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>
+        execFile('/usr/bin/open', ['-b', which.id], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
         )
       )

@@ -14,6 +14,7 @@ import {
   bundleIdFrom,
   heldByAnother,
   isSelfApp,
+  plainBundleId,
   launcherApp,
   shellApp,
   LOCK_MS,
@@ -282,6 +283,34 @@ describe('the controls on screen, for an agent to act on', () => {
       '[2] button "Save" (not on this display: use its number)'
     ])
     expect(toShotPoint(shot, -10, 5)).toBeNull()
+  })
+})
+
+describe('an app known however its id is written', () => {
+  it('drops a team prefix, so a helper of a password manager is still that password manager', () => {
+    expect(plainBundleId('2BUA8C4S2C.com.agilebits.onepassword7-helper')).toBe(
+      'com.agilebits.onepassword7-helper'
+    )
+    expect(offLimitsApp('2BUA8C4S2C.com.agilebits.onepassword7-helper')).toBe('1Password')
+    expect(offLimitsApp('2BUA8C4S2C.com.1password.browser-helper')).toBe('1Password')
+    // An ordinary id is left alone.
+    expect(plainBundleId('com.apple.TextEdit')).toBe('com.apple.textedit')
+  })
+  it("knows Superagent's own helper processes as Superagent", () => {
+    expect(isSelfApp('dev.superagent.app.helper.Plugin')).toBe(true)
+    expect(isSelfApp('dev.superagent.app')).toBe(true)
+    expect(isSelfApp('dev.superagent.application-other')).toBe(false)
+  })
+  it('keeps out more password managers and authenticators, and knows more shells', () => {
+    expect(offLimitsApp('com.okta.mobile.verify')).toBe('Okta Verify')
+    expect(offLimitsApp('me.proton.pass.electron')).toBe('Proton Pass')
+    expect(shellApp('com.vscodium')).toBeTruthy()
+    expect(shellApp('com.exafunction.windsurf')).toBeTruthy()
+  })
+  it('asks before filling a saved login, or showing the clipboard', () => {
+    expect(riskyControl('AXButton', 'Fill')).toContain('saved password')
+    expect(riskyControl('AXButton', 'Autofill')).toContain('saved password')
+    expect(riskyControl('AXMenuItem', 'Show Clipboard')).toContain('copied')
   })
 })
 

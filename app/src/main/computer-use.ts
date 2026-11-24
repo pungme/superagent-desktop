@@ -7,6 +7,7 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  powerMonitor,
   screen,
   shell,
   systemPreferences
@@ -761,6 +762,26 @@ function byNameError(error: string): string {
 // password field. What cannot be done this way (a drag, a canvas, real keys)
 // is not: the agent is told to bring the app forward, which asks as before.
 
+/**
+ * Whether macOS says the screen is locked (or this user switched away), kept
+ * from powerMonitor's events: the app in front is not always the lock screen
+ * when it is, and nothing goes on from behind on a locked Mac.
+ */
+let screenLocked = false
+let lockWatched = false
+function watchLock(): void {
+  if (lockWatched) return
+  lockWatched = true
+  try {
+    powerMonitor.on('lock-screen', () => (screenLocked = true))
+    powerMonitor.on('unlock-screen', () => (screenLocked = false))
+    powerMonitor.on('user-did-resign-active', () => (screenLocked = true))
+    powerMonitor.on('user-did-become-active', () => (screenLocked = false))
+  } catch {
+    // no power monitor (a unit test): the app-in-front check still holds
+  }
+}
+
 /** One app being worked in from behind: who it is and which process. */
 export interface BehindApp {
   app: AppRef
@@ -824,15 +845,39 @@ function runningApp(bundleId: string): Promise<Running | null> {
  */
 function notBehind(id: string, run: Running): string | null {
   const path = run.path
-  if (!/\.app$/.test(path) || /\.(xpc|appex)\//.test(path) || /\/XPCServices\//.test(path))
-    return 'That is a part of another app (a panel or a service it runs), not an app of its own, so it is not worked in from behind.'
+  // An app inside another app's bundle is a helper of that app (1Password's
+  // menu-bar window lives in 1Password.app/Contents/Library/LoginItems): it is
+  // judged as part of that app, so it is not a way round its rules.
+  const nested = (path.match(/\.app\//g) ?? []).length > 0
+  if (
+    !/\.app$/.test(path) ||
+    nested ||
+    /\.(xpc|appex)\//.test(path) ||
+    /\/XPCServices\//.test(path)
+  )
+    return 'That is a part of another app (a panel, a helper or a service it runs), not an app of its own, so it is not worked in from behind.'
+
   const ordinary = run.type === 'Foreground'
   const ownMenuBarApp = run.type === 'UIElement' && !path.startsWith('/System/')
   if (!ordinary && !ownMenuBarApp)
     return 'That is part of macOS itself (the Dock, a menu bar or notification surface), not an app to work in from behind.'
+  return notBehindById(id)
+}
+
+/**
+ * What the bundle id alone says cannot be worked in from behind: Superagent,
+ * a terminal or scripting app, System Settings. Asked before an app is opened
+ * behind, as well as each time it is worked in.
+ */
+export function notBehindById(id: string): string | null {
+  if (isSelfApp(id)) return 'That is Superagent itself, and computer use does not work in it.'
   const shell = shellApp(id)
   if (shell)
     return `It is ${shell}: anything put in it can run as a command on this Mac, and from behind the user would not see it. Bring it to the front with computer_open_mac_app instead, where they can.`
+  // System Settings can raise a password prompt the user would answer without
+  // having seen why. In front it is watched; from behind it is not.
+  if (/^com\.apple\.(systempreferences|systemsettings)/i.test(id))
+    return 'System Settings is not worked in from behind: a change there can ask for the password, and the user should see why. Use computer_open_settings or bring it to the front.'
   return null
 }
 
@@ -852,12 +897,9 @@ export async function behindApp(nameOrApp: string | AppRef): Promise<BehindApp> 
     )
   const no = offLimitsMessage(named, true)
   if (no) throw new Error(no)
-  // A terminal or scripting app is refused whether it is open or not.
-  const shell = shellApp(named.id)
-  if (shell)
-    throw new Error(
-      `It is ${shell}: anything put in it can run as a command on this Mac, and from behind the user would not see it. Bring it to the front with computer_open_mac_app instead, where they can.`
-    )
+  // A terminal, System Settings or Superagent: refused whether open or not.
+  const never = notBehindById(named.id)
+  if (never) throw new Error(never)
   const run = await runningApp(named.id)
   if (!run)
     throw new Error(
@@ -875,6 +917,7 @@ export async function behindApp(nameOrApp: string | AppRef): Promise<BehindApp> 
  * front. Claims the Mac for this conversation as any action does.
  */
 async function mayWorkBehind(owner: string, target: BehindApp, acting: boolean): Promise<void> {
+  watchLock()
   if (!hasConsent(owner))
     throw new Error(
       'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
@@ -882,8 +925,22 @@ async function mayWorkBehind(owner: string, target: BehindApp, acting: boolean):
   // Rules can change while the agent works: asked again every time.
   const no = offLimitsMessage(target.app, acting)
   if (no) throw new Error(no)
+  // Locked, a screen saver, a password prompt, or not known: nothing goes on
+  // from behind, where nobody would see it happen.
+  if (screenLocked)
+    throw new Error(
+      'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
+    )
   const front = await frontApp()
-  if (front && needsTheUser(front)) {
+  if (!front)
+    throw new Error(
+      'macOS would not say which app is in front (it may be locked or asking for a password), so nothing was done. Try again in a moment.'
+    )
+  if (/^com\.apple\.screensaver/i.test(front.id))
+    throw new Error(
+      'The screen saver is on, so nothing was done: the user is away. Try again later.'
+    )
+  if (needsTheUser(front)) {
     const why = offLimitsMessage(front)
     throw new Error(why ?? 'Something in front waits on the user, so nothing was done.')
   }
@@ -938,12 +995,27 @@ async function actBehind(owner: string, target: BehindApp, args: string[]): Prom
   if (!res.ok) throw new Error(byNameError(res.error))
   // Some apps bring themselves forward when a button is pressed. Working from
   // behind means the user keeps what they were in: give it back.
-  const after = await frontApp()
-  if (before && after && after.id === target.app.id && before.id !== target.app.id) {
-    execFile('/usr/bin/open', ['-b', before.id], { timeout: 4000 }, () => {})
-    return ` ${target.app.name} came to the front by itself; the user was put back in ${before.name}.`
-  }
-  return ''
+  return await giveBack(before, target.app)
+}
+
+/**
+ * When the app worked in from behind has taken the front by itself, put the
+ * user back in the app they were in. Only a real app that is still open (a
+ * prompt known by process name is not one, and a quit app is not reopened),
+ * and said only when it worked. Returns what to tell the agent.
+ */
+export async function giveBack(before: AppRef | null, target: AppRef): Promise<string> {
+  const now = await frontApp()
+  if (!before || !now || now.id !== target.id || before.id === target.id) return ''
+  if (before.id.startsWith('name:')) return ''
+  const open = await runningApp(before.id).catch(() => ({ name: before.name }) as Running)
+  if (!open) return ''
+  const ok = await new Promise<boolean>((resolve) =>
+    execFile('/usr/bin/open', ['-b', before.id], { timeout: 4000 }, (e) => resolve(!e))
+  )
+  return ok
+    ? ` ${target.name} came to the front by itself; the user was put back in ${before.name}.`
+    : ` ${target.name} came to the front by itself.`
 }
 
 export function pressBehind(
@@ -1950,6 +2022,8 @@ export function ownWindows(): {
 }
 
 export function registerComputerUseIpc(): void {
+  // Known from the start: a Mac locked before the first call from behind counts too.
+  watchLock()
   ipcMain.handle('computer:status', () => computerStatus())
   /** What agents have done with the Mac lately, newest first, with each chat's name. */
   ipcMain.handle('computer:log', () =>
