@@ -14,6 +14,13 @@
   fflush(stdout);
   [NSApp deactivate];
   [NSApp hide:nil];
+  // On screen for a picture (AX_ONSCREEN): back, behind everything, without
+  // being made active again.
+  if (getenv("AX_ONSCREEN"))
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+      [NSApp unhideWithoutActivation];
+      for (NSWindow *w in NSApp.windows) [w orderBack:nil];
+    });
 }
 - (void)ping:(id)s { printf("MENU ping\n"); fflush(stdout); }
 - (void)report:(NSTimer *)t {
@@ -45,7 +52,10 @@ int main(void) {
     [bar addItem:[[NSMenuItem alloc] initWithTitle:@"App" action:nil keyEquivalent:@""]];
     [bar addItem:fileItem];
     NSApp.mainMenu = bar;
-    NSWindow *w = [[NSWindow alloc] initWithContentRect:NSMakeRect(-6000, -6000, 300, 160)
+    // AX_ONSCREEN=1: on the screen but behind every other window, for a test of
+    // picturing a window that is covered (computer-behind.spec.ts).
+    NSRect at = getenv("AX_ONSCREEN") ? NSMakeRect(40, 40, 300, 160) : NSMakeRect(-6000, -6000, 300, 160);
+    NSWindow *w = [[NSWindow alloc] initWithContentRect:at
                                               styleMask:NSWindowStyleMaskBorderless
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];

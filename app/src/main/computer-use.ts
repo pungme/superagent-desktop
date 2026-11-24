@@ -31,6 +31,7 @@ import {
   type ScreenArea,
   cleanAppName,
   describeControls,
+  describeControlsByName,
   riskyControl,
   SHOT_MAX_WIDTH,
   type UiControl,
@@ -304,7 +305,10 @@ export function notReady(s: ComputerStatus = computerStatus()): string | null {
     return 'Computer use is turned off. The user can turn it on in Settings → General → Computer use.'
   // A test run that must not disturb whoever is using the Mac never looks at
   // their screen, whatever macOS has granted the test's Electron.
-  if (process.env.COVE_E2E_QUIET === '1') return 'A quiet test run never looks at the screen.'
+  // Except the spec of working from behind (computer-behind.spec.ts): it looks
+  // only at its own test app's window, never at the screen. Unpackaged only.
+  if (process.env.COVE_E2E_QUIET === '1' && !behindTestRun())
+    return 'A quiet test run never looks at the screen.'
   if (!s.helper) return 'The computer-use helper is missing from this build.'
   const missing = [
     s.screen ? null : 'Screen Recording (to see the screen)',
@@ -313,6 +317,11 @@ export function notReady(s: ComputerStatus = computerStatus()): string | null {
   return missing.length
     ? `Superagent does not have ${missing.join(' or ')}. The user grants ${missing.length > 1 ? 'them' : 'it'} in System Settings → Privacy & Security; Settings → General → Computer use has buttons that open the right page. macOS may ask for Superagent to be restarted afterwards.`
     : null
+}
+
+/** The background spec's run: a test build, its own data folder, and the flag. */
+function behindTestRun(): boolean {
+  return !app.isPackaged && !!process.env.COVE_USER_DATA && process.env.COVE_E2E_BEHIND === '1'
 }
 
 /** The macOS permissions still to be given, in the order to ask for them. */
@@ -738,6 +747,246 @@ function byNameError(error: string): string {
   if (/refused/.test(error))
     return 'The app would not do that through accessibility. Use computer_click on it instead.'
   return error || 'The action could not be carried out.'
+}
+
+// --- working in an app from behind ------------------------------------------
+//
+// The same controls by name, in one app's window whether it is in front or
+// not: nothing is brought forward, the pointer does not move and no key is
+// typed, so the user goes on using the Mac while the agent works. Accessibility
+// presses, fills and picks menus in a window behind others; a picture is of
+// that window alone. Everything else is checked as for the app in front: the
+// user's consent, out-of-bounds apps, the conversation's allowed apps, the
+// password field. What cannot be done this way (a drag, a canvas, real keys)
+// is not: the agent is told to bring the app forward, which asks as before.
+
+/** One app being worked in from behind: who it is and which process. */
+export interface BehindApp {
+  app: AppRef
+  pid: number
+}
+
+/** The process of a running app, by its bundle id; null when it is not running. */
+function pidOf(bundleId: string): Promise<number | null> {
+  return new Promise((resolve) =>
+    execFile(
+      '/usr/bin/lsappinfo',
+      ['find', `bundleid=${bundleId}`],
+      { timeout: 4000 },
+      (err, out) => {
+        const asn = /ASN:0x[0-9a-f]+-0x[0-9a-f]+-/i.exec(String(out ?? ''))?.[0]
+        if (err || !asn) return resolve(null)
+        execFile('/usr/bin/lsappinfo', ['info', '-only', 'pid', asn], { timeout: 4000 }, (e, o) => {
+          const pid = Number(/pid\s*=\s*(\d+)/.exec(String(o ?? ''))?.[1])
+          resolve(!e && pid > 0 ? pid : null)
+        })
+      }
+    )
+  )
+}
+
+/**
+ * The app a name means, running, and allowed to be worked in at all. Throws
+ * with what to say when it is not known, out of bounds or not open. Whether
+ * this conversation may work in it is asked by the tool, as for any app.
+ */
+export async function behindApp(name: string): Promise<BehindApp> {
+  const app = await appNamed(name)
+  if (!app)
+    throw new Error(
+      `There is no app called "${name}" on this Mac that can be identified. Use its name as it appears in the Applications folder.`
+    )
+  const no = offLimitsMessage(app, true)
+  if (no) throw new Error(no)
+  const pid = await pidOf(app.id)
+  if (!pid)
+    throw new Error(
+      `${app.name} is not open. Open it with computer_open_mac_app and background: true (it opens behind, without taking the screen), then work in it.`
+    )
+  return { app, pid }
+}
+
+/**
+ * Before reading or acting in an app from behind: consent, the app still out
+ * of bounds or not, still the same process. Claims the Mac for this
+ * conversation as any action does.
+ */
+async function mayWorkBehind(owner: string, target: BehindApp, acting: boolean): Promise<void> {
+  if (!hasConsent(owner))
+    throw new Error(
+      'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
+    )
+  // Rules can change while the agent works: asked again every time.
+  const no = offLimitsMessage(target.app, acting)
+  if (no) throw new Error(no)
+  // Quit and opened again, or another copy: not the process that was read.
+  if ((await pidOf(target.app.id)) !== target.pid)
+    throw new Error(
+      `${target.app.name} was quit or restarted since you last looked, so nothing was done. Read its controls again.`
+    )
+  claim(owner)
+}
+
+/** Its windows, front to back, as the helper lists them. */
+async function windowsOf(
+  pid: number
+): Promise<
+  { id: number; title: string; onscreen: boolean; x: number; y: number; w: number; h: number }[]
+> {
+  const { ok, out, error } = await cuse(['winof', String(pid)])
+  if (!ok && error) throw new Error(error)
+  return Array.isArray(out.windows) ? (out.windows as never[]) : []
+}
+
+/** The controls of the app's front window and its menus, by name, without points. */
+export async function readUiBehind(
+  owner: string,
+  target: BehindApp
+): Promise<{ app: string; window: string; lines: string[] }> {
+  await mayWorkBehind(owner, target, false)
+  const { ok, out, error } = await cuse(['--pid', String(target.pid), 'ax', '160'])
+  if (!ok && error) throw new Error(error)
+  const controls = (Array.isArray(out.elements) ? out.elements : []) as UiControl[]
+  allowed.set(owner, Date.now())
+  return {
+    app: target.app.name,
+    window: typeof out.window === 'string' ? out.window : '',
+    lines: describeControlsByName(controls.filter((c) => c && typeof c.role === 'string'))
+  }
+}
+
+/** Press, fill or pick a menu item in the app from behind. */
+async function actBehind(owner: string, target: BehindApp, args: string[]): Promise<string> {
+  await mayWorkBehind(owner, target, true)
+  const before = await frontApp()
+  didAct(owner)
+  const res = await cuse(['--pid', String(target.pid), ...args])
+  if (!res.ok) throw new Error(byNameError(res.error))
+  // Some apps bring themselves forward when a button is pressed. Working from
+  // behind means the user keeps what they were in: give it back.
+  const after = await frontApp()
+  if (before && after && after.id === target.app.id && before.id !== target.app.id) {
+    execFile('/usr/bin/open', ['-b', before.id], { timeout: 4000 }, () => {})
+    return ` ${target.app.name} came to the front by itself; the user was put back in ${before.name}.`
+  }
+  return ''
+}
+
+export function pressBehind(
+  owner: string,
+  target: BehindApp,
+  index: number,
+  name: string
+): Promise<string> {
+  return actBehind(owner, target, ['axpress', String(index), name])
+}
+
+export function fillBehind(
+  owner: string,
+  target: BehindApp,
+  index: number,
+  name: string,
+  text: string
+): Promise<string> {
+  return actBehind(owner, target, ['axset', String(index), name, text])
+}
+
+export function menuBehind(owner: string, target: BehindApp, path: string): Promise<string> {
+  return actBehind(owner, target, ['axmenu', path])
+}
+
+/**
+ * A picture of the app's front window alone, covered by others or not. Never
+ * the rest of the screen: what is next to it or on top is not in it.
+ */
+export async function windowPicture(
+  owner: string,
+  target: BehindApp
+): Promise<{ jpeg: Buffer; title: string; width: number; height: number }> {
+  await mayWorkBehind(owner, target, false)
+  const wins = await windowsOf(target.pid)
+  // On screen, and really on a display: macOS can call a window parked far off
+  // every display "on screen", and a picture of it would be blank.
+  const displays = screen.getAllDisplays().map((d) => d.bounds)
+  const shown = (w: (typeof wins)[number]): boolean =>
+    w.onscreen && displays.some((d) => overlaps({ x: w.x, y: w.y, width: w.w, height: w.h }, d))
+  const win = wins.find(shown) ?? wins[0]
+  if (!win)
+    throw new Error(
+      `${target.app.name} has no window open. Its menus can still be read and used with computer_read_ui and computer_menu.`
+    )
+  if (!shown(win))
+    throw new Error(
+      `${target.app.name}'s window is hidden, minimised or on another Space, so it cannot be pictured. Its controls can still be read with computer_read_ui.`
+    )
+  // At most SHOT_MAX_WIDTH wide, like a screenshot: enough to read, small to send.
+  const scale = Math.min(1, SHOT_MAX_WIDTH / Math.max(win.w, 1))
+  const size = { width: Math.round(win.w * scale), height: Math.round(win.h * scale) }
+  let image: Electron.NativeImage | null = null
+  try {
+    const sources = await within(
+      desktopCapturer.getSources({ types: ['window'], thumbnailSize: size }),
+      5_000,
+      'Window capture timed out.'
+    )
+    const source = sources.find((s) => s.id.startsWith(`window:${win.id}:`))
+    if (source && !source.thumbnail.isEmpty()) image = source.thumbnail
+  } catch {
+    // macOS's own capture below
+  }
+  if (!image) {
+    const file = join(tmpdir(), `sa-window-${process.pid}-${Date.now()}.png`)
+    try {
+      await new Promise<void>((resolve, reject) =>
+        execFile(
+          '/usr/sbin/screencapture',
+          // This window only, no shadow, no sound.
+          ['-x', '-o', '-l', String(win.id), file],
+          { timeout: 15_000 },
+          (err) => (err ? reject(err) : resolve())
+        )
+      )
+      const full = nativeImage.createFromPath(file)
+      if (!full.isEmpty()) image = full.resize({ width: size.width, quality: 'good' })
+    } catch {
+      // said below
+    } finally {
+      try {
+        unlinkSync(file)
+      } catch {
+        // never written
+      }
+    }
+  }
+  if (!image || image.isEmpty())
+    throw new Error(
+      `${target.app.name}'s window could not be pictured. Its controls can still be read with computer_read_ui.`
+    )
+  allowed.set(owner, Date.now())
+  const got = image.getSize()
+  return { jpeg: image.toJPEG(80), title: win.title, width: got.width, height: got.height }
+}
+
+/** computer_wait_for in an app from behind. */
+export async function waitForControlBehind(
+  owner: string,
+  target: BehindApp,
+  text: string,
+  gone: boolean,
+  seconds: number
+): Promise<{ happened: boolean; waited: number; ui: Awaited<ReturnType<typeof readUiBehind>> }> {
+  const want = text.trim().toLowerCase()
+  const started = Date.now()
+  const until = started + Math.min(Math.max(seconds, 1), 30) * 1000
+  for (;;) {
+    if (!hasConsent(owner)) throw new Error('Stopped by the user.')
+    const ui = await readUiBehind(owner, target)
+    const there = ui.lines.some((l) => l.toLowerCase().includes(want))
+    const waited = Math.round((Date.now() - started) / 100) / 10
+    if (there !== gone) return { happened: true, waited, ui }
+    if (Date.now() >= until) return { happened: false, waited, ui }
+    await settle(500)
+  }
 }
 
 /**

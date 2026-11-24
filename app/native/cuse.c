@@ -346,6 +346,44 @@ static int apps_on_screen(void) {
   return 0;
 }
 
+// The windows of one app, front to back, for working in it from behind: its
+// front window's number (to picture just that window, covered or not), title
+// and frame. Ordinary windows only; minimised or on another Space ones are
+// listed too, marked not on screen.
+static int windows_of(pid_t pid) {
+  CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionAll | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+  printf("{\"windows\":[");
+  int first = 1, count = 0;
+  for (CFIndex i = 0; list && i < CFArrayGetCount(list) && count < 20; i++) {
+    CFDictionaryRef w = CFArrayGetValueAtIndex(list, i);
+    int layer = 0, owner = 0, onscreen = 0;
+    long long number = 0;
+    double alpha = 1;
+    CGRect r = CGRectZero;
+    CFNumberRef n;
+    CFBooleanRef on;
+    if ((n = CFDictionaryGetValue(w, kCGWindowOwnerPID))) CFNumberGetValue(n, kCFNumberIntType, &owner);
+    if (owner != pid) continue;
+    if ((n = CFDictionaryGetValue(w, kCGWindowLayer))) CFNumberGetValue(n, kCFNumberIntType, &layer);
+    if ((n = CFDictionaryGetValue(w, kCGWindowAlpha))) CFNumberGetValue(n, kCFNumberDoubleType, &alpha);
+    if ((n = CFDictionaryGetValue(w, kCGWindowNumber))) CFNumberGetValue(n, kCFNumberLongLongType, &number);
+    if ((on = CFDictionaryGetValue(w, kCGWindowIsOnscreen))) onscreen = CFBooleanGetValue(on);
+    CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
+    if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
+    if (layer != 0 || alpha <= 0 || r.size.width < 60 || r.size.height < 40) continue;
+    if (!first) putchar(',');
+    first = 0;
+    count++;
+    printf("{\"id\":%lld,\"title\":", number);
+    json_string(CFDictionaryGetValue(w, kCGWindowName));
+    printf(",\"onscreen\":%s,\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f}", onscreen ? "true" : "false",
+           r.origin.x, r.origin.y, r.size.width, r.size.height);
+  }
+  if (list) CFRelease(list);
+  printf("]}\n");
+  return 0;
+}
+
 // Every window on screen, front to back, on whatever layer: what a picture of
 // the screen is made of, so the parts that are not the user's to show can be
 // left out of it.
@@ -735,6 +773,11 @@ int main(int argc, char **argv) {
     if (dry) { printf("{\"ok\":true}\n"); return 0; }
     int max = left > 0 ? atoi(v[0]) : 120;
     return ax_tree(max < 1 ? 1 : max > 400 ? 400 : max);
+  }
+  if (!strcmp(act, "winof")) {
+    if (left < 1) return fail("winof PID");
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    return windows_of((pid_t)atoi(v[0]));
   }
   if (!strcmp(act, "axpress")) {
     if (left < 2) return fail("axpress INDEX NAME");

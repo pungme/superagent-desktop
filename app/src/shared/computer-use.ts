@@ -484,6 +484,28 @@ export function describeControls(shot: Shot, controls: UiControl[], max = 120): 
 }
 
 /**
+ * The controls of an app worked in from behind: the same lines, without a
+ * point. Nothing is clicked there; everything is done by number and name.
+ */
+export function describeControlsByName(controls: UiControl[], max = 120): string[] {
+  const lines: string[] = []
+  for (const c of controls) {
+    const label = c.label.replace(/\s+/g, ' ').trim()
+    const value = c.value.replace(/\s+/g, ' ').trim()
+    if (!label && !value) continue
+    lines.push(
+      `${typeof c.i === 'number' ? `[${c.i}] ` : ''}${c.role.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} ${label ? `"${label.slice(0, 80)}"` : '(no name)'}` +
+        (value && value !== label
+          ? ` = ${value === '(hidden)' ? '(hidden)' : `"${value.slice(0, 60)}"`}`
+          : '') +
+        (c.enabled ? '' : ' (disabled)')
+    )
+    if (lines.length >= max) break
+  }
+  return lines
+}
+
+/**
  * What clicking a control would end, lose or destroy, going by what it is
  * called: a menu item or a button named Log Out, Shut Down, Empty Trash…
  * Null for an ordinary one. Asked about every time, like riskyShortcut.

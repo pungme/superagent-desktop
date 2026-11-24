@@ -147,3 +147,20 @@ test('a menu item is picked by its path; a greyed one, or one that is not there,
   })
   expect(await cuse('--pid', String(pid), 'axmenu', 'File>Nope')).toMatchObject({ ok: false })
 })
+
+test("an app's windows are listed by its process, on screen or not, for a picture of that one alone", async () => {
+  const out = (await cuse('winof', String(pid))) as {
+    windows: { id: number; title: string; onscreen: boolean; w: number; h: number }[]
+  }
+  // The test app's window: far off every screen, so known but not on it.
+  const win = out.windows.find((w) => w.w === 300 && w.h === 160)
+  expect(win, JSON.stringify(out.windows)).toBeTruthy()
+  expect(win!.id).toBeGreaterThan(0)
+  // Far off every display. (Whether macOS calls it "on screen" varies, which
+  // is why the picture also checks the frame is on a display.)
+  expect(win!.x).toBeLessThan(-1000)
+  // Another process's windows are not in it.
+  const mine = (await cuse('winof', String(process.pid))) as { windows: unknown[] }
+  expect(mine.windows).toEqual([])
+  expect(await cuse('winof')).toMatchObject({ ok: false })
+})

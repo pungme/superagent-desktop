@@ -33,7 +33,15 @@ import {
   permissionsMissing,
   requestPermission,
   awaitReady,
-  relaunchApp
+  relaunchApp,
+  behindApp,
+  readUiBehind,
+  pressBehind,
+  fillBehind,
+  menuBehind,
+  windowPicture,
+  waitForControlBehind,
+  type BehindApp
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
 import { noteComputer } from './computer-log'
@@ -98,7 +106,8 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_wait_for',
   'computer_open_settings',
   'computer_clipboard_read',
-  'computer_clipboard_write'
+  'computer_clipboard_write',
+  'computer_window_screenshot'
 ] as const
 
 /**
@@ -372,6 +381,103 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     return null
   }
 
+  // --- working in an app from behind ---------------------------------------
+
+  const APP_ARG = z
+    .string()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe(
+      'Work in this app from behind, by its name ("Mail", "Notes"): its window is read and acted in without bringing it to the front, moving the pointer or typing, so the user can keep using the Mac. Leave it out to work in the window in front.'
+    )
+
+  /** The app named, open and allowed for this conversation (asked the first time), or why not. */
+  const behind = async (name: string): Promise<BehindApp | string> => {
+    const no = await gate()
+    if (no) return no
+    let target: BehindApp
+    try {
+      target = await behindApp(name)
+    } catch (e) {
+      return (e as Error).message
+    }
+    return (await mayWorkIn(target.app)) ?? target
+  }
+
+  /** After something was done from behind: that window alone, never the rest of the screen. */
+  const lookBehind = async (target: BehindApp, said: string): Promise<Result> => {
+    try {
+      const p = await windowPicture(owner, target)
+      return {
+        content: [
+          {
+            type: 'text',
+            text:
+              `${said}${said ? ' ' : ''}${target.app.name}${p.title ? ` — ${p.title}` : ''}, its window alone (${p.width}×${p.height}), worked in from behind: ` +
+              'nothing in it is clicked by a point. Use computer_read_ui with app for its controls.'
+          },
+          { type: 'image', data: p.jpeg.toString('base64'), mimeType: 'image/jpeg' }
+        ]
+      }
+    } catch (e) {
+      // The action stands; only the picture could not be had.
+      return { content: [{ type: 'text', text: `${said} (${(e as Error).message})` }] }
+    }
+  }
+
+  /** Press, fill or pick a menu in an app from behind: the same questions as in front. */
+  const byNameBehind = async (
+    appName: string,
+    risky: string | null,
+    what: string,
+    doIt: (target: BehindApp) => Promise<string>,
+    said: string
+  ): Promise<Result> => {
+    const target = await behind(appName)
+    if (typeof target === 'string') return failed(target)
+    try {
+      if (risky) {
+        const yes = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          `${what} in ${target.app.name}: it ${risky}.`,
+          'permission'
+        )
+        if (!yes)
+          return failed(
+            'The user did not allow that. Do not reach it another way; ask what they would like instead.'
+          )
+      }
+      if (!risky && what && stepByStep() && !(await askStep(`${what} in ${target.app.name}`)))
+        return failed(STEP_REFUSED)
+      if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
+      const extra = await doIt(target)
+      note(`${said.replace(/\.$/, '')} in ${target.app.name}`)
+      await settle()
+      return await lookBehind(target, `${said}${extra}`)
+    } catch (e) {
+      return refused(e)
+    }
+  }
+
+  server.registerTool(
+    'computer_window_screenshot',
+    {
+      description:
+        "A picture of one app's window alone, by the app's name, even when it is behind other windows. Nothing is brought to the front and the rest of the screen is not in it: the way to see an app you are working in from behind while the user uses the Mac.",
+      inputSchema: { app: z.string().min(1).max(100) }
+    },
+    async ({ app }) => {
+      const target = await behind(app)
+      if (typeof target === 'string') return failed(target)
+      note(`Looked at ${target.app.name}'s window`, 'looked')
+      const r = await lookBehind(target, '')
+      return r.content.length > 1 ? r : failed(String((r.content[0] as { text?: string }).text))
+    }
+  )
+
   const point = {
     x: z.number().describe('Pixels from the left of the screenshot.'),
     y: z.number().describe('Pixels from the top of the screenshot.')
@@ -418,10 +524,30 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     'computer_read_ui',
     {
       description:
-        'The controls of the window in front, by name: every button, field, checkbox, menu and link with what it is called, what it holds, and the point on the latest screenshot to click for it. Surer than reading small text off the picture; use it when a screenshot does not make clear what something is or where exactly it is. Works without a screenshot, and is often enough by itself to know where to click. A password field is listed but never read.',
-      inputSchema: {}
+        "The controls of the window in front, by name: every button, field, checkbox, menu and link with what it is called, what it holds, and the point on the latest screenshot to click for it. Surer than reading small text off the picture; use it when a screenshot does not make clear what something is or where exactly it is. Works without a screenshot, and is often enough by itself to know where to click. A password field is listed but never read. With app, the controls of that app's window from behind, numbered for computer_press, computer_fill and computer_menu with the same app.",
+      inputSchema: { app: APP_ARG }
     },
-    async () => {
+    async ({ app }) => {
+      if (app) {
+        const target = await behind(app)
+        if (typeof target === 'string') return failed(target)
+        try {
+          const ui = await readUiBehind(owner, target)
+          note(`Read the controls of ${ui.app} from behind`, 'looked')
+          return {
+            content: [
+              {
+                type: 'text',
+                text: ui.lines.length
+                  ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}, from behind (pass app: "${app}" to act on these by number):\n${ui.lines.join('\n')}`
+                  : `${ui.app} does not describe its controls, so it cannot be worked in from behind. Bring it to the front with computer_open_mac_app instead.`
+              }
+            ]
+          }
+        } catch (e) {
+          return failed((e as Error).message)
+        }
+      }
       const no = await gate()
       if (no) return failed(no)
       try {
@@ -502,42 +628,58 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     'computer_press',
     {
       description:
-        'Press a button, checkbox, link or menu by its number and name from computer_read_ui, without moving the pointer. Surer than clicking at a point: prefer it whenever the control is in that list. Returns the screen afterwards.',
-      inputSchema: control
+        'Press a button, checkbox, link or menu by its number and name from computer_read_ui, without moving the pointer. Surer than clicking at a point: prefer it whenever the control is in that list. Returns the screen afterwards. With app, in that app from behind (numbers from computer_read_ui with the same app), and returns its window.',
+      inputSchema: { ...control, app: APP_ARG }
     },
-    ({ index, name }) =>
-      byName(
-        riskyControl('AXButton', name),
-        `Press "${name}"`,
-        () => pressControl(owner, index, name),
-        `Pressed "${name}".`
-      )
+    ({ index, name, app }) =>
+      app
+        ? byNameBehind(
+            app,
+            riskyControl('AXButton', name),
+            `Press "${name}"`,
+            (t) => pressBehind(owner, t, index, name),
+            `Pressed "${name}".`
+          )
+        : byName(
+            riskyControl('AXButton', name),
+            `Press "${name}"`,
+            () => pressControl(owner, index, name),
+            `Pressed "${name}".`
+          )
   )
 
   server.registerTool(
     'computer_fill',
     {
       description:
-        'Put text in a text field by its number and name from computer_read_ui, replacing what is there, without clicking in it or typing key by key. Never works on a password field. Returns the screen afterwards.',
-      inputSchema: { ...control, text: z.string().max(4000) }
+        'Put text in a text field by its number and name from computer_read_ui, replacing what is there, without clicking in it or typing key by key. Never works on a password field. Returns the screen afterwards. With app, in that app from behind, and returns its window.',
+      inputSchema: { ...control, text: z.string().max(4000), app: APP_ARG }
     },
-    ({ index, name, text }) =>
-      byName(
-        null,
-        `Put this in "${name}": ${shownText(text)}`,
-        () => fillControl(owner, index, name, text),
-        `Filled "${name}".`
-      )
+    ({ index, name, text, app }) =>
+      app
+        ? byNameBehind(
+            app,
+            null,
+            `Put this in "${name}": ${shownText(text)}`,
+            (t) => fillBehind(owner, t, index, name, text),
+            `Filled "${name}".`
+          )
+        : byName(
+            null,
+            `Put this in "${name}": ${shownText(text)}`,
+            () => fillControl(owner, index, name, text),
+            `Filled "${name}".`
+          )
   )
 
   server.registerTool(
     'computer_menu',
     {
       description:
-        'Pick a menu item of the app in front by its path, written with ">" between the levels and the item spelled as the menu shows it: "File > Export > PDF…", "Edit > Select All". No clicking through menus. Returns the screen afterwards.',
-      inputSchema: { path: z.string().min(1).max(300) }
+        'Pick a menu item of the app in front by its path, written with ">" between the levels and the item spelled as the menu shows it: "File > Export > PDF…", "Edit > Select All". No clicking through menus. Returns the screen afterwards. With app, a menu item of that app from behind, without bringing it forward.',
+      inputSchema: { path: z.string().min(1).max(300), app: APP_ARG }
     },
-    ({ path }) => {
+    ({ path, app }) => {
       // The levels as the helper will take them: it drops an empty one, so a
       // path ending in ">" used to be judged by its nothing and pick its
       // "Quit" unasked. What is judged and what is picked are the same list.
@@ -549,12 +691,20 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       const clean = levels.join(' > ')
       const item = levels[levels.length - 1]
       const pick = (): Promise<Result> =>
-        byName(
-          riskyControl('AXMenuItem', item),
-          `Pick ${clean}`,
-          () => pickMenu(owner, clean),
-          `Picked ${clean}.`
-        )
+        app
+          ? byNameBehind(
+              app,
+              riskyControl('AXMenuItem', item),
+              `Pick ${clean}`,
+              (t) => menuBehind(owner, t, clean),
+              `Picked ${clean}.`
+            )
+          : byName(
+              riskyControl('AXMenuItem', item),
+              `Pick ${clean}`,
+              () => pickMenu(owner, clean),
+              `Picked ${clean}.`
+            )
       // Edit > Paste is ⌘V by another road.
       if (!/^paste\b/i.test(item)) return pick()
       return gate().then(async (no) => {
@@ -619,18 +769,28 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     'computer_wait_for',
     {
       description:
-        'Wait until a control with this text in its name appears in the window in front (a "Done" button, a result), or with gone: true until it disappears (a progress bar, "Loading…"). Better than waiting a fixed time. Up to 30 seconds a call; returns whether it happened and the controls as they are then.',
+        'Wait until a control with this text in its name appears in the window in front (a "Done" button, a result), or with gone: true until it disappears (a progress bar, "Loading…"). Better than waiting a fixed time. Up to 30 seconds a call; returns whether it happened and the controls as they are then. With app, waits in that app from behind.',
       inputSchema: {
         text: z.string().min(1).max(200),
         gone: z.boolean().optional(),
-        seconds: z.number().min(1).max(30).optional()
+        seconds: z.number().min(1).max(30).optional(),
+        app: APP_ARG
       }
     },
-    async ({ text, gone, seconds }) => {
-      const no = await gate()
-      if (no) return failed(no)
+    async ({ text, gone, seconds, app }) => {
+      let target: BehindApp | null = null
+      if (app) {
+        const t = await behind(app)
+        if (typeof t === 'string') return failed(t)
+        target = t
+      } else {
+        const no = await gate()
+        if (no) return failed(no)
+      }
       try {
-        const r = await waitForControl(owner, text, !!gone, seconds ?? 10)
+        const r = target
+          ? await waitForControlBehind(owner, target, text, !!gone, seconds ?? 10)
+          : await waitForControl(owner, text, !!gone, seconds ?? 10)
         const what = gone ? `"${text}" was gone` : `"${text}" was there`
         return {
           content: [
@@ -746,10 +906,16 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     'computer_open_mac_app',
     {
       description:
-        'Open an app on this Mac by name ("Finder", "System Settings", "Figma"), or bring it to the front if it is open. Quicker and surer than clicking its Dock icon. Returns the screen afterwards.',
-      inputSchema: { name: z.string().min(1).max(100) }
+        'Open an app on this Mac by name ("Finder", "System Settings", "Figma"), or bring it to the front if it is open. Quicker and surer than clicking its Dock icon. Returns the screen afterwards. With background: true it opens behind the user\'s windows instead, without taking the screen, to work in from behind (the app argument of computer_read_ui, computer_press, computer_fill, computer_menu); returns its window alone.',
+      inputSchema: {
+        name: z.string().min(1).max(100),
+        background: z
+          .boolean()
+          .optional()
+          .describe('Open it behind, leaving the user in the app they are using.')
+      }
     },
-    async ({ name }) => {
+    async ({ name, background }) => {
       const no = await gate()
       if (no) return failed(no)
       // Which app that is, before it is opened: one that is out of bounds is
@@ -770,6 +936,27 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (!asked && stepByStep() && !(await askStep(`Open ${which.name}`)))
         return failed(STEP_REFUSED)
       if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
+      if (background) {
+        // By its bundle id, the app that was checked and asked about; -g keeps
+        // it behind, whatever the user is in stays in front.
+        const err = await new Promise<string>((resolve) =>
+          execFile('/usr/bin/open', ['-g', '-b', which.id], { timeout: 15_000 }, (e, _o, stderr) =>
+            resolve(e ? String(stderr || e.message).trim() : '')
+          )
+        )
+        if (err) return failed(`Could not open "${name}": ${err.slice(0, 200)}`)
+        note(`Opened ${which.name} behind`)
+        touchConsent(owner)
+        // A cold start takes a moment to have a process and a window.
+        let target: BehindApp | null = null
+        for (let i = 0; i < 20 && !target; i++) {
+          await settle(300)
+          target = await behindApp(name).catch(() => null)
+        }
+        if (!target)
+          return failed(`${which.name} did not start. Try again, or open it in front instead.`)
+        return await lookBehind(target, `Opened ${which.name} behind the user's windows.`)
+      }
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')

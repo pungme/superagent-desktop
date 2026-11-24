@@ -6,6 +6,7 @@ import {
   mayGlance,
   appCaution,
   describeControls,
+  describeControlsByName,
   riskyControl,
   toShotPoint,
   zoomRect,
@@ -279,6 +280,40 @@ describe('the controls on screen, for an agent to act on', () => {
       '[2] button "Save" (not on this display: use its number)'
     ])
     expect(toShotPoint(shot, -10, 5)).toBeNull()
+  })
+})
+
+describe('the controls of an app worked in from behind', () => {
+  const control = (over: Record<string, unknown>): never =>
+    ({
+      role: 'Button',
+      label: 'Save',
+      value: '',
+      x: 200,
+      y: 100,
+      w: 80,
+      h: 40,
+      enabled: true,
+      ...over
+    }) as never
+  it('lists them by number and name with no point: nothing is clicked there', () => {
+    expect(describeControlsByName([control({ i: 3 })])).toEqual(['[3] button "Save"'])
+    expect(
+      describeControlsByName([control({ i: 4, role: 'TextField', label: 'To', value: 'a@b.c' })])
+    ).toEqual(['[4] text field "To" = "a@b.c"'])
+    expect(describeControlsByName([control({ i: 5, enabled: false })])).toEqual([
+      '[5] button "Save" (disabled)'
+    ])
+    // Off every display or not, the same: no point either way.
+    expect(describeControlsByName([control({ i: 6, x: 99999 })])).toEqual(['[6] button "Save"'])
+  })
+  it('never shows a password, and leaves out what has no name', () => {
+    expect(
+      describeControlsByName([
+        control({ role: 'SecureTextField', label: 'Password', value: '(hidden)' })
+      ])
+    ).toEqual(['secure text field "Password" = (hidden)'])
+    expect(describeControlsByName([control({ label: '', value: '' })])).toEqual([])
   })
 })
 
