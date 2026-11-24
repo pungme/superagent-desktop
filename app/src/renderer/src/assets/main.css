@@ -16192,8 +16192,39 @@ button {
   color: var(--text-secondary);
   font-size: 12px;
 }
+.easy-step-waiting-what {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.easy-step-waiting > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The step has run a while: the way out stands out. */
+.easy-step-stop.urgent {
+  animation: easy-step-stop-pulse 1.6s ease-in-out infinite;
+}
+@keyframes easy-step-stop-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-primary) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-primary) 0%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .easy-step-stop.urgent {
+    animation: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-primary) 35%, transparent);
+  }
+}
 .easy-step-stop {
   margin-left: auto;
+  flex-shrink: 0;
   border: none;
   border-radius: 6px;
   padding: 4px 10px;
@@ -16253,7 +16284,10 @@ button {
   font-size: 11px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .settings-account-move:hover:not(:disabled) {
   background: var(--bg-hover, rgba(255, 255, 255, 0.08));

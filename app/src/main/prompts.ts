@@ -295,6 +295,11 @@ export const SCRATCH_PROMPT =
 // the same deploy watch started again each time the last one seemed to be gone.
 // Each one keeps the agent process (and its memory) alive.
 export const BACKGROUND_PROMPT =
+  // The user's messages reach the agent only between steps: a ten-minute build
+  // in the foreground is ten minutes of them not being heard.
+  'Run anything likely to take more than about a minute (a full build, a whole test suite, a deploy, ' +
+  "watching CI) in the background and check on it, so the user's messages reach you between steps " +
+  'instead of waiting for it to finish. ' +
   'Background tasks (run_in_background, Monitor) are limited: at most ' +
   MAX_BACKGROUND_TASKS +
   ' at a time, and Superagent may refuse one more. Before you start a watcher, check whether you already have one for the same thing, ' +

@@ -671,6 +671,46 @@ function StepNow({
   )
 }
 
+/**
+ * Messages sent while a step runs reach the agent only when the step returns
+ * (Claude reads between steps). Said with what the step is and how long it has
+ * run, so a slow build does not look like a frozen chat; past twenty seconds
+ * the way out stands out.
+ */
+function StepWaiting({
+  step,
+  count,
+  onStop
+}: {
+  step: { name: string; detail: string; since: number }
+  count: number
+  onStop: () => void
+}): React.JSX.Element {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.max(0, Math.floor((now - step.since) / 1000))
+  const took = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
+  const { verb } = toolLabel(step.name)
+  const what = step.detail ? `${verb} ${step.detail.slice(0, 60)}` : verb
+  return (
+    <div className="easy-step-waiting" role="status">
+      <span>
+        {count === 1 ? 'Your message waits' : `Your ${count} messages wait`} for this step:{' '}
+        <span className="easy-step-waiting-what" title={step.detail}>
+          {what}
+        </span>{' '}
+        · {took}
+      </span>
+      <button className={`easy-step-stop${secs >= 20 ? ' urgent' : ''}`} onClick={onStop}>
+        Stop and answer
+      </button>
+    </div>
+  )
+}
+
 /** Monochrome line icon, matching the sidebar's — currentColor, no emoji. */
 function MicIcon(): React.JSX.Element {
   return (
@@ -6280,28 +6320,19 @@ export function EasyChat({
               )
               if (!waiting.length) return null
               return (
-                <div className="easy-step-waiting" role="status">
-                  <span>
-                    {waiting.length === 1
-                      ? 'Your message waits'
-                      : `Your ${waiting.length} messages wait`}{' '}
-                    until this step finishes.
-                  </span>
-                  <button
-                    className="easy-step-stop"
-                    onClick={() =>
-                      void interruptNow({
-                        text: waiting
-                          .map((it) => (it.kind === 'msg' ? it.msg.text : ''))
-                          .filter(Boolean)
-                          .join('\n\n'),
-                        images: []
-                      })
-                    }
-                  >
-                    Stop and answer
-                  </button>
-                </div>
+                <StepWaiting
+                  step={step}
+                  count={waiting.length}
+                  onStop={() =>
+                    void interruptNow({
+                      text: waiting
+                        .map((it) => (it.kind === 'msg' ? it.msg.text : ''))
+                        .filter(Boolean)
+                        .join('\n\n'),
+                      images: []
+                    })
+                  }
+                />
               )
             })()}
         </div>

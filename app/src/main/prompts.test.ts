@@ -113,6 +113,14 @@ describe('pictures in a reply', () => {
   })
 })
 
+describe('long steps', () => {
+  it('are run in the background, so the user is heard between steps', () => {
+    const prompt = buildAppendedPrompt({ provider: 'claude' })
+    expect(prompt).toContain('more than about a minute')
+    expect(prompt).toContain('in the background and check on it')
+  })
+})
+
 describe('the computer-use briefing', () => {
   it('with computer use off, the tools are still described and the first call asks to turn it on', () => {
     const prompt = buildAppendedPrompt({ provider: 'claude' })

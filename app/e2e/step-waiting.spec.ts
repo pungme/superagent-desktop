@@ -91,11 +91,14 @@ test('a long step says what it is, and messages sent during it say they wait', a
     await input.fill('status?')
     await sendBtn.click()
     const waiting = page.locator('.easy-step-waiting')
-    await expect(waiting).toContainText('Your message waits until this step finishes')
+    // What it waits for, and for how long: a slow step, not a frozen chat.
+    await expect(waiting).toContainText('Your message waits for this step')
+    await expect(waiting).toContainText('gh run watch 123')
+    await expect(waiting).toContainText(/· \d+s/)
     await input.fill('answer me')
     await sendBtn.click()
     await expect(waiting).toContainText('Your 2 messages wait')
-    if (process.env.SHOT) await page.screenshot({ path: '/tmp/sa-step-waiting.png' })
+    if (process.env.SHOT) await waiting.screenshot({ path: `${process.env.SHOT}/step-waiting.png` })
 
     await waiting.getByRole('button', { name: 'Stop and answer' }).click()
     await expect.poll(async () => (await g()).stopped).toBe(1)
