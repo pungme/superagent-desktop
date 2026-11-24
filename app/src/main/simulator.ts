@@ -1,4 +1,11 @@
-import { hidReady, registerSimInputPort, sendHid, siminputPath, stopAllHid } from './sim-hid'
+import {
+  endHidSession,
+  hidReady,
+  registerSimInputPort,
+  sendHid,
+  siminputPath,
+  stopAllHid
+} from './sim-hid'
 import { detachAllSimViews, isViewing, registerSimViewIpc } from './sim-view'
 import { registerSimDeviceMenu, stopAllRecordings } from './sim-device-menu'
 import { agentIsDriving } from './browser'
@@ -312,6 +319,13 @@ function endInputSession(udid: string): void {
   } catch {
     /* already gone */
   }
+}
+
+/** Everything Superagent runs for one simulator, ended: before it is shut down. */
+export function releaseSimulatorHelpers(udid: string): void {
+  endInputSession(udid)
+  endHidSession(udid)
+  stopStream(udid)
 }
 
 export function stopAllSimInput(): void {

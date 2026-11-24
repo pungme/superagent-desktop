@@ -5,6 +5,9 @@ import {
   IDLE_MS,
   sizeLabel,
   simulatorsToShutDown,
+  simulatorsToSleep,
+  SIM_IDLE_MS,
+  type SleepContext,
   type PlanContext,
   type SimInfo
 } from './sim-cleanup'
@@ -82,5 +85,45 @@ describe('the simulators shut down when Superagent quits', () => {
   })
   it('never anything that is not a UDID: they go on a command line', () => {
     expect(simulatorsToShutDown(['all', 'booted', `${a}; rm -rf ~`, '', a])).toEqual([a])
+  })
+})
+
+describe('simulators left booted by conversations', () => {
+  const A = 'AAAAAAAA-0000-0000-0000-000000000001'
+  const B = 'AAAAAAAA-0000-0000-0000-000000000002'
+  const MINE = 'AAAAAAAA-0000-0000-0000-000000000003'
+  const NEW = 'AAAAAAAA-0000-0000-0000-000000000004'
+  const ctx = (over: Partial<SleepContext> = {}): SleepContext => ({
+    booted: [A, B, MINE, NEW],
+    ownerOf: (u) => (u === A ? 'chat-a' : u === B ? 'chat-b' : null),
+    baseline: new Set([A, B, MINE]),
+    shown: new Set(),
+    agentRunning: () => false,
+    idleSince: new Map(),
+    now: 0,
+    ...over
+  })
+  it("shuts down a conversation's simulator only after it sat unused for the idle time", () => {
+    const idleSince = new Map<string, number>()
+    expect(simulatorsToSleep(ctx({ idleSince, now: 0 }))).toEqual([])
+    expect(simulatorsToSleep(ctx({ idleSince, now: SIM_IDLE_MS - 1 }))).toEqual([])
+    expect(simulatorsToSleep(ctx({ idleSince, now: SIM_IDLE_MS }))).toEqual([A, B, NEW])
+  })
+  it('never one the person started, one on screen, or one whose agent is working', () => {
+    const idleSince = new Map<string, number>()
+    const c = (now: number): string[] =>
+      simulatorsToSleep(
+        ctx({ idleSince, now, shown: new Set([B]), agentRunning: (id) => id === 'chat-a' })
+      )
+    c(0)
+    // MINE (there at the first look, nobody's) is never on the list.
+    expect(c(SIM_IDLE_MS * 2)).toEqual([NEW])
+  })
+  it('starts the wait over when it is used again in between', () => {
+    const idleSince = new Map<string, number>()
+    simulatorsToSleep(ctx({ idleSince, now: 0 }))
+    simulatorsToSleep(ctx({ idleSince, now: 5, shown: new Set([A]) }))
+    expect(simulatorsToSleep(ctx({ idleSince, now: SIM_IDLE_MS + 1 }))).not.toContain(A)
+    expect(simulatorsToSleep(ctx({ idleSince, now: SIM_IDLE_MS * 2 + 5 }))).toContain(A)
   })
 })

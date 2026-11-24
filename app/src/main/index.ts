@@ -2,7 +2,7 @@
 import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
-import { registerSimCleanupIpc, startSimCleanup } from './sim-cleanup'
+import { registerSimCleanupIpc, setSimAgentProbe, startSimCleanup } from './sim-cleanup'
 import { registerSimWatchIpc, startSimWatch } from './sim-watch'
 import './harden'
 import { registerMicIpc } from './mic'
@@ -64,7 +64,13 @@ import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
-import { registerAgentIpc, killAllAgents, markContextLost, agentBus } from './agent'
+import {
+  registerAgentIpc,
+  killAllAgents,
+  markContextLost,
+  agentBus,
+  findSessionByChat
+} from './agent'
 import { noteUserMessage } from './browser-ask'
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
@@ -448,6 +454,8 @@ app.whenReady().then(async () => {
   startCliAutoUpdate()
   // Simulators agents leave behind: cleared by hand from Settings, or by themselves once idle.
   registerSimCleanupIpc()
+  // A conversation's simulator is in use while its agent runs.
+  setSimAgentProbe((chatId) => findSessionByChat(chatId) !== undefined)
   startSimCleanup()
   // A simulator whose SpringBoard crashes in a loop is restarted; the pop-ups can be hidden.
   registerSimWatchIpc()

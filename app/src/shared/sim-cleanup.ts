@@ -87,3 +87,51 @@ export function simulatorsToShutDown(...lists: Iterable<string>[]): string[] {
         out.add(udid.toUpperCase())
   return [...out]
 }
+
+/** How long a conversation's simulator may sit unused before it is shut down. */
+export const SIM_IDLE_MS = 10 * 60 * 1000
+
+export interface SleepContext {
+  /** The simulators booted now. */
+  booted: string[]
+  /** The conversation that has a simulator, if any. */
+  ownerOf: (udid: string) => string | null
+  /** The simulators there at Superagent's first look: the person's own. */
+  baseline: Set<string>
+  /** Shown in a pane right now. */
+  shown: Set<string>
+  /** Whether a conversation's agent is running. */
+  agentRunning: (chatId: string) => boolean
+  /** When each simulator was first seen unused; kept between sweeps. */
+  idleSince: Map<string, number>
+  now: number
+  idleMs?: number
+}
+
+/**
+ * The booted simulators to shut down now. Each holds a whole iOS (some 230
+ * processes): booted by an agent and then left, they piled up into the
+ * thousands. One goes when it is Superagent's (a conversation has it, or it was
+ * made since the first look), no pane shows it, no agent of its conversation
+ * is running, and that has held for the idle time. A simulator the person
+ * started themselves is never touched.
+ */
+export function simulatorsToSleep(c: SleepContext): string[] {
+  const idleMs = c.idleMs ?? SIM_IDLE_MS
+  const out: string[] = []
+  const booted = new Set(c.booted)
+  for (const udid of [...c.idleSince.keys()]) if (!booted.has(udid)) c.idleSince.delete(udid)
+  for (const udid of c.booted) {
+    const owner = c.ownerOf(udid)
+    const ours = owner !== null || !c.baseline.has(udid)
+    const inUse = c.shown.has(udid) || (owner !== null && c.agentRunning(owner))
+    if (!ours || inUse) {
+      c.idleSince.delete(udid)
+      continue
+    }
+    const since = c.idleSince.get(udid)
+    if (since === undefined) c.idleSince.set(udid, c.now)
+    else if (c.now - since >= idleMs) out.push(udid)
+  }
+  return out
+}

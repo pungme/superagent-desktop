@@ -2,11 +2,12 @@ import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { kvGet, kvSet } from './store'
-import { chatHoldingSimulator, openSimulators } from './simulator'
+import { chatHoldingSimulator, openSimulators, releaseSimulatorHelpers } from './simulator'
 import { healthLog } from './health'
 import {
   autoCleanup,
   describeSimulators,
+  simulatorsToSleep,
   type PlanContext,
   type SimInfo,
   type SimRow
@@ -140,6 +141,52 @@ export async function autoCleanSimulators(): Promise<SimRow[]> {
   return gone
 }
 
+// --- booted and left: shut down once unused ---------------------------------
+
+/**
+ * Whether a conversation's agent is running. Set by index.ts (agent.ts knows
+ * the sessions; importing it here would pull the agents into this module).
+ * Until it is set, every agent counts as running: nothing is shut down blind.
+ */
+let agentRunning: (chatId: string) => boolean = () => true
+export function setSimAgentProbe(fn: (chatId: string) => boolean): void {
+  agentRunning = fn
+}
+
+const idleSince = new Map<string, number>()
+
+/**
+ * Shut down the simulators conversations booted and left: no pane shows them,
+ * their agent is not running, for ten minutes (shared/sim-cleanup.ts). Each
+ * holds a whole iOS; left alone they ran into the thousands of processes.
+ * Behind the same switch as the clean-up ("Clear out unused simulators").
+ */
+export async function sleepIdleSimulators(now = Date.now()): Promise<string[]> {
+  if (!autoCleanOn()) return []
+  const devices = await scanSimulators()
+  const booted = devices.filter((d) => d.state === 'Booted').map((d) => d.udid)
+  const gone = simulatorsToSleep({
+    booted,
+    ownerOf: (udid) => chatHoldingSimulator(udid),
+    baseline: baseline(devices),
+    shown: new Set(openSimulators().map((o) => o.udid)),
+    agentRunning,
+    idleSince,
+    now
+  })
+  for (const udid of gone) {
+    releaseSimulatorHelpers(udid)
+    await run('xcrun', ['simctl', 'shutdown', udid], { timeout: 60_000 }).catch(() => {})
+    idleSince.delete(udid)
+    const name = devices.find((d) => d.udid === udid)?.name ?? udid.slice(0, 8)
+    healthLog(`simulator ${name} (${udid.slice(0, 8)}) shut down: unused for 10 minutes`)
+  }
+  return gone
+}
+
+let sleepTimer: NodeJS.Timeout | null = null
+const SLEEP_EVERY_MS = 60 * 1000
+
 let timer: NodeJS.Timeout | null = null
 /** Soon after launch (which also fixes the baseline), then every six hours. */
 export function startSimCleanup(): void {
@@ -155,6 +202,9 @@ export function startSimCleanup(): void {
   }
   timer = setTimeout(tick, FIRST_MS)
   timer.unref()
+  // Every minute: simulators conversations booted and left go after ten.
+  sleepTimer = setInterval(() => void sleepIdleSimulators().catch(() => []), SLEEP_EVERY_MS)
+  sleepTimer.unref()
 }
 
 export function registerSimCleanupIpc(): void {
