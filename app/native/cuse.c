@@ -370,7 +370,9 @@ static int windows_of(pid_t pid) {
     if ((on = CFDictionaryGetValue(w, kCGWindowIsOnscreen))) onscreen = CFBooleanGetValue(on);
     CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
     if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
-    if (layer != 0 || alpha <= 0 || r.size.width < 60 || r.size.height < 40) continue;
+    // Menu-bar strips are 30 to 44 points tall; a small window (a compact
+    // Calculator is 56 wide) still counts.
+    if (layer != 0 || alpha <= 0 || r.size.width < 24 || r.size.height < 48) continue;
     if (!first) putchar(',');
     first = 0;
     count++;
@@ -539,6 +541,42 @@ static void ax_walk(AXUIElementRef el, int depth) {
 // The controls of the window in front, and the app's menu bar.
 static AXUIElementRef ax_front(CFTypeRef *win);
 
+// The text a window shows (a result, a message, a status line), apart from the
+// numbered controls: read, never acted on, so numbering is unchanged. A few
+// dozen at most, each cut short.
+static int ax_text_count;
+static void ax_texts(AXUIElementRef el, int depth) {
+  if (depth > 14 || ax_text_count >= 60) return;
+  CFStringRef role = ax_copy_string(el, kAXRoleAttribute);
+  int text = role && CFEqual(role, CFSTR("AXStaticText"));
+  if (role) CFRelease(role);
+  if (text) {
+    CFTypeRef v = NULL;
+    CFStringRef s = NULL;
+    if (AXUIElementCopyAttributeValue(el, kAXValueAttribute, &v) == kAXErrorSuccess && v &&
+        CFGetTypeID(v) == CFStringGetTypeID())
+      s = (CFStringRef)CFRetain(v);
+    if (v) CFRelease(v);
+    if (!s) s = ax_copy_string(el, kAXTitleAttribute);
+    if (s && CFStringGetLength(s) > 0) {
+      CFStringRef cut = CFStringGetLength(s) > 160
+        ? CFStringCreateWithSubstring(NULL, s, CFRangeMake(0, 160)) : (CFStringRef)CFRetain(s);
+      if (ax_text_count++) putchar(',');
+      json_string(cut);
+      CFRelease(cut);
+    }
+    if (s) CFRelease(s);
+    return;
+  }
+  CFTypeRef kids = NULL;
+  if (AXUIElementCopyAttributeValue(el, kAXChildrenAttribute, &kids) == kAXErrorSuccess && kids &&
+      CFGetTypeID(kids) == CFArrayGetTypeID()) {
+    for (CFIndex i = 0; i < CFArrayGetCount(kids) && ax_text_count < 60; i++)
+      ax_texts((AXUIElementRef)CFArrayGetValueAtIndex(kids, i), depth + 1);
+  }
+  if (kids) CFRelease(kids);
+}
+
 static int ax_tree(int max) {
   CFTypeRef win = NULL;
   AXUIElementRef app = ax_front(&win);
@@ -560,6 +598,9 @@ static int ax_tree(int max) {
     ax_walk(bar, 10);
     CFRelease(bar);
   }
+  printf("],\"texts\":[");
+  ax_text_count = 0;
+  if (win) ax_texts(win, 0);
   printf("]}\n");
   if (name) CFRelease(name);
   if (title) CFRelease(title);

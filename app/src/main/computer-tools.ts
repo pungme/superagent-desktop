@@ -72,6 +72,13 @@ import {
 const PASTE_LABEL =
   /^(paste|einsetzen|einfügen|coller|pegar|incolla|plakken|klistra in|wklej|вставить|貼り付け|粘贴|붙여넣기)(?!\p{L})/iu
 
+/** The text a window shows, after its controls: read only, not numbered. */
+function shownTexts(texts: string[] | undefined): string {
+  return texts?.length
+    ? `\nText in the window (to read, not to act on):\n${texts.map((t) => `"${t}"`).join('\n')}`
+    : ''
+}
+
 export interface ComputerContext {
   workspaceId: string
   /** The chat's id, or the pane's when there is none: who the yes belongs to. */
@@ -549,7 +556,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
               {
                 type: 'text',
                 text: ui.lines.length
-                  ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}, from behind (pass app: "${app}" to act on these by number):\n${ui.lines.join('\n')}`
+                  ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}, from behind (pass app: "${app}" to act on these by number):\n${ui.lines.join('\n')}${shownTexts(ui.texts)}`
                   : `${ui.app} does not describe its controls, so it cannot be worked in from behind. Bring it to the front with computer_open_mac_app instead.`
               }
             ]
@@ -568,7 +575,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
             {
               type: 'text',
               text: ui.lines.length
-                ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}\n${ui.lines.join('\n')}`
+                ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}\n${ui.lines.join('\n')}${shownTexts(ui.texts)}`
                 : `${ui.app || 'This app'} does not describe its controls. Go by the screenshot instead.`
             }
           ]
@@ -818,7 +825,8 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
                 (r.happened
                   ? `After ${r.waited} s, ${what}.`
                   : `Still ${gone ? 'there' : 'not there'} after ${r.waited} s: "${text}".`) +
-                (r.ui.lines.length ? `\n${r.ui.lines.join('\n')}` : '')
+                (r.ui.lines.length ? `\n${r.ui.lines.join('\n')}` : '') +
+                shownTexts(r.ui.texts)
             }
           ]
         }

@@ -419,3 +419,36 @@ test('helpers inside another app, Superagent and System Settings are refused, ev
     ).toEqual([])
   }
 })
+
+// A real app of Apple's, not the test's own: opt in, as it opens Calculator
+// (behind the user's windows) and quits it again if it was not open before.
+test('a real app from behind: Calculator works 7 + 3 without coming forward', async () => {
+  test.skip(process.env.BEHIND_REAL !== '1', 'set BEHIND_REAL=1 to try it on Calculator')
+  // lsappinfo prints a line even when it finds nothing: look for an ASN.
+  const wasOpen = /ASN:/.test(
+    spawnSync('/usr/bin/lsappinfo', ['find', 'bundleid=com.apple.calculator']).stdout?.toString() ??
+      ''
+  )
+  try {
+    const opened = await tool('computer_open_mac_app', { name: 'Calculator', background: true })
+    expect(opened.isError, opened.text).toBe(false)
+    expect(frontBundle()).not.toBe('com.apple.calculator')
+    const ui = (await tool('computer_read_ui', { app: 'Calculator' })).text
+    const num = (label: string): number =>
+      Number(new RegExp(`\\[(\\d+)\\] button "${label}"`).exec(ui)?.[1] ?? NaN)
+    for (const key of ['All Clear', '7', 'Add', '3', 'Equals']) {
+      const r = await tool('computer_press', { app: 'Calculator', index: num(key), name: key })
+      expect(r.isError, `${key}: ${r.text}`).toBe(false)
+      // Each press returns Calculator's window alone, never coming forward.
+      expect(r.images, `${key}: ${r.text}`).toBe(1)
+      expect(frontBundle()).not.toBe('com.apple.calculator')
+    }
+    // The result is read as text in the window, and waited for by it.
+    const done = await tool('computer_wait_for', { app: 'Calculator', text: '10', seconds: 5 })
+    expect(done.isError, done.text).toBe(false)
+    expect(done.text).toContain('was there')
+    expect(done.text).toMatch(/Text in the window[\s\S]*"10"/)
+  } finally {
+    if (!wasOpen) spawnSync('/usr/bin/osascript', ['-e', 'quit app id "com.apple.calculator"'])
+  }
+})

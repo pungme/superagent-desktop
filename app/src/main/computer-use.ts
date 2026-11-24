@@ -622,7 +622,7 @@ async function mayLook(owner: string, picture: ScreenArea | null = null): Promis
  */
 export async function readUi(
   owner: string
-): Promise<{ app: string; window: string; lines: string[] }> {
+): Promise<{ app: string; window: string; lines: string[]; texts: string[] }> {
   const front = await mayLook(owner)
   // With no screenshot yet, the controls are placed on the picture one would
   // be: the display the pointer is on, at the size a screenshot of it has. The
@@ -656,7 +656,8 @@ export async function readUi(
     lines: describeControls(
       shot,
       controls.filter((c) => c && typeof c.role === 'string')
-    )
+    ),
+    texts: windowTexts(out.texts)
   }
 }
 
@@ -966,11 +967,27 @@ async function windowsOf(
   return Array.isArray(out.windows) ? (out.windows as never[]) : []
 }
 
+/** The text a window shows, as the helper read it: strings, tidied, repeats dropped. */
+function windowTexts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const t of raw) {
+    if (typeof t !== 'string') continue
+    const clean = t.replace(/\s+/g, ' ').trim()
+    if (clean && !seen.has(clean)) {
+      seen.add(clean)
+      out.push(clean)
+    }
+  }
+  return out
+}
+
 /** The controls of the app's front window and its menus, by name, without points. */
 export async function readUiBehind(
   owner: string,
   target: BehindApp
-): Promise<{ app: string; window: string; lines: string[] }> {
+): Promise<{ app: string; window: string; lines: string[]; texts: string[] }> {
   await mayWorkBehind(owner, target, false)
   const { ok, out, error } = await cuse(['--pid', String(target.pid), 'ax', '160'])
   if (!ok && error) throw new Error(error)
@@ -980,7 +997,8 @@ export async function readUiBehind(
   return {
     app: target.app.name,
     window: typeof out.window === 'string' ? out.window : '',
-    lines: describeControlsByName(controls.filter((c) => c && typeof c.role === 'string'))
+    lines: describeControlsByName(controls.filter((c) => c && typeof c.role === 'string')),
+    texts: windowTexts(out.texts)
   }
 }
 
@@ -1136,7 +1154,7 @@ export async function waitForControlBehind(
   for (;;) {
     if (!hasConsent(owner)) throw new Error('Stopped by the user.')
     const ui = await readUiBehind(owner, target)
-    const there = ui.lines.some((l) => l.toLowerCase().includes(want))
+    const there = [...ui.lines, ...(ui.texts ?? [])].some((l) => l.toLowerCase().includes(want))
     const waited = Math.round((Date.now() - started) / 100) / 10
     if (there !== gone) return { happened: true, waited, ui }
     if (Date.now() >= until) return { happened: false, waited, ui }
@@ -1163,7 +1181,7 @@ export async function waitForControl(
     // Stopped by the user while it waited: not another look.
     if (!hasConsent(owner)) throw new Error('Stopped by the user.')
     const ui = await readUi(owner)
-    const there = ui.lines.some((l) => l.toLowerCase().includes(want))
+    const there = [...ui.lines, ...(ui.texts ?? [])].some((l) => l.toLowerCase().includes(want))
     const waited = Math.round((Date.now() - started) / 100) / 10
     if (there !== gone) return { happened: true, waited, ui }
     if (Date.now() >= until) return { happened: false, waited, ui }
