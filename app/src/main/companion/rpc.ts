@@ -27,6 +27,8 @@ import {
   setChatPinned,
   reorderPinned,
   clearChatSession,
+  setChatSession,
+  swapAgentSession,
   isPendingBranch,
   markPendingBranch,
   takePendingBranch,
@@ -410,19 +412,24 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
       }
       // Move a conversation to the other agent, from the phone.
       //
-      // The session id goes with it: it belongs to the agent being left, and the
-      // new one has never heard of it. main's recap then hands the incoming
-      // agent the conversation so far, so it continues rather than starting
-      // blank — the same thing the Mac's own picker does.
+      // The same thing the Mac's own picker does: the session of the agent being
+      // left is kept for when the chat comes back to it.
       case 'chat.setAgent': {
         const p = chatSetAgent.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         const running = findSessionByChat(p.data.chatId)
         if (running) stopAgent(running.id, 'phone: switched agent')
-        setChatProvider(p.data.chatId, toProvider(p.data.provider))
-        clearChatSession(p.data.chatId)
-        markContextLost(p.data.chatId)
+        // An agent that ran this chat before resumes its own thread and is told
+        // only what it missed (swapAgentSession); a newcomer gets the recap.
+        const to = toProvider(p.data.provider)
+        const back = swapAgentSession(p.data.chatId, to)
+        setChatProvider(p.data.chatId, to)
+        if (back) setChatSession(p.data.chatId, back, to)
+        else {
+          clearChatSession(p.data.chatId)
+          markContextLost(p.data.chatId)
+        }
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true }
