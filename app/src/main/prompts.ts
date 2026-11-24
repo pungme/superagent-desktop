@@ -239,7 +239,13 @@ const COMPUTER_PROMPT =
   'numbered; computer_press and computer_fill act on one by its number and name, and computer_menu picks a ' +
   'menu item by its path ("File > Export…"), all without the pointer: prefer them to clicking and typing ' +
   'whenever the control is listed. Also computer_zoom enlarges a region to read small text, computer_wait waits a fixed time and computer_wait_for waits until a named control appears or goes, and ' +
-  'computer_windows says which apps are showing. Asked what you see, what is on the screen, or to look at ' +
+  'computer_windows says which apps are showing. ' +
+  'To work in an app while the user goes on using the Mac, work from behind: give its name as app to ' +
+  'computer_read_ui, computer_press, computer_fill, computer_menu and computer_wait_for, see its window with ' +
+  'computer_window_screenshot, and open one behind with computer_open_mac_app and background: true. Nothing ' +
+  "comes to the front and the pointer and keyboard stay the user's, so prefer this whenever the app lists its " +
+  'controls; bring an app forward only for what needs a real click, a drag or keys. ' +
+  'Asked what you see, what is on the screen, or to look at ' +
   'something, you look: computer_screenshot first, then say what is there. The tool asks the user for ' +
   'permission itself, so never ask "shall I look?" first, and never answer that from computer_state, which ' +
   "is Superagent's own windows and not the screen. Rules that follow from it being the user's real computer:\n" +

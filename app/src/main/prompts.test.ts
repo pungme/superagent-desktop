@@ -122,6 +122,14 @@ describe('the computer-use briefing', () => {
     )
     expect(prompt).toContain('Never answer "what do you see" with Superagent\'s own desk')
   })
+  it('tells the agent to work from behind, so the user keeps the Mac', () => {
+    setComputerUseProbe(() => true)
+    const prompt = buildAppendedPrompt({ provider: 'claude' })
+    setComputerUseProbe(() => false)
+    expect(prompt).toContain('work from behind')
+    expect(prompt).toContain('computer_window_screenshot')
+    expect(prompt).toContain('background: true')
+  })
   it('is the briefing alone when the user has turned computer use on', () => {
     expect(buildAppendedPrompt({ provider: 'claude' })).toContain('Computer use is off right now')
     setComputerUseProbe(() => true)
