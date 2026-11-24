@@ -12,6 +12,7 @@ import { readFileSync, unlinkSync, existsSync, mkdirSync, statSync } from 'fs'
 import { createHash } from 'crypto'
 import { EventEmitter } from 'events'
 import { SimOwners, type OwnerStore } from './sim-owners'
+import { simulatorsToShutDown } from '../shared/sim-cleanup'
 
 const run = promisify(execFile)
 
@@ -1350,6 +1351,36 @@ function stopStream(udid: string): void {
 export function stopAllSimStreams(): void {
   stopAllNativeStreams()
   for (const udid of [...streams.keys()]) stopStream(udid)
+}
+
+/**
+ * Quitting Superagent shuts down the simulators its conversations had: with
+ * the agents gone nothing uses them, and each booted one holds gigabytes of
+ * memory. A simulator the person started in Xcode is not on the list and is
+ * left running. Shutting one down takes seconds, so it runs in a process of
+ * its own that outlives the app; one already shut down only makes simctl say so.
+ */
+export function shutDownSimulatorsOnQuit(): void {
+  const udids = simulatorsToShutDown(
+    simOwners.entries().map(([udid]) => udid),
+    simByChat.values()
+  )
+  if (!udids.length || process.platform !== 'darwin') return
+  try {
+    const child = spawn(
+      '/bin/sh',
+      [
+        '-c',
+        'for u in "$@"; do /usr/bin/xcrun simctl shutdown "$u" >/dev/null 2>&1; done',
+        'sh',
+        ...udids
+      ],
+      { detached: true, stdio: 'ignore' }
+    )
+    child.unref()
+  } catch {
+    // nothing to be done on the way out
+  }
 }
 
 /** Force a fresh frame now — called right after input so the pane feels alive. */

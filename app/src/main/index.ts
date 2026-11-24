@@ -99,6 +99,7 @@ import { registerChatCopyIpc, copyStatus } from './chat-copy'
 import {
   registerSimulatorIpc,
   stopAllSimStreams,
+  shutDownSimulatorsOnQuit,
   stopAllSimInput,
   attachSimOwners
 } from './simulator'
@@ -1152,6 +1153,8 @@ app.on('will-quit', () => {
   stopRoutines()
   stopAllSimStreams()
   stopAllSimInput()
+  // Quit means quit: the conversations' simulators go too (not the person's own).
+  shutDownSimulatorsOnQuit()
 })
 
 /** The app's own windows are all closed (the dot does not count as one). */

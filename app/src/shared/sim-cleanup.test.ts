@@ -4,6 +4,7 @@ import {
   describeSimulators,
   IDLE_MS,
   sizeLabel,
+  simulatorsToShutDown,
   type PlanContext,
   type SimInfo
 } from './sim-cleanup'
@@ -70,5 +71,16 @@ describe('describeSimulators', () => {
     expect(sizeLabel(14.3e9)).toBe('14 GB')
     expect(sizeLabel(3.24e9)).toBe('3.2 GB')
     expect(sizeLabel(820e6)).toBe('820 MB')
+  })
+})
+
+describe('the simulators shut down when Superagent quits', () => {
+  const a = '00000000-1111-2222-3333-444444444444'
+  const b = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+  it("takes every conversation's simulator once", () => {
+    expect(simulatorsToShutDown([a, b], [a.toLowerCase()])).toEqual([a, b.toUpperCase()])
+  })
+  it('never anything that is not a UDID: they go on a command line', () => {
+    expect(simulatorsToShutDown(['all', 'booted', `${a}; rm -rf ~`, '', a])).toEqual([a])
   })
 })

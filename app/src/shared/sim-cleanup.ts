@@ -73,3 +73,17 @@ export function sizeLabel(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(bytes >= 1e10 ? 0 : 1)} GB`
   return `${Math.max(1, Math.round(bytes / 1e6))} MB`
 }
+
+/**
+ * The simulators to shut down when Superagent quits: every one a conversation
+ * has had or has open, once each. Nothing else: a simulator the person started
+ * in Xcode is theirs. Only real UDIDs, as they go on a command line.
+ */
+export function simulatorsToShutDown(...lists: Iterable<string>[]): string[] {
+  const out = new Set<string>()
+  for (const list of lists)
+    for (const udid of list)
+      if (/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(udid))
+        out.add(udid.toUpperCase())
+  return [...out]
+}
