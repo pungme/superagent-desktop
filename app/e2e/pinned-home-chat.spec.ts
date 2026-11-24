@@ -81,3 +81,33 @@ test('a pinned chat from Chats shows its own name, and opens', async () => {
     timeout: 10_000
   })
 })
+
+test('a pinned chat of a project: its own name on top, the project under it', async () => {
+  const ids = await window.evaluate(async () => {
+    const home = (await window.cove.desktopChatHome())!.workspaceId
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.id !== home)!
+    const named = await window.cove.chatCreate(ws.id)
+    await window.cove.chatUpdate(named, { title: 'General improvements 4' })
+    return { named, project: ws.name }
+  })
+  execFileSync('sqlite3', [
+    join(data, 'cove.db'),
+    `UPDATE chats SET pinned = 1, pinnedAt = ${Date.now()} WHERE id = '${ids.named}'`
+  ])
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  // By its chat: while it is renamed, its name is in a field, not text.
+  const row = window.locator(
+    `.sidebar-pinned-shortcuts .activity-row[data-split-chat="${ids.named}"]`
+  )
+  await expect(row).toHaveCount(1, { timeout: 15_000 })
+  await expect(row.locator('.activity-title')).toHaveText('General improvements 4')
+  await expect(row.locator('.activity-where')).toContainText(ids.project)
+  if (process.env.SHOT) await row.screenshot({ path: `${process.env.SHOT}/pinned-row.png` })
+  // Renamed on the top line, where the name is.
+  await row.dblclick()
+  const input = row.locator('.activity-top input.sidebar-item-rename')
+  await expect(input).toBeVisible()
+  await input.press('Escape')
+})

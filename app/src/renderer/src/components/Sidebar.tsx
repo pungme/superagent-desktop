@@ -2106,7 +2106,7 @@ function PinnedRow({
       </span>
       <span className="activity-body">
         <span className="activity-top">
-          {plain && editing ? (
+          {editing ? (
             <input
               className="sidebar-item-rename"
               value={draft}
@@ -2116,6 +2116,9 @@ function PinnedRow({
               onBlur={() => {
                 const n = draft.trim()
                 if (n && n !== label)
+                  // This row's own data comes from useAllChats' polled snapshot,
+                  // not the reactive store ChatRow reads — without this nudge
+                  // the new title wouldn't show here until the next 5s poll.
                   void renameChat(chat.workspaceId, chat.id, n).then(() =>
                     window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
                   )
@@ -2127,45 +2130,19 @@ function PinnedRow({
               }}
             />
           ) : (
-            <span className="activity-title">{plain ? label : projectName}</span>
+            // The name the chat was given comes first: that is what the user
+            // is looking for. A chat with no name of its own is its project.
+            <span className="activity-title">{showSubtitle || plain ? label : projectName}</span>
           )}
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
-        {/* The label already IS the project name for a nameless root chat —
-            a second line repeating it said nothing a normal project row
-            doesn't already say once. Once it has its own title, the chat's
-            own title earns its place as the subtitle (nothing else on the
-            row names it); the branch (if any) always earns its place. */}
+        {/* Under the chat's own name: which project it is in, and the branch.
+            A nameless chat already shows the project on top, so only its
+            branch is left to say. */}
         {(showSubtitle || branch) && (
           <span className="activity-where">
-            {editing && !plain ? (
-              <input
-                className="sidebar-item-rename"
-                value={draft}
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => {
-                  const n = draft.trim()
-                  if (n && n !== label) {
-                    // This row's own data comes from useAllChats' polled snapshot,
-                    // not the reactive store ChatRow reads — without this nudge
-                    // the new title wouldn't show here until the next 5s poll.
-                    void renameChat(chat.workspaceId, chat.id, n).then(() =>
-                      window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-                    )
-                  }
-                  setEditing(false)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') setEditing(false)
-                }}
-              />
-            ) : (
-              showSubtitle && <span>{label}</span>
-            )}
-            {!editing && showSubtitle && branch && ' · '}
+            {showSubtitle && <span>{projectName}</span>}
+            {showSubtitle && branch && ' · '}
             {branch && `⎇ ${branch.replace(/^superagent\//, '')}`}
           </span>
         )}
