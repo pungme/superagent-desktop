@@ -197,7 +197,8 @@ const FILE_OPEN_PROMPT =
 const SIMULATOR_PROMPT =
   'Superagent shows a live iOS Simulator in a pane next to this chat, and the user is ' +
   'watching THAT. Use the sim_* tools for anything simulator-related: sim_list_devices, ' +
-  'sim_boot, sim_install_and_launch and sim_open_url to set it up, then drive it like a ' +
+  'sim_boot, sim_install_and_launch and sim_open_url to set it up (sim_shutdown_all turns off ' +
+  'every simulator, only when the user asked: they are asked in a dialog), then drive it like a ' +
   'device — sim_screen to SEE it (it returns the screen as an image; there is no DOM, so ' +
   'look at the picture and read coordinates off it), sim_tap and sim_swipe to touch it (in ' +
   "sim_screen's pixels), sim_type to type into a focused field, sim_press for the home/lock/" +

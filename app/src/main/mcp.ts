@@ -26,6 +26,7 @@ import {
   postureAngle
 } from './simulator'
 import { withoutStealingFocus } from './browser'
+import { shutDownAllSimulators } from './sim-cleanup'
 import { recordFileHandover } from './companion/log'
 import { nativeImage } from 'electron'
 import { readFileSync, unlinkSync } from 'fs'
@@ -438,6 +439,24 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
         )
       }
       return { content: [{ type: 'text', text: lines.join('\n') || 'No simulators available.' }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_shutdown_all',
+    {
+      description:
+        "Turn off EVERY running iOS Simulator, other conversations' included. Use it only when the user asked for all of them to be turned off; the shell route for that is refused by Superagent. The user is asked in a dialog and may decline. To stop only this conversation's device, use its UDID with simctl.",
+      inputSchema: {}
+    },
+    async () => {
+      const r = await shutDownAllSimulators()
+      const text = r.declined
+        ? 'The user declined in the dialog; nothing was turned off. Do not try another way.'
+        : r.done.length
+          ? `Turned off ${r.done.length}: ${r.done.join(', ')}.`
+          : 'No simulator was running.'
+      return { content: [{ type: 'text', text }] }
     }
   )
 

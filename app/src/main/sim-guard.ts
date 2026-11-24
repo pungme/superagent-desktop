@@ -62,7 +62,7 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
   // loop over `simctl list`, killing the simulator service. How a conversation
   // clearing its own clutter took another one's device with it.
   for (const m of command.matchAll(/\bsimctl\s+(shutdown|erase|delete)\s+all\b/g))
-    return `Not run: \`simctl ${m[1]} all\` reaches every conversation's simulator, not only this one's. ${own}`
+    return `Not run: \`simctl ${m[1]} all\` reaches every conversation's simulator, not only this one's. ${own} If the user asked for ALL simulators to be turned off, call the sim_shutdown_all tool: it asks them in a dialog.`
   if (
     simctl &&
     (/\bxargs\b[^\n;]*\bsimctl\b/.test(command) ||

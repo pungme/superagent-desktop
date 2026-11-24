@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { kvGet, kvSet } from './store'
@@ -182,6 +182,50 @@ export async function sleepIdleSimulators(now = Date.now()): Promise<string[]> {
     healthLog(`simulator ${name} (${udid.slice(0, 8)}) shut down: unused for 10 minutes`)
   }
   return gone
+}
+
+/**
+ * "Turn off every running simulator", for an agent the person asked to. The
+ * shell route is refused (sim-guard.ts: it would take other conversations'
+ * devices too), so the person says yes here, in a dialog of the app's own that
+ * no chat message can answer. Cancel is the default.
+ */
+export async function shutDownAllSimulators(
+  ask: (names: string[]) => Promise<boolean> = askShutDownAll
+): Promise<{ done: string[]; declined: boolean }> {
+  const devices = await scanSimulators()
+  const running = devices.filter((d) => d.state === 'Booted' || d.state === 'Booting')
+  if (!running.length) return { done: [], declined: false }
+  if (!(await ask(running.map((d) => d.name)))) return { done: [], declined: true }
+  const done: string[] = []
+  for (const d of running) {
+    releaseSimulatorHelpers(d.udid)
+    await run('xcrun', ['simctl', 'shutdown', d.udid], { timeout: 60_000 }).then(
+      () => done.push(d.name),
+      () => {}
+    )
+  }
+  healthLog(`all simulators shut down on request (${done.length} of ${running.length})`)
+  return { done, declined: false }
+}
+
+async function askShutDownAll(names: string[]): Promise<boolean> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const options = {
+    type: 'question' as const,
+    buttons: ['Cancel', 'Turn them all off'],
+    defaultId: 0,
+    cancelId: 0,
+    message: `Turn off ${names.length} running simulator${names.length === 1 ? '' : 's'}?`,
+    detail:
+      'Includes the ones other conversations are using; anything running in them stops.\n\n' +
+      names.slice(0, 12).join('\n') +
+      (names.length > 12 ? `\n… and ${names.length - 12} more` : '')
+  }
+  const { response } = win
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options)
+  return response === 1
 }
 
 let sleepTimer: NodeJS.Timeout | null = null
