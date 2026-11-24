@@ -159,6 +159,8 @@ describe('what is at stake in an app', () => {
     expect(appCaution('com.apple.Terminal')).toContain('command')
     expect(appCaution('com.googlecode.iterm2')).toContain('command')
     expect(appCaution('com.microsoft.VSCode')).toContain('code')
+    // A scripting app is warned about too: what is put in it can run.
+    expect(appCaution('com.apple.ScriptEditor2')).toContain('command')
     expect(appCaution('com.apple.finder')).toContain('files')
     expect(appCaution('com.apple.Safari')).toContain('signed in')
     expect(appCaution('com.apple.mail')).toContain('send')
@@ -329,6 +331,14 @@ describe('a click on something that ends or destroys', () => {
     )
     expect(riskyControl('AXButton', 'Send')).toContain('sends')
     expect(riskyControl('AXButton', 'Buy Now')).toContain('spends money')
+  })
+  it('knows a named delete, another send, and the German words', () => {
+    expect(riskyControl('AXMenuItem', 'Delete Note')).toContain('deletes')
+    expect(riskyControl('AXMenuItem', 'Delete Conversation…')).toContain('deletes')
+    expect(riskyControl('AXButton', 'Send Again')).toContain('sends')
+    expect(riskyControl('AXMenuItem', 'Löschen')).toContain('deletes')
+    expect(riskyControl('AXMenuItem', 'Safari beenden')).toContain('quits')
+    expect(riskyControl('AXButton', 'Senden')).toContain('sends')
   })
   it('leaves ordinary controls alone, and text that only mentions the words', () => {
     for (const [role, label] of [

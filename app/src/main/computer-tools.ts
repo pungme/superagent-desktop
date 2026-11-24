@@ -41,6 +41,7 @@ import {
   menuBehind,
   windowPicture,
   waitForControlBehind,
+  frontApp,
   type BehindApp
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
@@ -275,7 +276,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       ctx.workspaceId,
       ctx.sessionId,
       'mcp__cove-browser__computer_use',
-      'Paste what is on your clipboard.\nWhatever you last copied will be put in the app in front, where the agent can see it.',
+      'Paste what is on your clipboard.\nWhatever you last copied will be put in the app, where the agent can see it.',
       'permission'
     )
     return yes
@@ -631,21 +632,29 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         'Press a button, checkbox, link or menu by its number and name from computer_read_ui, without moving the pointer. Surer than clicking at a point: prefer it whenever the control is in that list. Returns the screen afterwards. With app, in that app from behind (numbers from computer_read_ui with the same app), and returns its window.',
       inputSchema: { ...control, app: APP_ARG }
     },
-    ({ index, name, app }) =>
-      app
-        ? byNameBehind(
-            app,
-            riskyControl('AXButton', name),
-            `Press "${name}"`,
-            (t) => pressBehind(owner, t, index, name),
-            `Pressed "${name}".`
-          )
-        : byName(
-            riskyControl('AXButton', name),
-            `Press "${name}"`,
-            () => pressControl(owner, index, name),
-            `Pressed "${name}".`
-          )
+    ({ index, name, app }) => {
+      const press = (): Promise<Result> =>
+        app
+          ? byNameBehind(
+              app,
+              riskyControl('AXButton', name),
+              `Press "${name}"`,
+              (t) => pressBehind(owner, t, index, name),
+              `Pressed "${name}".`
+            )
+          : byName(
+              riskyControl('AXButton', name),
+              `Press "${name}"`,
+              () => pressControl(owner, index, name),
+              `Pressed "${name}".`
+            )
+      // The Paste menu item pressed by its number is Edit > Paste: the same question.
+      if (!/^paste\b/i.test(name.trim())) return press()
+      return gate().then(async (no) => {
+        const stop = no ?? (await mayPaste())
+        return stop ? failed(stop) : press()
+      })
+    }
   )
 
   server.registerTool(
@@ -937,6 +946,8 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         return failed(STEP_REFUSED)
       if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
       if (background) {
+        // The app the user is in, to give back if this one takes the front.
+        const before = await frontApp()
         // By its bundle id, the app that was checked and asked about; -g keeps
         // it behind, whatever the user is in stays in front.
         const err = await new Promise<string>((resolve) =>
@@ -947,15 +958,31 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         if (err) return failed(`Could not open "${name}": ${err.slice(0, 200)}`)
         note(`Opened ${which.name} behind`)
         touchConsent(owner)
-        // A cold start takes a moment to have a process and a window.
+        // A cold start takes a moment to have a process and a window. Only
+        // "not open yet" is waited out; any other answer is the answer.
         let target: BehindApp | null = null
         for (let i = 0; i < 20 && !target; i++) {
           await settle(300)
-          target = await behindApp(name).catch(() => null)
+          try {
+            target = await behindApp(which)
+          } catch (e) {
+            const why = (e as Error).message
+            if (!/is not open/.test(why)) return failed(why)
+          }
         }
         if (!target)
           return failed(`${which.name} did not start. Try again, or open it in front instead.`)
-        return await lookBehind(target, `Opened ${which.name} behind the user's windows.`)
+        // Some apps bring themselves forward as they start: the user gets theirs back.
+        const now = await frontApp()
+        let back = ''
+        if (before && now && now.id === which.id && before.id !== which.id) {
+          execFile('/usr/bin/open', ['-b', before.id], { timeout: 4000 }, () => {})
+          back = ` It came to the front by itself as it started; the user was put back in ${before.name}.`
+        }
+        return await lookBehind(
+          target,
+          `Opened ${target.app.name} behind the user's windows.${back}`
+        )
       }
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>

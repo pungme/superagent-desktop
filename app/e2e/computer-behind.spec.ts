@@ -367,3 +367,30 @@ test('a no to the app is final: nothing is read or done there', async () => {
   await new Promise((r) => setTimeout(r, 400))
   expect(log.slice(before)).not.toContain('PRESSED')
 })
+
+test('only a real app of its own: a panel another app runs, macOS itself, a terminal or a path are refused', async () => {
+  for (const [app, why] of [
+    ['Open and Save Panel Service', /part of another app|copies of that running/],
+    ['Dock', /part of macOS/],
+    ['Terminal', /terminal/],
+    ['/System/Applications/Calculator.app', /not by a path/]
+  ] as const) {
+    const r = await tool('computer_read_ui', { app })
+    expect(r.isError, `${app}: ${r.text}`).toBe(true)
+    expect(r.text, app).toMatch(why)
+    // Refused outright: the user is not asked about it first.
+    expect(
+      r.asked.filter((q) => q.startsWith('Work in')),
+      app
+    ).toEqual([])
+  }
+})
+
+test('a stop takes the yes back, and nothing from behind gives it back', async () => {
+  await window.evaluate(() => window.cove.computerStop())
+  // The next call has to ask again, and a no leaves it at that.
+  const r = await tool('computer_window_screenshot', { app: NAME }, () => false)
+  expect(r.isError).toBe(true)
+  expect(r.asked.length).toBeGreaterThan(0)
+  expect(r.images).toBe(0)
+})

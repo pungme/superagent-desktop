@@ -343,6 +343,7 @@ export function launcherApp(bundleId: string | null | undefined): boolean {
 
 const CAUTIONS: [prefixes: string[], warning: string][] = [
   [TERMINALS, 'It is a terminal: anything typed there runs as a command on this Mac.'],
+  [SCRIPTING, 'It runs scripts: anything put in it can run as a command on this Mac.'],
   [
     [...EDITORS_WITH_SHELL, 'com.apple.dt.xcode'],
     'It is a code editor with a terminal: it can change your code and run commands.'
@@ -525,6 +526,12 @@ const RISKY_LABELS: [RegExp, string][] = [
   [/^(shut down|restart)$/, 'shuts down or restarts this Mac'],
   [/^(empty (trash|bin)|delete immediately|erase\b.*)/, 'deletes for good, with no way back'],
   [/^(move to (trash|bin)|delete)$/, 'deletes what is selected'],
+  // A named thing deleted: "Delete Note", "Delete Conversation…", "Delete Mailbox".
+  [/^delete \S/, 'deletes something'],
+  // Common German labels, as macOS shows them on a German Mac.
+  [/^(löschen|in den papierkorb legen|papierkorb entleeren)$/, 'deletes something'],
+  [/^beenden\b|\bbeenden$/, 'quits an app, and anything unsaved in it may be lost'],
+  [/^(senden|jetzt senden|bezahlen|kaufen)$/, 'sends something or spends money'],
   [/^force quit/, 'force quits an app, losing anything unsaved'],
   [
     /^(quit|quit and .*|quit all.*)$|^quit \S/,
@@ -537,7 +544,7 @@ const RISKY_LABELS: [RegExp, string][] = [
   ],
   [/^(uninstall|remove account|delete account).*$/, 'removes an app or an account'],
   [
-    /^(send|send now|send message|send email|send all|pay|pay now|buy|buy now|purchase|place order|confirm payment|confirm purchase|subscribe|transfer)$/,
+    /^(send|send now|send message|send email|send all|send again|send to .*|pay|pay now|buy|buy now|purchase|place order|confirm payment|confirm purchase|subscribe|transfer)$/,
     'sends something or spends money'
   ]
 ]

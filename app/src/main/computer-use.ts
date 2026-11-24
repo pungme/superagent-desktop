@@ -48,6 +48,7 @@ import {
   focusMoved,
   pointerMoved,
   offLimitsApp,
+  shellApp,
   shotSize,
   toScreenPoint,
   type Shot
@@ -647,7 +648,7 @@ export async function readUi(
   const { ok, out, error } = await cuse(['ax', '160'])
   if (!ok && error) throw new Error(error)
   const controls = (Array.isArray(out.elements) ? out.elements : []) as UiControl[]
-  allowed.set(owner, Date.now())
+  touchConsent(owner)
   return {
     app: typeof out.app === 'string' ? cleanAppName(out.app) : (front?.name ?? ''),
     window: typeof out.window === 'string' ? out.window : '',
@@ -698,7 +699,7 @@ async function mayActByName(owner: string): Promise<AppRef> {
 }
 
 function didAct(owner: string): void {
-  allowed.set(owner, Date.now())
+  touchConsent(owner)
   actionsDone.set(owner, (actionsDone.get(owner) ?? 0) + 1)
   setActive(true)
 }
@@ -766,19 +767,47 @@ export interface BehindApp {
   pid: number
 }
 
-/** The process of a running app, by its bundle id; null when it is not running. */
-function pidOf(bundleId: string): Promise<number | null> {
-  return new Promise((resolve) =>
+/** A running app as Launch Services knows it: its own name, its bundle and its process. */
+interface Running {
+  name: string
+  path: string
+  pid: number
+  type: string
+}
+
+/**
+ * The running copy of an app, by bundle id. Null when it is not running;
+ * throws when more than one is: an XPC service runs once per app it serves
+ * (a Save panel of 1Password's next to Superagent's), and which one is meant
+ * cannot be told from the id.
+ */
+function runningApp(bundleId: string): Promise<Running | null> {
+  return new Promise((resolve, reject) =>
     execFile(
       '/usr/bin/lsappinfo',
       ['find', `bundleid=${bundleId}`],
       { timeout: 4000 },
       (err, out) => {
-        const asn = /ASN:0x[0-9a-f]+-0x[0-9a-f]+-/i.exec(String(out ?? ''))?.[0]
-        if (err || !asn) return resolve(null)
-        execFile('/usr/bin/lsappinfo', ['info', '-only', 'pid', asn], { timeout: 4000 }, (e, o) => {
-          const pid = Number(/pid\s*=\s*(\d+)/.exec(String(o ?? ''))?.[1])
-          resolve(!e && pid > 0 ? pid : null)
+        const asns = [...String(out ?? '').matchAll(/ASN:0x[0-9a-f]+-0x[0-9a-f]+-/gi)].map(
+          (m) => m[0]
+        )
+        if (err || !asns.length) return resolve(null)
+        if (asns.length > 1)
+          return reject(
+            new Error(
+              `There are ${asns.length} copies of that running, each working for another app, so it cannot be worked in from behind.`
+            )
+          )
+        execFile('/usr/bin/lsappinfo', ['info', asns[0]], { timeout: 4000 }, (e, o) => {
+          const text = String(o ?? '')
+          const pid = Number(/\bpid = (\d+)/.exec(text)?.[1])
+          if (e || !(pid > 0)) return resolve(null)
+          resolve({
+            name: /^"([^"]*)" ASN:/m.exec(text)?.[1] ?? '',
+            path: /bundle path="([^"]*)"/.exec(text)?.[1] ?? '',
+            pid,
+            type: /\btype="([^"]*)"/.exec(text)?.[1] ?? ''
+          })
         })
       }
     )
@@ -786,30 +815,64 @@ function pidOf(bundleId: string): Promise<number | null> {
 }
 
 /**
+ * Why a running app cannot be worked in from behind, or null. Only a real app:
+ * an ordinary one, or a menu-bar one of the user's. Never a service working
+ * for another app (an .xpc, an extension: a Save panel or AutoFill can belong
+ * to a password manager or to Superagent), never macOS's own surfaces (Dock,
+ * Notification Center, Control Center), and never a terminal or a scripting
+ * app, where anything typed runs as a command and from behind nobody sees it.
+ */
+function notBehind(id: string, run: Running): string | null {
+  const path = run.path
+  if (!/\.app$/.test(path) || /\.(xpc|appex)\//.test(path) || /\/XPCServices\//.test(path))
+    return 'That is a part of another app (a panel or a service it runs), not an app of its own, so it is not worked in from behind.'
+  const ordinary = run.type === 'Foreground'
+  const ownMenuBarApp = run.type === 'UIElement' && !path.startsWith('/System/')
+  if (!ordinary && !ownMenuBarApp)
+    return 'That is part of macOS itself (the Dock, a menu bar or notification surface), not an app to work in from behind.'
+  const shell = shellApp(id)
+  if (shell)
+    return `It is ${shell}: anything put in it can run as a command on this Mac, and from behind the user would not see it. Bring it to the front with computer_open_mac_app instead, where they can.`
+  return null
+}
+
+/**
  * The app a name means, running, and allowed to be worked in at all. Throws
  * with what to say when it is not known, out of bounds or not open. Whether
- * this conversation may work in it is asked by the tool, as for any app.
+ * this conversation may work in it is asked by the tool, as for any app, under
+ * the app's own name, never the words the agent used for it.
  */
-export async function behindApp(name: string): Promise<BehindApp> {
-  const app = await appNamed(name)
-  if (!app)
+export async function behindApp(nameOrApp: string | AppRef): Promise<BehindApp> {
+  if (typeof nameOrApp === 'string' && /[/:]/.test(nameOrApp))
+    throw new Error('Name the app as it appears in the Applications folder, not by a path.')
+  const named = typeof nameOrApp === 'string' ? await appNamed(nameOrApp) : nameOrApp
+  if (!named)
     throw new Error(
-      `There is no app called "${name}" on this Mac that can be identified. Use its name as it appears in the Applications folder.`
+      `There is no app called "${nameOrApp}" on this Mac that can be identified. Use its name as it appears in the Applications folder.`
     )
-  const no = offLimitsMessage(app, true)
+  const no = offLimitsMessage(named, true)
   if (no) throw new Error(no)
-  const pid = await pidOf(app.id)
-  if (!pid)
+  // A terminal or scripting app is refused whether it is open or not.
+  const shell = shellApp(named.id)
+  if (shell)
     throw new Error(
-      `${app.name} is not open. Open it with computer_open_mac_app and background: true (it opens behind, without taking the screen), then work in it.`
+      `It is ${shell}: anything put in it can run as a command on this Mac, and from behind the user would not see it. Bring it to the front with computer_open_mac_app instead, where they can.`
     )
-  return { app, pid }
+  const run = await runningApp(named.id)
+  if (!run)
+    throw new Error(
+      `${named.name} is not open. Open it with computer_open_mac_app and background: true (it opens behind, without taking the screen), then work in it.`
+    )
+  const not = notBehind(named.id, run)
+  if (not) throw new Error(not)
+  return { app: { id: named.id, name: run.name || named.name }, pid: run.pid }
 }
 
 /**
  * Before reading or acting in an app from behind: consent, the app still out
- * of bounds or not, still the same process. Claims the Mac for this
- * conversation as any action does.
+ * of bounds or not, still the same process, and nothing in front that waits on
+ * the user (a locked Mac, a password prompt): then nothing goes on, as in
+ * front. Claims the Mac for this conversation as any action does.
  */
 async function mayWorkBehind(owner: string, target: BehindApp, acting: boolean): Promise<void> {
   if (!hasConsent(owner))
@@ -819,11 +882,19 @@ async function mayWorkBehind(owner: string, target: BehindApp, acting: boolean):
   // Rules can change while the agent works: asked again every time.
   const no = offLimitsMessage(target.app, acting)
   if (no) throw new Error(no)
+  const front = await frontApp()
+  if (front && needsTheUser(front)) {
+    const why = offLimitsMessage(front)
+    throw new Error(why ?? 'Something in front waits on the user, so nothing was done.')
+  }
   // Quit and opened again, or another copy: not the process that was read.
-  if ((await pidOf(target.app.id)) !== target.pid)
+  const run = await runningApp(target.app.id).catch(() => null)
+  if (run?.pid !== target.pid)
     throw new Error(
       `${target.app.name} was quit or restarted since you last looked, so nothing was done. Read its controls again.`
     )
+  // Stopped (⌥Esc) while the lookups above ran: nothing more.
+  if (!hasConsent(owner)) throw new Error('Stopped by the user.')
   claim(owner)
 }
 
@@ -847,7 +918,8 @@ export async function readUiBehind(
   const { ok, out, error } = await cuse(['--pid', String(target.pid), 'ax', '160'])
   if (!ok && error) throw new Error(error)
   const controls = (Array.isArray(out.elements) ? out.elements : []) as UiControl[]
-  allowed.set(owner, Date.now())
+  if (!hasConsent(owner)) throw new Error('Stopped by the user.')
+  touchConsent(owner)
   return {
     app: target.app.name,
     window: typeof out.window === 'string' ? out.window : '',
@@ -859,6 +931,8 @@ export async function readUiBehind(
 async function actBehind(owner: string, target: BehindApp, args: string[]): Promise<string> {
   await mayWorkBehind(owner, target, true)
   const before = await frontApp()
+  // The last moment to notice a stop before the press.
+  if (!hasConsent(owner)) throw new Error('Stopped by the user.')
   didAct(owner)
   const res = await cuse(['--pid', String(target.pid), ...args])
   if (!res.ok) throw new Error(byNameError(res.error))
@@ -910,7 +984,14 @@ export async function windowPicture(
   const displays = screen.getAllDisplays().map((d) => d.bounds)
   const shown = (w: (typeof wins)[number]): boolean =>
     w.onscreen && displays.some((d) => overlaps({ x: w.x, y: w.y, width: w.w, height: w.h }, d))
-  const win = wins.find(shown) ?? wins[0]
+  // The window the controls are read from (the app's first in accessibility),
+  // matched by its title: the picture and the controls are of the same one.
+  const ax = await cuse(['--pid', String(target.pid), 'ax', '1'])
+  const axTitle = typeof ax.out.window === 'string' ? ax.out.window : ''
+  const win =
+    (axTitle ? wins.find((w) => shown(w) && w.title === axTitle) : undefined) ??
+    wins.find(shown) ??
+    wins[0]
   if (!win)
     throw new Error(
       `${target.app.name} has no window open. Its menus can still be read and used with computer_read_ui and computer_menu.`
@@ -962,7 +1043,9 @@ export async function windowPicture(
     throw new Error(
       `${target.app.name}'s window could not be pictured. Its controls can still be read with computer_read_ui.`
     )
-  allowed.set(owner, Date.now())
+  // A capture takes seconds: stopped meanwhile, the picture is not handed over.
+  if (!hasConsent(owner)) throw new Error('Stopped by the user.')
+  touchConsent(owner)
   const got = image.getSize()
   return { jpeg: image.toJPEG(80), title: win.title, width: got.width, height: got.height }
 }
@@ -1068,7 +1151,7 @@ export async function takeZoom(
   })
   const size = cut.getSize()
   const out = size.width > SHOT_MAX_WIDTH ? cut.resize({ width: SHOT_MAX_WIDTH }) : cut
-  allowed.set(owner, Date.now())
+  touchConsent(owner)
   return { jpeg: out.toJPEG(85), ...out.getSize() }
 }
 
@@ -1771,7 +1854,7 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
       'The user moved the mouse since you last looked at the screen, so nothing was done: they may be using the Mac themselves. Take a screenshot to see what changed before going on.'
     )
   }
-  allowed.set(owner, Date.now())
+  touchConsent(owner)
   actionsDone.set(owner, (actionsDone.get(owner) ?? 0) + 1)
   setActive(true)
   // Where it is about to land, shown first.
