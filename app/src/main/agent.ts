@@ -10,6 +10,9 @@ import { writeWorkspaceMcpConfig } from './mcp'
 import { agentLog } from './agent-log'
 import {
   clearChatSession,
+  swapAgentSession,
+  takeCatchUp,
+  takeResumeNext,
   loadChatItems,
   getChatProvider,
   setChatProvider,
@@ -256,8 +259,23 @@ export function markContextCopied(chatId: string): void {
  */
 export function takeRecap(chatId: string | undefined): string {
   const why = chatId ? contextLost.get(chatId) : undefined
+  // Back on a thread of its own after another agent had the chat: only what it missed.
+  if (chatId && !why) {
+    const from = takeCatchUp(chatId)
+    if (from === null) return ''
+    const missed = buildRecapFrom(chatId, from)
+    return missed
+      ? '[You are back in this conversation after another agent carried it on for a while. ' +
+          'Your own memory of it is intact; here is what happened since your last turn, so you can ' +
+          'continue from where it is now.]\n\n' +
+          missed +
+          '\n\n---\n\n'
+      : ''
+  }
   if (!chatId || !why) return ''
   contextLost.delete(chatId)
+  // The full recap covers what a catch-up would have; do not send that again later.
+  takeCatchUp(chatId)
   const recap = buildRecap(chatId)
   if (!recap) return ''
   return (
@@ -269,6 +287,18 @@ export function takeRecap(chatId: string | undefined): string {
     recap +
     '\n\n---\n\n'
   )
+}
+
+/** The recap of what was said from item `from` on: what a returning agent missed. */
+function buildRecapFrom(chatId: string, from: number): string {
+  let items: LegacyItem[] = []
+  try {
+    items = loadChatItems(chatId) as LegacyItem[]
+  } catch {
+    return ''
+  }
+  const missed = items.slice(Math.max(0, from))
+  return missed.length ? recapFrom(missed as RecapItem[]) : ''
 }
 
 export function buildRecap(chatId: string): string {
@@ -329,6 +359,12 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   // reply rather than any message: a brand-new chat's first send is already in
   // the transcript by now, so "some message exists" is true on the most common
   // path there is.
+  // Switched back to an agent that ran this chat before: its own thread, which
+  // the window (it cleared its copy at the switch) does not know.
+  if (!opts.resumeSessionId && opts.chatId) {
+    const back = takeResumeNext(opts.chatId)
+    if (back) opts = { ...opts, resumeSessionId: back }
+  }
   if (!opts.resumeSessionId && opts.chatId) {
     const items = (() => {
       try {
@@ -662,9 +698,14 @@ function carryOnWithoutWindow(id: string, chatId: string, notice: LimitNotice | 
     said = `${notice.account.name} is out of allowance; continuing on ${notice.switchedTo.name}.`
   else if (notice.switchedToAgent) {
     // As the phone's own "switch agent" does: the new agent gets the conversation as a recap.
+    // One that ran this chat before resumes its own thread and is told what it missed.
+    const back = swapAgentSession(chatId, notice.switchedToAgent)
     setChatProvider(chatId, notice.switchedToAgent)
-    clearChatSession(chatId)
-    markContextLost(chatId)
+    if (back) setChatSession(chatId, back, notice.switchedToAgent)
+    else {
+      clearChatSession(chatId)
+      markContextLost(chatId)
+    }
     said = notice.switchedToAccount
       ? `${notice.account.name} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]} · ${notice.switchedToAccount.name}, which has the conversation so far.`
       : `${PROVIDER_LABEL[notice.provider]} is out of allowance; continuing on ${PROVIDER_LABEL[notice.switchedToAgent]}, which has the conversation so far.`

@@ -5,6 +5,7 @@ import {
   saveTranscriptPatch,
   transcriptRequest
 } from './transcripts'
+import { swapSessions, type AgentSessions } from '../shared/agent-sessions'
 import type { TranscriptPatch } from '../shared/transcript'
 import { isMainOwnedKey } from '../shared/kv-owned'
 import { NOW_MAX } from '../shared/chat-now'
@@ -294,6 +295,13 @@ export function initStore(): void {
   // to sort by updatedAt, so the Pinned list reshuffled itself every time a
   // pinned chat so much as got a new message, which read as random reordering.
   // Pin order is fixed at the moment you pin it instead.
+  // Migration: each agent's own session of a chat, kept while another agent
+  // has the chat, so switching back resumes it (agentSessions, JSON).
+  const chatCols7 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols7.length > 0 && !chatCols7.some((c) => c.name === 'agentSessions')) {
+    db.exec('ALTER TABLE chats ADD COLUMN agentSessions TEXT')
+  }
+
   const chatCols6 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
   if (chatCols6.length > 0 && !chatCols6.some((c) => c.name === 'pinnedAt')) {
     db.exec('ALTER TABLE chats ADD COLUMN pinnedAt INTEGER')
@@ -727,6 +735,72 @@ export function setChatProvider(chatId: string, provider: AgentProvider): void {
   db.prepare('UPDATE chats SET provider = ? WHERE id = ?').run(provider, chatId)
 }
 
+function readAgentSessions(chatId: string): AgentSessions {
+  const row = db.prepare('SELECT agentSessions FROM chats WHERE id = ?').get(chatId) as
+    { agentSessions: string | null } | undefined
+  try {
+    return row?.agentSessions ? (JSON.parse(row.agentSessions) as AgentSessions) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeAgentSessions(chatId: string, v: AgentSessions): void {
+  db.prepare('UPDATE chats SET agentSessions = ? WHERE id = ?').run(JSON.stringify(v), chatId)
+}
+
+/**
+ * The chat moves to another agent. The session of the one it leaves is kept
+ * with how far the conversation had got; the one it moves to gets its own
+ * session back if it ran this chat before (null when it did not), and is to be
+ * told only what it missed since (takeCatchUp), not the whole conversation.
+ */
+export function swapAgentSession(chatId: string, to: AgentProvider): string | null {
+  const row = db.prepare('SELECT provider, claudeSessionId FROM chats WHERE id = ?').get(chatId) as
+    { provider: string | null; claudeSessionId: string | null } | undefined
+  if (!row) return null
+  const from = row.provider ? toProvider(row.provider) : null
+  let items = 0
+  try {
+    items = from && from !== to && row.claudeSessionId ? loadChatItems(chatId).length : 0
+  } catch {
+    items = 0
+  }
+  const { next, back } = swapSessions(
+    readAgentSessions(chatId),
+    from,
+    to,
+    row.claudeSessionId,
+    items
+  )
+  writeAgentSessions(chatId, next)
+  return back
+}
+
+/** Where what the returning agent missed starts, once; null when there is nothing to catch up on. */
+export function takeCatchUp(chatId: string): number | null {
+  const v = readAgentSessions(chatId)
+  if (v.catchUpFrom === undefined) return null
+  const from = v.catchUpFrom
+  delete v.catchUpFrom
+  writeAgentSessions(chatId, v)
+  return from
+}
+
+/**
+ * The session an agent switched back to resumes, once, at its next start. Only
+ * right after a switch: a window that starts a chat fresh on purpose (it was
+ * cleared) is not given an old thread.
+ */
+export function takeResumeNext(chatId: string): string | null {
+  const v = readAgentSessions(chatId)
+  if (!v.resumeNext) return null
+  const id = v.resumeNext
+  delete v.resumeNext
+  writeAgentSessions(chatId, v)
+  return id
+}
+
 export function setChatPinned(chatId: string, pinned: boolean): void {
   // pinnedAt fixes the Pinned list's order at the moment of pinning, not
   // whenever the chat next updates — otherwise pinning it again later would
@@ -936,7 +1010,7 @@ export function clearChat(chatId: string): void {
     db.prepare('DELETE FROM chat_events WHERE chatId = ?').run(chatId)
     db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
     db.prepare(
-      "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE id = ?"
+      "UPDATE chats SET data = '[]', claudeSessionId = NULL, agentSessions = NULL, updatedAt = ? WHERE id = ?"
     ).run(now, chatId)
   })()
   tellCleared([chatId])
@@ -958,7 +1032,7 @@ export function clearWorkspaceChats(workspaceId: string): string[] {
       'DELETE FROM chat_data WHERE id IN (SELECT id FROM chats WHERE workspaceId = ?)'
     ).run(workspaceId)
     db.prepare(
-      "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE workspaceId = ?"
+      "UPDATE chats SET data = '[]', claudeSessionId = NULL, agentSessions = NULL, updatedAt = ? WHERE workspaceId = ?"
     ).run(now, workspaceId)
   })()
   for (const id of ids) void transcriptRequest('clear', id).catch(console.error)
@@ -1048,6 +1122,8 @@ export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): bool
     chatId
   )
   clearChatSession(chatId)
+  // The other agents' threads ran in the old folder; they cannot be resumed here.
+  db.prepare('UPDATE chats SET agentSessions = NULL WHERE id = ?').run(chatId)
   return true
 }
 
@@ -2330,6 +2406,13 @@ function registerStoreIpcTail(): void {
       if ('onlyIfTitle' in patch && 'title' in patch) {
         const now = getChat(id)?.title ?? null
         if (now !== (patch.onlyIfTitle ?? null)) return false
+      }
+      // Moving to another agent: the one left keeps its session for later, and
+      // one that ran this chat before gets its own back instead of nothing.
+      if ('provider' in patch && patch.provider && getChat(id)) {
+        const now = getChatProvider(id)
+        if (now !== patch.provider)
+          patch = { ...patch, claudeSessionId: swapAgentSession(id, toProvider(patch.provider)) }
       }
       const sets: string[] = []
       const vals: (string | number | null)[] = []

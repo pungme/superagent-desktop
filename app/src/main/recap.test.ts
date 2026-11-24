@@ -9,7 +9,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  */
 const store = vi.hoisted(() => ({
   items: new Map<string, unknown[]>(),
-  provider: 'claude' as 'claude' | 'codex'
+  provider: 'claude' as 'claude' | 'codex',
+  catchUp: new Map<string, number>()
 }))
 
 vi.mock('electron', () => ({
@@ -23,7 +24,16 @@ vi.mock('./store', () => ({
   loadChatItems: (chatId: string) => store.items.get(chatId) ?? [],
   // The recap names the speaker after the chat's own agent.
   getChatProvider: () => store.provider,
-  setChatSession: () => undefined
+  setChatSession: () => undefined,
+  clearChatSession: () => undefined,
+  setChatProvider: () => undefined,
+  swapAgentSession: () => null,
+  takeCatchUp: (chatId: string) => {
+    const from = store.catchUp.get(chatId)
+    store.catchUp.delete(chatId)
+    return from ?? null
+  },
+  takeResumeNext: () => null
 }))
 
 const { markContextLost, takeRecap, buildRecap } = await import('./agent')
@@ -142,5 +152,51 @@ describe('what the agent did, in the recap', () => {
     expect(buildRecap('steps')).toBe(
       'User: Fix the header\nSteps: read header.css, ran `npm test`, edited header.css\nAssistant: Tests fail on Safari.'
     )
+  })
+})
+
+/** Switched back to an agent that still has its own thread: only what it missed. */
+describe('catch-up after a switch back', () => {
+  beforeEach(() => {
+    store.catchUp.clear()
+    store.items.set('back', [
+      msg('user', 'Deploy the staging branch'),
+      msg('assistant', 'Deployed.'),
+      msg('user', 'Now run the migrations'),
+      msg('assistant', 'Migrations ran, 3 applied.')
+    ])
+  })
+
+  it('sends only the messages after its last turn, once', () => {
+    store.catchUp.set('back', 2)
+    const recap = takeRecap('back')
+    expect(recap).toContain('back in this conversation')
+    expect(recap).toContain('User: Now run the migrations')
+    expect(recap).toContain('Assistant: Migrations ran')
+    expect(recap).not.toContain('Deploy the staging branch')
+    expect(takeRecap('back')).toBe('')
+  })
+
+  it('is empty when nothing happened while it was away', () => {
+    store.catchUp.set('back', 4)
+    expect(takeRecap('back')).toBe('')
+  })
+
+  it('gives the full recap instead when the thread itself was lost', () => {
+    store.catchUp.set('back', 2)
+    markContextLost('back')
+    const recap = takeRecap('back')
+    expect(recap).toContain('no memory of it')
+    expect(recap).toContain('Deploy the staging branch')
+  })
+})
+
+describe('a lost thread after a switch back', () => {
+  it('does not send a catch-up after the full recap', () => {
+    store.catchUp.set('back2', 0)
+    store.items.set('back2', [msg('user', 'hello'), msg('assistant', 'hi')])
+    markContextLost('back2')
+    expect(takeRecap('back2')).toContain('no memory of it')
+    expect(takeRecap('back2')).toBe('')
   })
 })
