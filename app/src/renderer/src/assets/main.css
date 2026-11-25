@@ -17295,3 +17295,61 @@ button.rov-run:not(:disabled):hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A sub-agent's pill opens onto what it is doing. */
+button.easy-run-agent {
+  cursor: pointer;
+  font: inherit;
+}
+.easy-agent-menu {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+.easy-agent-steps {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.easy-agent-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.easy-agent-step code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.easy-agent-step-mark {
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.easy-agent-step.ok .easy-agent-step-mark {
+  color: #3fb950;
+}
+.easy-agent-step.bad .easy-agent-step-mark {
+  color: #f97583;
+}
+.easy-agent-step.now .easy-agent-step-mark {
+  color: #d29922;
+}
+.easy-agent-step-name {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+.easy-agent-step-said {
+  font-style: italic;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}

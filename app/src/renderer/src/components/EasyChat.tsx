@@ -1,5 +1,6 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { GhostGlyph } from './GhostGlyph'
+import { currentStep, noteSubagentEvent, type SubActivity } from '../../../shared/subagent-activity'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
@@ -2068,6 +2069,8 @@ export function EasyChat({
   // `background`: launched with run_in_background — its tool result only says
   // "launched", so it runs on until its task_notification; `taskId` is the CLI's
   // id for it (task_started), for reconciling against background_tasks_changed.
+  /** Each sub-agent's recent steps, by the tool call that started it (subagent-activity.ts). */
+  const subActivityRef = useRef<SubActivity>(new Map())
   const [runningAgents, setRunningAgents] = useState<
     {
       toolUseId: string
@@ -3319,6 +3322,9 @@ export function EasyChat({
   const handleEvent = useCallback(
     (event: Record<string, unknown>) => {
       const type = event.type as string
+      // What a sub-agent does is tagged with the call that started it: keep it, so
+      // its pill can open onto it. (The strip redraws every second and reads it then.)
+      noteSubagentEvent(subActivityRef.current, event, Date.now())
 
       // Background sub-agents, as the CLI reports them: started (and moved to the
       // background), finished, and the full list of what's still running. A
@@ -7757,17 +7763,73 @@ export function EasyChat({
                 </div>
               )
             })}
-            {runningAgents.map((a) => (
-              <div className="easy-control" key={a.toolUseId}>
-                <span
-                  className="easy-control-btn easy-run-agent"
-                  title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
-                >
-                  <span className="status-spinner easy-run-agent-spin" />
-                  <span className="easy-control-val">🤖 {a.label}</span>
-                </span>
-              </div>
-            ))}
+            {runningAgents.map((a) => {
+              const key = `agent-${a.toolUseId}`
+              const steps = subActivityRef.current.get(a.toolUseId)
+              const doing = currentStep(steps)
+              const secs = Math.max(1, Math.round((now - a.startedAt) / 1000))
+              return (
+                <div className="easy-control" key={a.toolUseId}>
+                  <button
+                    className={`easy-control-btn easy-run-agent ${controlMenu === key ? 'open' : ''}`}
+                    data-testid="subagent-pill"
+                    onClick={() => setControlMenu((m) => (m === key ? null : key))}
+                    title={
+                      `Sub-agent working · ${a.label} · ${secs}s` +
+                      (doing
+                        ? ` · ${doing.name ? `${doing.name} ` : ''}${doing.detail.slice(0, 80)}`
+                        : '') +
+                      ' — click to see what it is doing'
+                    }
+                  >
+                    <span className="status-spinner easy-run-agent-spin" />
+                    <span className="easy-control-val">🤖 {a.label}</span>
+                  </button>
+                  {controlMenu === key && (
+                    <div
+                      className="easy-control-menu easy-run-menu easy-agent-menu"
+                      data-testid="subagent-menu"
+                    >
+                      <div className="easy-run-head">
+                        <b>{a.label}</b>
+                        <span className="easy-run-age">
+                          {secs < 120 ? `${secs}s` : `${Math.round(secs / 60)} min`}
+                        </span>
+                      </div>
+                      {!steps?.length && (
+                        <div className="easy-run-desc">
+                          Working, nothing it has done has come through yet.
+                        </div>
+                      )}
+                      <ol className="easy-agent-steps">
+                        {(steps ?? []).map((st) => (
+                          <li
+                            key={st.id}
+                            className={`easy-agent-step ${st.kind} ${
+                              st.kind === 'tool' ? (st.done ? (st.ok ? 'ok' : 'bad') : 'now') : ''
+                            }`}
+                          >
+                            {st.kind === 'tool' ? (
+                              <>
+                                <span className="easy-agent-step-mark">
+                                  {st.done ? (st.ok ? '✓' : '✕') : '…'}
+                                </span>
+                                <span className="easy-agent-step-name">
+                                  {toolLabel(st.name).verb}
+                                </span>
+                                <code title={st.detail}>{st.detail}</code>
+                              </>
+                            ) : (
+                              <span className="easy-agent-step-said">{st.detail}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {/* All the agent's wait timers, as one calm pill. Not a spinning
               "running" dot — it's deliberately idle time, not work. */}
             {waits.length > 0 && (
