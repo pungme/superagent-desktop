@@ -7,6 +7,7 @@ import {
   fieldKey,
   isDue,
   matches,
+  quickContact,
   sortContacts,
   summarize,
   ymd,
@@ -42,17 +43,6 @@ function shortDay(day: string, today: string): string {
 
 const monthDay = (ms: number | null): string =>
   ms ? new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''
-
-/** "Anna Lee anna@x.org" → a name and an email, whichever were given. */
-export function quickContact(text: string): { name: string; email: string } {
-  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text)?.[0] ?? ''
-  const name = text
-    .replace(email, '')
-    .replace(/[<>(),;]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return { name: name || email.split('@')[0] || '', email: email.toLowerCase() }
-}
 
 export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const [list, setList] = useState<Contact[]>([])

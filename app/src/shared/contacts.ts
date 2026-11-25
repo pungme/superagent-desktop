@@ -216,3 +216,14 @@ export function addresses(raw: unknown): string[] {
       out.push(m[0].toLowerCase())
   return out
 }
+
+/** "Anna Lee anna@x.org" → a name and an email, whichever were given. */
+export function quickContact(text: string): { name: string; email: string } {
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text)?.[0] ?? ''
+  const name = text
+    .replace(email, '')
+    .replace(/[<>(),;]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { name: name || email.split('@')[0] || '', email: email.toLowerCase() }
+}

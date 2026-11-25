@@ -7,6 +7,7 @@ import {
   afterEmail,
   isDue,
   matches,
+  quickContact,
   sortContacts,
   summarize,
   toDay,
@@ -172,5 +173,16 @@ describe('contacts', () => {
       expect(matches(c, 'all', '2026-11-25', '18,000')).toBe(true)
       expect(matches(c, 'all', '2026-11-25', 'france')).toBe(false)
     })
+  })
+
+  it('splits a quick-add line into a name and an email', () => {
+    expect(quickContact('Anna Lee anna@x.org')).toEqual({ name: 'Anna Lee', email: 'anna@x.org' })
+    expect(quickContact('Anna Lee <Anna@X.org>')).toEqual({ name: 'Anna Lee', email: 'anna@x.org' })
+    expect(quickContact('Studio café')).toEqual({ name: 'Studio café', email: '' })
+    expect(quickContact('info@studio.example')).toEqual({
+      name: 'info',
+      email: 'info@studio.example'
+    })
+    expect(quickContact('   ')).toEqual({ name: '', email: '' })
   })
 })
