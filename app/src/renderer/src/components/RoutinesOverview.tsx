@@ -71,24 +71,29 @@ export function RoutinesOverview({ visible }: { visible: boolean }): React.JSX.E
   const [loaded, setLoaded] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
-  const refresh = useCallback(async () => {
-    const [list, all] = await Promise.all([window.cove.routinesList(), window.cove.routinesRuns()])
+  const load = useCallback(
+    () => Promise.all([window.cove.routinesList(), window.cove.routinesRuns()]),
+    []
+  )
+  const apply = useCallback(([list, all]: [Routine[], RoutineRun[]]): void => {
     const by: Record<string, RoutineRun[]> = {}
     for (const r of all) (by[r.routineId] ??= []).push(r)
     setRoutines(list)
     setRuns(by)
     setLoaded(true)
   }, [])
+  const refresh = useCallback(() => void load().then(apply), [load, apply])
 
   useEffect(() => {
-    void refresh()
-    const off = window.cove.onRoutinesChanged(() => void refresh())
+    // State is set inside the promise callbacks, not in the effect body.
+    void load().then(apply)
+    const off = window.cove.onRoutinesChanged(() => void load().then(apply))
     const t = setInterval(() => setNow(Date.now()), 30_000)
     return () => {
       off()
       clearInterval(t)
     }
-  }, [refresh])
+  }, [load, apply])
 
   const projects = useMemo(() => {
     const names = new Map<string, string>()
@@ -175,7 +180,7 @@ export function RoutinesOverview({ visible }: { visible: boolean }): React.JSX.E
                   setActive(p.id)
                   openRoutineRun(r.id)
                 }}
-                onChanged={() => void refresh()}
+                onChanged={refresh}
               />
             ))}
           </section>
