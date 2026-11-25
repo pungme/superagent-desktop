@@ -127,6 +127,7 @@ vi.mock('../store', () => ({
   ],
   // c1 is the chat in the project folder; c-new is what chat.create returns.
   // Both have no cwd — the pending flag is the only thing that tells them apart.
+  isIncognitoChat: () => false,
   getChat: (id: string) =>
     id === 'c1'
       ? {
