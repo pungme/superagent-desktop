@@ -17265,3 +17265,12 @@ button.rov-run:not(:disabled):hover {
   white-space: nowrap;
   margin-left: auto;
 }
+
+/* The model pill when a lower model has taken over from the one picked. */
+.easy-model-shifted {
+  color: #d29922;
+}
+.easy-model-from {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}

@@ -47,4 +47,31 @@ describe('switching a chat between agents', () => {
     swapSessions(v, 'codex', 'claude', 'x1', 3)
     expect(v).toEqual({ kept: { claude: { id: 'c1', items: 1 } } })
   })
+
+  it('gives an agent the model it had picked, not the one picked for the other agent', () => {
+    const away = swapSessions({}, 'claude', 'codex', 'claude-1', 4, 'opus').next
+    const codex = swapSessions(away, 'codex', 'claude', 'codex-1', 9, 'gpt-5.5')
+    expect(codex.model).toBe('opus')
+    // And Codex gets its own back the next time.
+    const again = swapSessions(codex.next, 'claude', 'codex', 'claude-2', 12, 'sonnet')
+    expect(again.model).toBe('gpt-5.5')
+  })
+
+  it('an agent that never ran this chat starts on its own default', () => {
+    expect(swapSessions({}, 'claude', 'codex', 'c1', 2, 'opus').model).toBeNull()
+  })
+
+  it('keeps the pick of an agent that never started a thread, without a session to resume', () => {
+    const away = swapSessions({}, 'claude', 'codex', null, 0, 'opus').next
+    expect(away.kept?.claude).toEqual({ id: '', items: 0, model: 'opus' })
+    const back = swapSessions(away, 'codex', 'claude', null, 0, null)
+    expect(back.model).toBe('opus')
+    expect(back.back).toBeNull()
+    expect(back.next.resumeNext).toBeUndefined()
+    expect(back.next.catchUpFrom).toBeUndefined()
+  })
+
+  it('keeps nothing for an agent with neither a thread nor a model', () => {
+    expect(swapSessions({}, 'claude', 'codex', null, 0, null).next.kept).toEqual({})
+  })
 })

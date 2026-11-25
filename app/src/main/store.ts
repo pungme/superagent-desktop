@@ -766,8 +766,10 @@ function writeAgentSessions(chatId: string, v: AgentSessions): void {
  * told only what it missed since (takeCatchUp), not the whole conversation.
  */
 export function swapAgentSession(chatId: string, to: AgentProvider): string | null {
-  const row = db.prepare('SELECT provider, claudeSessionId FROM chats WHERE id = ?').get(chatId) as
-    { provider: string | null; claudeSessionId: string | null } | undefined
+  const row = db
+    .prepare('SELECT provider, claudeSessionId, model FROM chats WHERE id = ?')
+    .get(chatId) as
+    { provider: string | null; claudeSessionId: string | null; model: string | null } | undefined
   if (!row) return null
   const from = row.provider ? toProvider(row.provider) : null
   let items = 0
@@ -776,14 +778,19 @@ export function swapAgentSession(chatId: string, to: AgentProvider): string | nu
   } catch {
     items = 0
   }
-  const { next, back } = swapSessions(
+  const { next, back, model } = swapSessions(
     readAgentSessions(chatId),
     from,
     to,
     row.claudeSessionId,
-    items
+    items,
+    row.model
   )
   writeAgentSessions(chatId, next)
+  // The model pick belongs to the agent: "opus" means nothing to Codex. The one
+  // it had when it last ran this chat comes back; a newcomer starts on its own
+  // default. (A switch to the same agent changes nothing.)
+  if (from !== to) setChatModel(chatId, model)
   return back
 }
 

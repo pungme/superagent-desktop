@@ -63,3 +63,19 @@ export function fallbackNotice(f: { original: string; fallback: string; trigger:
             : "isn't available right now (its allowance may be used up)"
   return `↻ ${from} ${why} — continuing on ${to}. It goes back to ${from} as soon as it can.`
 }
+
+/**
+ * The model a chat runs on is not the one picked: its allowance ran out, or it
+ * was overloaded, and a lower one took over. Compared by family (Fable, Opus…):
+ * "opus[1m]" and "claude-opus-5-5" are the same pick. null when they agree, or
+ * when either is not one of Claude's (Default, Codex's models).
+ */
+export function modelShift(
+  picked: string | null | undefined,
+  running: string | null | undefined
+): { picked: string; running: string } | null {
+  const a = modelFamily(picked)
+  const b = modelFamily(running)
+  if (!a || !b || a === b) return null
+  return { picked: prettyModel(picked as string), running: prettyModel(running as string) }
+}

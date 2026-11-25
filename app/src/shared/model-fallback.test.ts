@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { fallbackModelFor, fallbackNotice, modelFallbackFrom, prettyModel } from './model-fallback'
+import {
+  fallbackModelFor,
+  fallbackNotice,
+  modelFallbackFrom,
+  modelShift,
+  prettyModel
+} from './model-fallback'
 
 describe('model fallback', () => {
   it('steps down one model, and not below Sonnet', () => {
@@ -42,5 +48,27 @@ describe('model fallback', () => {
       /Opus is overloaded right now — continuing on Sonnet/
     )
     expect(modelFallbackFrom({ type: 'system', subtype: 'init' })).toBeNull()
+  })
+})
+
+describe('model shift', () => {
+  it('says when the running model is not the one picked', () => {
+    expect(modelShift('claude-fable-5-1[1m]', 'claude-opus-5-5')).toEqual({
+      picked: 'Fable 5.1',
+      running: 'Opus 5.5'
+    })
+    expect(modelShift('opus', 'claude-sonnet-5-5')).toMatchObject({ running: 'Sonnet 5.5' })
+  })
+
+  it('is quiet when the family is the same, whatever the spelling', () => {
+    expect(modelShift('opus[1m]', 'claude-opus-5-5')).toBeNull()
+    expect(modelShift('claude-opus-5-5', 'claude-opus-5-5[1m]')).toBeNull()
+  })
+
+  it('is quiet for Default and for models that are not Claude’s', () => {
+    expect(modelShift('', 'claude-opus-5-5')).toBeNull()
+    expect(modelShift(null, 'claude-opus-5-5')).toBeNull()
+    expect(modelShift('gpt-5.5', 'claude-opus-5-5')).toBeNull()
+    expect(modelShift('opus', undefined)).toBeNull()
   })
 })

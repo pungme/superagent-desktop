@@ -35,7 +35,12 @@ import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useChatBrowser } from '../hooks/useChatBrowser'
 import type { Account, BrowserChoice, LimitNotice } from '../../../preload'
-import { fallbackNotice, modelFallbackFrom, prettyModel } from '../../../shared/model-fallback'
+import {
+  fallbackNotice,
+  modelFallbackFrom,
+  modelShift,
+  prettyModel
+} from '../../../shared/model-fallback'
 import { ProviderLogo } from './ProviderLogo'
 import { withoutAgentNudge } from '../../../shared/agent-nudge'
 import { TasksPanel } from './TasksPanel'
@@ -2470,15 +2475,6 @@ export function EasyChat({
   useEffect(() => {
     chatModelRef.current = chatModel
   }, [chatModel])
-  useEffect(() => {
-    let alive = true
-    void window.cove.chatGetModel?.(chatId).then((m) => {
-      if (alive) setChatModel(m)
-    })
-    return () => {
-      alive = false
-    }
-  }, [chatId])
   const effectiveModel = chatModel ?? model
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
@@ -2487,6 +2483,19 @@ export function EasyChat({
   // one backend: switching globally would orphan every other open conversation.
   const provider = useStore((s) => s.chatProvider(workspaceId, chatId))
   const setChatProvider = useStore((s) => s.setChatProvider)
+  // Read again whenever the agent changes: a switch moves the pick with it (main
+  // keeps each agent's own and restores it), whoever made it — the picker here,
+  // the phone, or a limit that carried the chat on.
+  useEffect(() => {
+    let alive = true
+    void window.cove.chatGetModel?.(chatId).then((m) => {
+      if (alive) setChatModel(m)
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, provider])
   /** What to call the agent in this chat's copy — "Claude", "Codex". */
   const agentName = PROVIDER_LABEL[provider]
   /** The model the running session reports (from the agent's init event). */
@@ -5904,13 +5913,11 @@ export function EasyChat({
     setReportedCtxWindow(null)
     setSessionModels(null)
     // The picked model belongs to the agent being left — "opus[1m]" means
-    // nothing to Codex — so the new one starts on its own account default.
-    // This chat's choice, not the app's: clearing the global here was another
-    // way one session reached into all the others.
-    if (effectiveModel) {
-      setChatModel(null)
-      void window.cove.chatSetModel?.(chatId, null)
-    }
+    // nothing to Codex. Main keeps it for when this agent comes back and gives
+    // the new one the pick it had (or its own default) as part of the switch;
+    // the effect on `provider` below reads what main decided. This chat's
+    // choice, not the app's: clearing the global here was another way one
+    // session reached into all the others.
     void setChatProvider(workspaceId, chatId, value)
   }
   /**
@@ -6017,6 +6024,10 @@ export function EasyChat({
   const modelLabel =
     modelPillLabel(modelOptions, effectiveModel) ??
     (effectiveModel ? shortModel(effectiveModel) : 'Default')
+  // The pick is not always what runs: when a model's allowance is used up, or it is
+  // overloaded, a lower one carries the chat until it is back. The pill says what is
+  // running, and what was asked for, instead of quietly showing the pick.
+  const shift = modelShift(effectiveModel, activeModel)
   /**
    * How much of the agent's memory this conversation fills. The window depends on
    * the model running — read from the id it reports at startup.
@@ -7315,7 +7326,18 @@ export function EasyChat({
             title="Model"
           >
             <span className="easy-control-key">Model</span>
-            <span className="easy-control-val">{modelLabel}</span>
+            {shift ? (
+              <span
+                className="easy-control-val easy-model-shifted"
+                data-testid="model-shifted"
+                title={`You picked ${shift.picked}, but it is running on ${shift.running} for now: ${shift.picked} has used up its allowance or is overloaded. It goes back when it can.`}
+              >
+                {shift.running}
+                <span className="easy-model-from"> · not {shift.picked}</span>
+              </span>
+            ) : (
+              <span className="easy-control-val">{modelLabel}</span>
+            )}
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path
                 d="M2 3.5L5 6.5L8 3.5"
