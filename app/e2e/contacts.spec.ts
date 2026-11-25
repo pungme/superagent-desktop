@@ -87,7 +87,7 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     await page.locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible').first().click()
     await page.getByTestId('tab-contacts').click()
     const panel = page.getByTestId('contacts-panel')
-    await expect(panel).toContainText('No one yet')
+    await expect(panel).toContainText('Type a name above')
 
     // By hand: a name and an email in one line.
     await panel.getByTestId('contact-new').fill('Studio café info@studio.example')
@@ -98,8 +98,6 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     await expect(page.getByTestId('detail-email').locator('input')).toHaveValue(
       'info@studio.example'
     )
-    // The rest is offered on one line; the Ask is added by clicking it.
-    await detail.getByRole('button', { name: /^\+?\s?Ask$/ }).click()
     await page.getByTestId('detail-ask').locator('input').fill('Crew food, January')
     await page.getByTestId('detail-ask').locator('input').blur()
     await expect(page.getByTestId('contact-row').first()).toContainText('Crew food, January')
