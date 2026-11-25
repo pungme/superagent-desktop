@@ -17380,10 +17380,10 @@ button.easy-run-agent {
   overflow-wrap: anywhere;
 }
 
-/* Contacts: the Todo panel's second tab (ContactsPanel). Quiet: text, hairlines, no boxes. */
+/* Contacts: the Todo panel's second tab (ContactsPanel). Text and hairlines, almost no colour. */
 .board-tabs {
   display: inline-flex;
-  gap: 16px;
+  gap: 18px;
 }
 .board-tab {
   all: unset;
@@ -17391,369 +17391,179 @@ button.easy-run-agent {
   font-size: 15px;
   font-weight: 650;
   color: var(--text-tertiary);
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
 }
 .board-tab:hover {
   color: var(--text-secondary);
 }
 .board-tab.on {
   color: var(--text-primary);
-  border-bottom-color: var(--text-primary);
 }
-.cq {
+.cx {
   flex: 1;
   min-height: 0;
   display: flex;
-}
-.cq-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
   flex-direction: column;
-  padding: 2px 18px 12px;
+  padding: 0 20px 14px;
   overflow: hidden;
 }
-.cq-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 30px;
-  border-bottom: 1px solid var(--border);
-}
-.cq-filters {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: 14px;
-  overflow: hidden;
-}
-.cq-filter {
-  all: unset;
-  cursor: pointer;
-  font-size: 12.5px;
-  color: var(--text-tertiary);
-  padding: 6px 0;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  white-space: nowrap;
-}
-.cq-filter i {
-  font-style: normal;
-  margin-left: 4px;
-  opacity: 0.6;
-}
-.cq-filter:hover {
-  color: var(--text-secondary);
-}
-.cq-filter.on {
-  color: var(--text-primary);
-  font-weight: 600;
-  border-bottom-color: var(--text-primary);
-}
-.cq-search {
-  font: inherit;
-  font-size: 12.5px;
-  width: 110px;
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  padding: 3px 0;
-  outline: none;
-}
-.cq-search:focus {
-  border-bottom-color: var(--text-secondary);
-}
-.cq-add {
-  all: unset;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-.cq-add:hover {
-  text-decoration: underline;
-}
-.cq-due {
+/* How things stand, and the filter. */
+.cx-line {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  padding: 9px 0 3px;
-  border-left: 2px solid #d29922;
-  padding-left: 10px;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  min-height: 22px;
 }
-.cq-due b {
-  color: #d29922;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.cq-due span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cq-due button {
+.cx-part {
   all: unset;
   cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.cx-part:hover {
   color: var(--text-primary);
-  text-decoration: underline;
 }
-.cq-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding: 12px 0 6px;
+.cx-part.on {
+  color: var(--text-primary);
+  font-weight: 600;
 }
-.cq-new input {
-  flex: 1 1 130px;
-  min-width: 0;
+.cx-part.due {
+  color: #c98a1b;
+}
+.cx-part.yes.on {
+  color: #2f9e4f;
+}
+.cx-search {
+  margin-left: auto;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
+  width: 90px;
   color: var(--text-primary);
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border-strong);
-  padding: 4px 0;
+  outline: none;
+  text-align: right;
+}
+.cx-add {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0 10px;
+  margin-top: 6px;
   outline: none;
 }
-.cq-go {
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  background: var(--accent);
-  color: var(--accent-fg);
-  border: none;
-  border-radius: 6px;
-  padding: 3px 12px;
-  cursor: pointer;
+.cx-add:focus {
+  border-bottom-color: var(--text-secondary);
 }
-.cq-go:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.cq-quiet {
-  all: unset;
-  cursor: pointer;
-  font-size: 12px;
+.cx-add::placeholder,
+.cx-in::placeholder,
+.cx-note::placeholder,
+.cx-search::placeholder,
+.cx-newfield::placeholder {
   color: var(--text-tertiary);
+  opacity: 0.75;
 }
-.cq-quiet:hover {
-  color: var(--text-primary);
+.cx-hint {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  padding: 16px 0;
+  max-width: 420px;
 }
-.cq-rows {
+.cx-rows {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-top: 4px;
 }
-.cq-row {
+.cx-item {
+  border-bottom: 1px solid var(--border);
+}
+.cx-row {
   all: unset;
   box-sizing: border-box;
   width: 100%;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 8px;
-  margin: 0 -8px;
-  border-radius: 8px;
+  align-items: baseline;
+  gap: 14px;
+  padding: 13px 0;
 }
-.cq-row:hover,
-.cq-row.sel {
-  background: var(--hover);
-}
-.cq-who {
+.cx-who {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
-.cq-who b {
-  font-size: 13.5px;
-  font-weight: 600;
+.cx-who b {
+  font-size: 14px;
+  font-weight: 550;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cq-who span {
-  font-size: 12px;
+.cx-who span {
+  font-size: 12.5px;
   color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cq-tag {
-  font-size: 11.5px;
+.cx-row:hover .cx-who b {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.cx-tag {
+  font-size: 12px;
   color: var(--text-tertiary);
   max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cq-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  white-space: nowrap;
-  width: 82px;
-}
-.cq-state i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-}
-.cq-when {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  width: 54px;
-  text-align: right;
-}
-.cq-when.late {
-  color: #d29922;
-  font-weight: 600;
-}
-.s-not_sent {
-  color: var(--text-tertiary);
-}
-.s-sent {
-  color: #4a8cf0;
-}
-.s-replied {
-  color: #9a6cf0;
-}
-.s-yes {
-  color: #3fb950;
-}
-.s-no {
-  color: #f97583;
-}
-.s-due {
-  color: #d29922;
-}
-.cq-empty {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  padding: 18px 0;
-}
-.cq-empty p + p {
-  margin-top: 6px;
-  color: var(--text-tertiary);
-}
-.cq.has-detail .cq-tag,
-.cq.has-detail .cq-when {
-  display: none;
-}
-.cq.has-detail .cq-state {
-  width: auto;
-}
-/* A contact, open beside the list. */
-.cq-detail {
-  width: 290px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  padding: 4px 18px 16px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.cq-dhead {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.cq-dhead h3,
-.cq-name-in {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-.cq-dhead h3 {
-  cursor: text;
-  overflow-wrap: anywhere;
-}
-.cq-name-in {
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border-strong);
-  outline: none;
-  padding: 0;
-}
-.cq-x {
-  all: unset;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-.cq-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-}
-.cq-st {
-  all: unset;
-  cursor: pointer;
+.cx-state {
   font-size: 12.5px;
   color: var(--text-tertiary);
-  padding: 2px 0;
-  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  min-width: 62px;
+  text-align: right;
 }
-.cq-st:hover {
+.cx-state.sent {
+  color: var(--text-secondary);
+}
+.cx-state.replied {
   color: var(--text-primary);
-}
-.cq-st.on {
   font-weight: 600;
-  border-bottom-color: currentColor;
 }
-.cq-st.on.s-not_sent {
-  color: var(--text-primary);
+.cx-state.yes {
+  color: #2f9e4f;
 }
-.cq-grid {
+.cx-state.due {
+  color: #c98a1b;
+  font-weight: 600;
+}
+.cx-when {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  min-width: 48px;
+  text-align: right;
+}
+.cx-when.due {
+  color: #c98a1b;
+}
+/* A contact, open in place. */
+.cx-detail {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  padding: 2px 0 16px;
 }
-.cq-line {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-}
-.cq-line > label {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-}
-.cq-gone {
-  all: unset;
-  cursor: pointer;
-  opacity: 0;
-  font-size: 13px;
-  line-height: 1;
-}
-.cq-line:hover .cq-gone {
-  opacity: 0.7;
-}
-.cq-quiet-in {
+.cx-in {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -17768,49 +17578,110 @@ button.easy-run-agent {
   outline: none;
   resize: none;
 }
-.cq-quiet-in:hover {
+.cx-in:hover {
   background: var(--hover);
 }
-.cq-quiet-in:focus {
+.cx-in:focus {
   background: var(--bg-panel);
   border-color: var(--border-strong);
 }
-.cq-follow {
+.cx-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.cx-status {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 16px;
+  padding: 4px 0 8px;
 }
-.cq-follow em {
-  font-style: normal;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #d29922;
-}
-.cq-follow button {
+.cx-status button {
   all: unset;
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.cx-status button:hover {
+  color: var(--text-primary);
+}
+.cx-status button.on {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+.cx-status button.on.yes {
+  color: #2f9e4f;
+}
+.cx-field {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+.cx-field > label {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.cx-gone {
+  all: unset;
+  cursor: pointer;
+  opacity: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+.cx-field:hover .cx-gone {
+  opacity: 0.7;
+}
+.cx-follow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cx-follow em {
+  font-style: normal;
+  font-size: 12px;
+  color: #c98a1b;
+}
+.cx-follow button {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
   color: var(--text-tertiary);
   white-space: nowrap;
 }
-.cq-follow button:hover {
+.cx-follow button:hover {
   color: var(--text-primary);
 }
-.cq-more {
+.cx-offer {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 2px 14px;
+  padding: 2px 0 4px;
 }
-.cq-more button {
+.cx-offer button {
   all: unset;
   cursor: pointer;
   font-size: 12px;
   color: var(--text-tertiary);
 }
-.cq-more button:hover {
+.cx-offer button::before {
+  content: '+ ';
+}
+.cx-offer button.plain::before {
+  content: '';
+}
+.cx-offer button:hover {
   color: var(--text-primary);
 }
-.cq-newfield {
+.cx-item.open .cx-who b {
+  font-weight: 650;
+}
+.cx-item.open .cx-row:hover .cx-who b {
+  text-decoration: none;
+}
+.cx-newfield {
   font: inherit;
   font-size: 12.5px;
   color: var(--text-primary);
@@ -17818,59 +17689,62 @@ button.easy-run-agent {
   border: none;
   border-bottom: 1px solid var(--border-strong);
   outline: none;
-  padding: 2px 0;
-  width: 170px;
+  padding: 1px 0;
+  width: 160px;
 }
-.cq-notes .cq-quiet-in {
-  line-height: 1.5;
-}
-.cq-hist ol {
+.cx-hist {
   list-style: none;
-  margin: 0 0 6px;
+  margin: 6px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
-.cq-hist li {
+.cx-hist li {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
   font-size: 12.5px;
   color: var(--text-secondary);
 }
-.cq-hist li span {
+.cx-hist li span {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.cq-hist small {
-  font-size: 11px;
+.cx-hist small {
+  font-size: 11.5px;
   color: var(--text-tertiary);
   white-space: nowrap;
 }
-.cq-note-in {
-  width: 100%;
-  box-sizing: border-box;
+.cx-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 4px;
+}
+.cx-note {
+  flex: 1;
+  min-width: 0;
   font: inherit;
   font-size: 12.5px;
   color: var(--text-primary);
   background: transparent;
   border: none;
-  border-top: 1px solid var(--border);
-  padding: 8px 0 0;
-  margin-top: 6px;
   outline: none;
+  padding: 3px 0;
 }
-.cq-remove {
+.cx-foot button {
   all: unset;
   cursor: pointer;
-  align-self: flex-start;
   font-size: 12px;
   color: var(--text-tertiary);
 }
-.cq-remove:hover {
-  color: #f97583;
+.cx-foot button:hover {
+  color: var(--text-primary);
+}
+.cx-foot .cx-remove:hover {
+  color: #d1495b;
 }
 /* Today: contacts to follow up, above the to-dos. */
 .today-follow {
@@ -17878,13 +17752,11 @@ button.easy-run-agent {
   flex-direction: column;
   gap: 2px;
   margin-bottom: 12px;
-  padding-left: 10px;
-  border-left: 2px solid #d29922;
 }
 .today-follow-h {
   font-size: 12px;
   font-weight: 600;
-  color: #d29922;
+  color: #c98a1b;
 }
 .today-follow-row {
   all: unset;
@@ -17900,31 +17772,4 @@ button.easy-run-agent {
 .today-follow-row small {
   font-size: 11.5px;
   color: var(--text-tertiary);
-}
-.cq-quiet-in::placeholder,
-.cq-note-in::placeholder,
-.cq-search::placeholder,
-.cq-new input::placeholder,
-.cq-newfield::placeholder {
-  color: var(--text-tertiary);
-  opacity: 0.8;
-}
-/* With a contact open there is no room for search: the filters keep theirs. */
-.cq.has-detail .cq-search {
-  display: none;
-}
-.cq-filters {
-  flex-wrap: nowrap;
-}
-/* Narrow (a contact is open): the filters wrap rather than get cut off. */
-.cq-filters {
-  flex-wrap: wrap;
-  gap: 0 12px;
-  overflow: visible;
-}
-.cq-top {
-  align-items: flex-start;
-}
-.cq-add {
-  padding-top: 6px;
 }

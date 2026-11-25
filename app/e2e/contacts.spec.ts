@@ -87,17 +87,22 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     await page.locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible').first().click()
     await page.getByTestId('tab-contacts').click()
     const panel = page.getByTestId('contacts-panel')
-    await expect(panel).toContainText('No contacts yet')
+    await expect(panel).toContainText('No one yet')
 
-    // By hand.
-    await panel.getByRole('button', { name: '+ Add' }).click()
-    const form = page.getByTestId('contact-new')
-    await form.getByPlaceholder('Name or organisation').fill('Studio café')
-    await form.getByPlaceholder('Email (optional)').fill('info@studio.example')
-    await form.getByPlaceholder('What you are asking for (optional)').fill('Crew food, January')
-    await form.getByRole('button', { name: 'Add' }).click()
+    // By hand: a name and an email in one line.
+    await panel.getByTestId('contact-new').fill('Studio café info@studio.example')
+    await panel.getByTestId('contact-new').press('Enter')
     const detail = page.getByTestId('contact-detail')
-    await expect(detail).toContainText('Studio café')
+    await expect(detail).toBeVisible()
+    await expect(page.getByTestId('contact-row').first()).toContainText('Studio café')
+    await expect(page.getByTestId('detail-email').locator('input')).toHaveValue(
+      'info@studio.example'
+    )
+    // The rest is offered on one line; the Ask is added by clicking it.
+    await detail.getByRole('button', { name: /^\+?\s?Ask$/ }).click()
+    await page.getByTestId('detail-ask').locator('input').fill('Crew food, January')
+    await page.getByTestId('detail-ask').locator('input').blur()
+    await expect(page.getByTestId('contact-row').first()).toContainText('Crew food, January')
 
     // By the agent: a list at once, a duplicate skipped.
     const added = await tool('contacts_add', {
@@ -118,8 +123,7 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     await expect(page.getByTestId('contact-row')).toHaveCount(3)
 
     // Max's follow-up has come: called out, and first in the list.
-    await expect(page.getByTestId('contacts-due')).toContainText('1 follow-up is due')
-    await expect(page.getByTestId('contacts-due')).toContainText('Max Wagner')
+    await expect(page.getByTestId('contacts-due')).toHaveText('1 due')
     await expect(page.getByTestId('contact-row').first()).toContainText('Max Wagner')
     await expect(page.getByTestId('contact-row').first()).toContainText('Follow up')
 
@@ -167,14 +171,17 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     expect(await tool('contacts_list')).toContain('"Budget": "€2,000"')
     // They show on the list, and are searchable.
     const studio = page.getByTestId('contact-row').filter({ hasText: 'Studio café' })
-    // With a contact open the list stays narrow; closed, the tags are there.
-    await page.getByTestId('contact-detail').getByTitle('Close').click()
     await expect(studio).toContainText('€2,000')
+    // Searchable (the box appears with eight people or more).
+    await tool('contacts_add', {
+      contacts: ['Filler A', 'Filler B', 'Filler C', 'Filler D'].map((name) => ({ name }))
+    })
     await page.getByPlaceholder('Search').fill('germany')
     await expect(page.getByTestId('contact-row')).toHaveCount(1)
     await page.getByPlaceholder('Search').fill('')
     // And on the contact, to edit; the change reaches the agent.
     await studio.click()
+    await expect(detail).toBeVisible()
     await expect(page.getByTestId('field-country').locator('input')).toHaveValue('Germany')
     await page.getByTestId('field-budget').locator('input').fill('€2,500')
     await page.getByTestId('field-budget').locator('input').blur()
