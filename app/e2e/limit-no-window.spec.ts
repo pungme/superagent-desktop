@@ -42,7 +42,11 @@ process.stdin.on('data', (c) => {
     const content = msg.message && msg.message.content
     const text = typeof content === 'string' ? content : (content || []).map((b) => b.text || '').join(' ')
     fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify({ who, text }) + '\\n')
-    if (who === 'login') {
+    if (who === 'login' && process.env.FAKE_LIMIT_AS_REPLY) {
+      // The CLI's own words as an ordinary reply, and the turn ends as a success.
+      out({ type: 'assistant', message: { id: 'l1', role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: "You've hit your 5-hour limit · resets 7:10pm (Europe/Berlin)" }] } })
+      out({ type: 'result', subtype: 'success', is_error: false, result: "You've hit your 5-hour limit · resets 7:10pm (Europe/Berlin)" })
+    } else if (who === 'login') {
       out({ type: 'result', subtype: 'error_during_execution', is_error: true, result: "You've hit your usage limit" })
     } else {
       out({ type: 'assistant', message: { id: 'a1', role: 'assistant', model: 'claude-fable-5-2', content: [{ type: 'text', text: 'Done on the second account.' }] } })
@@ -52,70 +56,73 @@ process.stdin.on('data', (c) => {
 })
 `
 
-test('out of allowance with no window on the chat: main moves it and sends the message again', async () => {
-  const data = mkdtempSync(join(tmpdir(), 'cove-nowin-data-'))
-  const proj = mkdtempSync(join(tmpdir(), 'cove-nowin-proj-'))
-  const fake = mkdtempSync(join(tmpdir(), 'cove-nowin-cli-'))
-  const home = mkdtempSync(join(tmpdir(), 'cove-nowin-home-'))
-  const log = join(fake, 'runs.log')
-  writeFileSync(join(home, '.zshrc'), `export PATH="${fake}:$PATH"\n`)
-  writeFileSync(join(home, '.bashrc'), `export PATH="${fake}:$PATH"\n`)
-  mkdirSync(join(home, '.claude'), { recursive: true })
-  writeFileSync(join(home, '.claude', 'settings.json'), '{}')
-  writeFileSync(join(home, '.claude.json'), '{}')
-  writeFileSync(join(proj, 'README.md'), '# e2e\n')
-  writeFileSync(join(fake, 'claude'), FAKE)
-  chmodSync(join(fake, 'claude'), 0o755)
-  const app = await electron.launch({
-    args: [join(__dirname, '..', 'out', 'main', 'index.js')],
-    env: {
-      ...process.env,
-      COVE_USER_DATA: data,
-      COVE_E2E_PROJECT: proj,
-      COVE_E2E_CLAUDE_BIN: join(fake, 'claude'),
-      FAKE_LOG: log,
-      HOME: home,
-      NODE_ENV: 'production'
+for (const asReply of [false, true]) {
+  test(`out of allowance with no window on the chat: main moves it and sends the message again${asReply ? ' (the limit said as an ordinary reply, the turn a success)' : ''}`, async () => {
+    const data = mkdtempSync(join(tmpdir(), 'cove-nowin-data-'))
+    const proj = mkdtempSync(join(tmpdir(), 'cove-nowin-proj-'))
+    const fake = mkdtempSync(join(tmpdir(), 'cove-nowin-cli-'))
+    const home = mkdtempSync(join(tmpdir(), 'cove-nowin-home-'))
+    const log = join(fake, 'runs.log')
+    writeFileSync(join(home, '.zshrc'), `export PATH="${fake}:$PATH"\n`)
+    writeFileSync(join(home, '.bashrc'), `export PATH="${fake}:$PATH"\n`)
+    mkdirSync(join(home, '.claude'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'settings.json'), '{}')
+    writeFileSync(join(home, '.claude.json'), '{}')
+    writeFileSync(join(proj, 'README.md'), '# e2e\n')
+    writeFileSync(join(fake, 'claude'), FAKE)
+    chmodSync(join(fake, 'claude'), 0o755)
+    const app = await electron.launch({
+      args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+      env: {
+        ...process.env,
+        COVE_USER_DATA: data,
+        COVE_E2E_PROJECT: proj,
+        COVE_E2E_CLAUDE_BIN: join(fake, 'claude'),
+        FAKE_LOG: log,
+        ...(asReply ? { FAKE_LIMIT_AS_REPLY: '1' } : {}),
+        HOME: home,
+        NODE_ENV: 'production'
+      }
+    })
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      await page.evaluate(() => {
+        localStorage.setItem('cove.onboarded', '1')
+        localStorage.setItem('cove.connectionsOffered', '1')
+      })
+      await page.reload()
+      await page.waitForSelector('.sidebar', { timeout: 20_000 })
+      await page.evaluate((t) => window.cove.accountsAddClaude('Second account', t), TOKEN)
+
+      // Into a chat no window shows, by the phone's own send path.
+      const r = await page.evaluate(() =>
+        window.cove.todayAsk('Rename the screenshots on my desktop')
+      )
+      expect(r).toBeTruthy()
+      const runs = (): { who: string; text: string }[] =>
+        existsSync(log)
+          ? readFileSync(log, 'utf8')
+              .trim()
+              .split('\n')
+              .filter(Boolean)
+              .map((l) => JSON.parse(l))
+          : []
+      // First on the CLI's own login, which is out; then the same message on the second account.
+      await expect
+        .poll(() => runs().map((x) => x.who), { timeout: 40_000 })
+        .toEqual(['login', 'token'])
+      expect(runs()[1].text).toContain('Rename the screenshots on my desktop')
+      // And the chat stays on it.
+      const accounts = JSON.parse(readFileSync(join(data, 'accounts.json'), 'utf8')) as {
+        accounts: { id: string; name: string }[]
+        chats: Record<string, string>
+      }
+      const second = accounts.accounts.find((a) => a.name === 'Second account')!
+      expect(Object.values(accounts.chats)).toContain(second.id)
+    } finally {
+      await app.close()
+      for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })
     }
   })
-  try {
-    const page = await app.firstWindow()
-    await page.waitForLoadState('domcontentloaded')
-    await page.evaluate(() => {
-      localStorage.setItem('cove.onboarded', '1')
-      localStorage.setItem('cove.connectionsOffered', '1')
-    })
-    await page.reload()
-    await page.waitForSelector('.sidebar', { timeout: 20_000 })
-    await page.evaluate((t) => window.cove.accountsAddClaude('Second account', t), TOKEN)
-
-    // Into a chat no window shows, by the phone's own send path.
-    const r = await page.evaluate(() =>
-      window.cove.todayAsk('Rename the screenshots on my desktop')
-    )
-    expect(r).toBeTruthy()
-    const runs = (): { who: string; text: string }[] =>
-      existsSync(log)
-        ? readFileSync(log, 'utf8')
-            .trim()
-            .split('\n')
-            .filter(Boolean)
-            .map((l) => JSON.parse(l))
-        : []
-    // First on the CLI's own login, which is out; then the same message on the second account.
-    await expect
-      .poll(() => runs().map((x) => x.who), { timeout: 40_000 })
-      .toEqual(['login', 'token'])
-    expect(runs()[1].text).toContain('Rename the screenshots on my desktop')
-    // And the chat stays on it.
-    const accounts = JSON.parse(readFileSync(join(data, 'accounts.json'), 'utf8')) as {
-      accounts: { id: string; name: string }[]
-      chats: Record<string, string>
-    }
-    const second = accounts.accounts.find((a) => a.name === 'Second account')!
-    expect(Object.values(accounts.chats)).toContain(second.id)
-  } finally {
-    await app.close()
-    for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })
-  }
-})
+}

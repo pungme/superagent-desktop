@@ -803,6 +803,10 @@ function resetInMs(text: string): number | null {
  */
 export class LimitGate {
   private held: Limit | null = null
+  /** The limit came as the CLI's own message ("You've hit your 5-hour limit"). */
+  private fromText = false
+  /** Nothing but that message has been said since. */
+  private lastWord = false
 
   hold(limit: Limit): void {
     // The first report of a turn carries the reset time; the text carries
@@ -812,16 +816,39 @@ export class LimitGate {
     this.held = { until, ...(model ? { model } : {}) }
   }
 
+  /**
+   * The limit was the CLI's own message, said as an ordinary reply. A turn can
+   * end on it as a success (the limit hit while a long step ran), with no failed
+   * result to act on — the account was out and nothing moved the chat on, so the
+   * next message went to the same account and failed again (2026-11-25).
+   */
+  limitSaid(): void {
+    this.fromText = true
+    this.lastWord = true
+  }
+
+  /** The agent said or did something real after that: the turn went on, the account is not out. */
+  said(): void {
+    this.lastWord = false
+  }
+
   fellBack(): void {
     this.held = null
+    this.fromText = false
+    this.lastWord = false
   }
 
   /** The turn's result: the limit to act on, or null. Clears what was held. */
   result(event: Record<string, unknown>): Limit | null {
     const held = this.held
+    const endedOnIt = this.fromText && this.lastWord
     this.held = null
-    if (event.type !== 'result' || !event.is_error) return null
-    return held
+    this.fromText = false
+    this.lastWord = false
+    if (event.type !== 'result') return null
+    if (event.is_error) return held
+    // A turn that "succeeded" with the limit message as its last word is out all the same.
+    return held && endedOnIt ? held : null
   }
 }
 

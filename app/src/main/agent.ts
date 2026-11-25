@@ -27,6 +27,7 @@ import {
   authFailureFrom,
   authFailureFromEvent,
   LimitGate,
+  limitFromEvent,
   CURRENT_MODEL,
   markAuth,
   markModelLimited,
@@ -467,6 +468,13 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       // Every Claude turn says how much of this account's allowance is used.
       const usage = usageFromClaudeEvent(event)
       if (usage) recordUsage(account.id, usage)
+      // The CLI's own "You've hit your 5-hour limit" arrives as an ordinary reply, and
+      // a turn can end on it as a success: remember that it was the last word.
+      if (event?.type === 'assistant') {
+        const msg = event.message as { model?: string } | undefined
+        if (msg?.model === '<synthetic>' && limitFromEvent(event)) limits.limitSaid()
+        else limits.said()
+      }
       // The model ran out, not the account: the CLI carries on with the next
       // one down. Say so (the phone hears it from the bus).
       const fellBack = modelFallbackFrom(event)
@@ -476,6 +484,12 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       }
       if (event?.type === 'result') {
         const out = limits.result(event)
+        if (out)
+          agentLog(
+            'limit-acted',
+            id,
+            `chat=${opts.chatId ?? '-'} provider=${provider} is_error=${String(event.is_error)}`
+          )
         // Once per process: a second notice would offer the switch twice.
         if (out && !limitReported && opts.chatId) {
           limitReported = true
@@ -572,6 +586,11 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     limit(limit) {
       // Held until the turn's result says whether it ended the turn (LimitGate).
       limits.hold(limit)
+      agentLog(
+        'limit-seen',
+        id,
+        `chat=${opts.chatId ?? '-'} provider=${provider} until=${limit.until ?? '-'} model=${limit.model ?? '-'}`
+      )
     },
     usage(usage) {
       recordUsage(account.id, usage)

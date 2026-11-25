@@ -149,6 +149,66 @@ describe('what the CLIs say when an account runs dry', () => {
     ).toBeNull()
   })
 
+  describe('a limit said as an ordinary reply', () => {
+    const text = "You've hit your 5-hour limit · resets 7:10pm (Europe/Berlin)"
+    const synthetic = {
+      type: 'assistant',
+      message: { model: '<synthetic>', content: [{ text }] }
+    }
+    const ok = { type: 'result', is_error: false, result: text }
+
+    it('acts when the turn ends on it as a success', () => {
+      const gate = new LimitGate()
+      gate.hold(limitFromEvent(synthetic)!)
+      gate.limitSaid()
+      expect(gate.result(ok)).toEqual({ until: null })
+    })
+
+    it('does not act when the agent went on after it', () => {
+      const gate = new LimitGate()
+      gate.hold(limitFromEvent(synthetic)!)
+      gate.limitSaid()
+      gate.said()
+      expect(gate.result(ok)).toBeNull()
+    })
+
+    it('does not count what was said before it', () => {
+      const gate = new LimitGate()
+      gate.said() // "I'm deploying to prod now", a tool call
+      gate.hold(limitFromEvent(synthetic)!)
+      gate.limitSaid()
+      expect(gate.result(ok)).toEqual({ until: null })
+    })
+
+    it('a model that fell back is not an account out', () => {
+      const gate = new LimitGate()
+      gate.hold(limitFromEvent(synthetic)!)
+      gate.limitSaid()
+      gate.fellBack()
+      expect(gate.result(ok)).toBeNull()
+    })
+
+    it('a success with no limit text is still nothing', () => {
+      const gate = new LimitGate()
+      gate.said()
+      expect(gate.result(ok)).toBeNull()
+    })
+
+    it('the old way still works: a failed result acts', () => {
+      const gate = new LimitGate()
+      gate.hold({ until: 5 })
+      expect(gate.result({ type: 'result', is_error: true })).toEqual({ until: 5 })
+    })
+
+    it('is spent by the result: the next turn starts clean', () => {
+      const gate = new LimitGate()
+      gate.hold(limitFromEvent(synthetic)!)
+      gate.limitSaid()
+      expect(gate.result(ok)).not.toBeNull()
+      expect(gate.result(ok)).toBeNull()
+    })
+  })
+
   it("reads Antigravity's quota message, with the reset it names", () => {
     const now = Date.now()
     const out = limitFromEvent({
