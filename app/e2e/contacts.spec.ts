@@ -141,6 +141,54 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     expect(listed).toContain('Max Wagner')
     expect(await tool('contacts_list', { status: 'due' })).toContain('No contacts')
 
+    // Dynamic: the agent is asked to track something new, and the list adapts.
+    expect(await tool('contacts_fields')).toContain('No fields beyond the built-in ones yet.')
+    await tool('contacts_update', {
+      contact: 'Studio café',
+      fields: { Budget: '€2,000', Country: 'Germany' }
+    })
+    await tool('contacts_add', {
+      contacts: [
+        {
+          name: 'Art foundation',
+          ask: 'Six months',
+          fields: { budget: '€18,000', Deadline: '2026-12-15' }
+        }
+      ]
+    })
+    // Same label, any case: one field. Three fields in all.
+    const fields = await tool('contacts_fields')
+    expect(fields).toContain('Budget (number)')
+    expect(fields).toContain('Country (text)')
+    expect(fields).toContain('Deadline (date)')
+    expect(fields.match(/Budget/g)).toHaveLength(1)
+    // The agent reads a contact's fields by their labels.
+    expect(await tool('contacts_list')).toContain('"Budget": "€2,000"')
+    // They show on the list, and are searchable.
+    const studio = page.getByTestId('contact-row').filter({ hasText: 'Studio café' })
+    await expect(studio).toContainText('€2,000')
+    await page.getByPlaceholder('Search').fill('germany')
+    await expect(page.getByTestId('contact-row')).toHaveCount(1)
+    await page.getByPlaceholder('Search').fill('')
+    // And on the contact, to edit; the change reaches the agent.
+    await studio.click()
+    await expect(page.getByTestId('field-country').locator('input')).toHaveValue('Germany')
+    await page.getByTestId('field-budget').locator('input').fill('€2,500')
+    await page.getByTestId('field-budget').locator('input').blur()
+    await expect.poll(() => tool('contacts_list')).toContain('"Budget": "€2,500"')
+    // By hand: a field of your own, there for every contact.
+    await page.getByTestId('add-field').click()
+    await page.getByPlaceholder('Field name, e.g. Budget').fill('Priority')
+    await page.getByPlaceholder('Field name, e.g. Budget').press('Enter')
+    await expect(page.getByTestId('field-priority')).toBeVisible()
+    await page.getByTestId('field-priority').locator('input').fill('High')
+    await page.getByTestId('field-priority').locator('input').blur()
+    await expect.poll(() => tool('contacts_fields')).toContain('Priority (text)')
+    // The agent takes one away: gone from the contacts and from the panel.
+    expect(await tool('contacts_fields', { remove: 'Country' })).toContain('Removed "Country"')
+    await expect(page.getByTestId('field-country')).toHaveCount(0)
+    expect(await tool('contacts_list')).not.toContain('Germany')
+
     if (process.env.SHOT) {
       await tool('contacts_add', {
         contacts: [
@@ -169,7 +217,7 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
           }
         ]
       })
-      await page.getByTestId('contact-row').filter({ hasText: 'Lena Fischer' }).click()
+      await page.getByTestId('contact-row').filter({ hasText: 'Art foundation' }).click()
       await page.waitForTimeout(300)
       await page.screenshot({ path: join(process.env.SHOT, 'contacts.png') })
     }

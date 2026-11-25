@@ -1,5 +1,5 @@
 const transcriptFlushers = new Set<() => Promise<void>>()
-import type { Contact } from '../shared/contacts'
+import type { Contact, FieldDef } from '../shared/contacts'
 import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
 import type { MailConnectionStatus } from '../shared/mail'
 import type {
@@ -102,7 +102,10 @@ export interface Routine {
   chatId?: string | null
 }
 
-export type { Contact }
+export type { Contact, FieldDef }
+
+/** What the Contacts tab may change: the columns, and the project's own fields by label. */
+export type ContactEdit = Partial<Omit<Contact, 'fields'>> & { fields?: Record<string, string> }
 
 /** One run of a routine, from the history the overview shows. */
 export interface RoutineRun {
@@ -1280,10 +1283,12 @@ export interface CoveApi {
   routinesDelete: (id: string) => Promise<Routine[]>
   routinesRunNow: (id: string) => void
   contactsList: (workspaceId: string) => Promise<Contact[]>
-  contactsAdd: (workspaceId: string, input: Partial<Contact>) => Promise<Contact | null>
-  contactsUpdate: (id: string, input: Partial<Contact>, note?: string) => Promise<Contact | null>
+  contactsAdd: (workspaceId: string, input: ContactEdit) => Promise<Contact | null>
+  contactsUpdate: (id: string, input: ContactEdit, note?: string) => Promise<Contact | null>
   contactsDelete: (id: string) => Promise<boolean>
   contactsDue: (today: string) => Promise<Contact[]>
+  contactsFields: (workspaceId: string) => Promise<FieldDef[]>
+  contactsRemoveField: (workspaceId: string, key: string) => Promise<boolean>
   onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   routinesRuns: (routineId?: string) => Promise<RoutineRun[]>
   routinesUpdate: (
@@ -1993,6 +1998,8 @@ const cove: CoveApi = {
   contactsUpdate: (id, input, note) => ipcRenderer.invoke('contacts:update', id, input, note),
   contactsDelete: (id) => ipcRenderer.invoke('contacts:delete', id),
   contactsDue: (today) => ipcRenderer.invoke('contacts:due', today),
+  contactsFields: (ws) => ipcRenderer.invoke('contacts:fields', ws),
+  contactsRemoveField: (ws, key) => ipcRenderer.invoke('contacts:remove-field', ws, key),
   onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
   routinesRuns: (routineId) => ipcRenderer.invoke('routines:runs', routineId),
   routinesUpdate: (id, patch) => ipcRenderer.invoke('routines:update', id, patch),

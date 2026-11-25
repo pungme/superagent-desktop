@@ -76,7 +76,11 @@ const CONTACTS_PROMPT =
   'on them, replied, yes, no) and a follow-up day. The user sees them on the Contacts tab. ' +
   'When the user works on outreach, or shares a list of people to contact, keep them there ' +
   'with contacts_list, contacts_add and contacts_update (record a reply, a yes or a no, and ' +
-  'set the next follow-up). An email you send with mail_send to a contact updates it by itself.'
+  'set the next follow-up). When the user wants something tracked that the built-in columns ' +
+  'do not hold (a budget, a country, a deadline, a priority), put it in `fields` by label ' +
+  'rather than in notes: a new label becomes a field on every contact, and the Contacts tab ' +
+  'shows it. contacts_fields lists what is tracked. An email you send with mail_send to a ' +
+  'contact updates it by itself.'
 
 // The board outlives the conversation, so it is where work that isn't happening
 // right now belongs — the todo list above is per-turn and disappears with it.

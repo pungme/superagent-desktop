@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Contact } from '../../../preload'
+import type { Contact, ContactEdit, FieldDef } from '../../../preload'
 import {
   CONTACT_STATUSES,
   STATUS_LABEL,
@@ -45,6 +45,7 @@ function ago(ms: number | null): string {
 
 export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const [list, setList] = useState<Contact[]>([])
+  const [defs, setDefs] = useState<FieldDef[]>([])
   const [filter, setFilter] = useState<ContactFilter>('all')
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -54,9 +55,13 @@ export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.J
   const load = useCallback(() => window.cove.contactsList(workspaceId), [workspaceId])
   useEffect(() => {
     let alive = true
-    void load().then((l) => alive && setList(l))
+    const read = (): void => {
+      void load().then((l) => alive && setList(l))
+      void window.cove.contactsFields(workspaceId).then((d) => alive && setDefs(d))
+    }
+    read()
     const off = window.cove.onContactsChanged((p) => {
-      if (p.workspaceId === workspaceId) void load().then((l) => alive && setList(l))
+      if (p.workspaceId === workspaceId) read()
     })
     const t = setInterval(() => setToday(ymd(new Date())), 60_000)
     return () => {
@@ -163,7 +168,17 @@ export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.J
                   <b>{c.name}</b>
                   <span>{[c.org, c.email || c.channel].filter(Boolean).join(' · ')}</span>
                 </span>
-                <span className="contacts-ask">{c.ask}</span>
+                <span className="contacts-ask">
+                  {c.ask}
+                  {defs
+                    .filter((f) => c.fields[f.key])
+                    .slice(0, 2)
+                    .map((f) => (
+                      <em key={f.key} className="contacts-tag" title={f.label}>
+                        {c.fields[f.key]}
+                      </em>
+                    ))}
+                </span>
                 <span className={`contacts-pill s-${late ? 'due' : c.status}`}>
                   {late ? 'Follow up' : STATUS_LABEL[c.status]}
                 </span>
@@ -181,7 +196,14 @@ export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.J
         </div>
       </div>
       {open && (
-        <ContactDetail key={open.id} contact={open} today={today} onClose={() => setOpenId(null)} />
+        <ContactDetail
+          key={open.id}
+          contact={open}
+          defs={defs}
+          workspaceId={workspaceId}
+          today={today}
+          onClose={() => setOpenId(null)}
+        />
       )}
     </div>
   )
@@ -191,7 +213,7 @@ function AddContact({
   onAdd,
   onDone
 }: {
-  onAdd: (input: Partial<Contact>) => Promise<void>
+  onAdd: (input: ContactEdit) => Promise<void>
   onDone: () => void
 }): React.JSX.Element {
   const [name, setName] = useState('')
@@ -235,15 +257,20 @@ function AddContact({
 
 function ContactDetail({
   contact: c,
+  defs,
+  workspaceId,
   today,
   onClose
 }: {
   contact: Contact
+  defs: FieldDef[]
+  workspaceId: string
   today: string
   onClose: () => void
 }): React.JSX.Element {
   const [note, setNote] = useState('')
-  const save = (input: Partial<Contact>, line?: string): void =>
+  const [newField, setNewField] = useState<string | null>(null)
+  const save = (input: ContactEdit, line?: string): void =>
     void window.cove.contactsUpdate(c.id, input, line)
   const field = (
     key: 'name' | 'org' | 'email' | 'channel' | 'ask',
@@ -308,6 +335,54 @@ function ContactDetail({
           onBlur={(e) => e.target.value.trim() !== c.notes && save({ notes: e.target.value })}
         />
       </label>
+      {(defs.length > 0 || newField !== null) && <div className="contacts-sec">Details</div>}
+      {defs.map((f) => (
+        <label key={f.key} className="contacts-field" data-testid={`field-${f.key}`}>
+          <span className="contacts-field-label">
+            {f.label}
+            <button
+              className="contacts-link"
+              title={`Remove "${f.label}" from every contact`}
+              onClick={(e) => {
+                e.preventDefault()
+                if (window.confirm(`Remove the field "${f.label}" from every contact?`))
+                  void window.cove.contactsRemoveField(workspaceId, f.key)
+              }}
+            >
+              remove
+            </button>
+          </span>
+          <input
+            defaultValue={c.fields[f.key] ?? ''}
+            type={f.type === 'date' ? 'date' : 'text'}
+            onBlur={(e) => {
+              if (e.target.value.trim() !== (c.fields[f.key] ?? ''))
+                save({ fields: { [f.label]: e.target.value } })
+            }}
+          />
+        </label>
+      ))}
+      {newField === null ? (
+        <button className="contacts-link" data-testid="add-field" onClick={() => setNewField('')}>
+          + Add a field
+        </button>
+      ) : (
+        <div className="contacts-newfield">
+          <input
+            autoFocus
+            placeholder="Field name, e.g. Budget"
+            value={newField}
+            onChange={(e) => setNewField(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNewField(null)
+              if (e.key === 'Enter' && newField.trim()) {
+                save({ fields: { [newField.trim()]: '' } })
+                setNewField(null)
+              }
+            }}
+          />
+        </div>
+      )}
       <div className="contacts-sec">History</div>
       <ol className="contacts-history">
         {[...c.history].reverse().map((e, i) => (

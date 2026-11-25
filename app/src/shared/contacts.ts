@@ -41,9 +41,61 @@ export interface Contact {
   /** The day to follow up, YYYY-MM-DD, or ''. */
   followUp: string
   notes: string
+  /** The project's own fields (budget, country…) by field key. */
+  fields: Record<string, string>
   history: ContactEvent[]
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * A field this project's contacts have beyond the built-in ones. Anyone can
+ * add one — the agent when you ask it to track "budget" or "country", or you
+ * on a contact — and it appears on every contact of the project.
+ */
+export interface FieldDef {
+  key: string
+  label: string
+  /** A hint for how to show and sort it. */
+  type: 'text' | 'number' | 'date' | 'url'
+}
+
+/** Fields a project may define, and the longest a value may be. */
+export const FIELDS_MAX = 24
+export const FIELD_VALUE_MAX = 500
+
+/** A label as a stable key: "Budget (€)" → "budget". Never empty, never a built-in. */
+export function fieldKey(label: string): string {
+  const k = label
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
+  return k && !BUILT_IN.has(k) ? k : k ? `${k}_2` : ''
+}
+
+const BUILT_IN = new Set([
+  'name',
+  'org',
+  'email',
+  'channel',
+  'ask',
+  'status',
+  'follow_up',
+  'followup',
+  'notes',
+  'id'
+])
+
+/** What kind of value a field holds, from what was put in it. */
+export function guessFieldType(value: string): FieldDef['type'] {
+  const v = value.trim()
+  if (/^https?:\/\//i.test(v)) return 'url'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'date'
+  if (/^[€$£]?\s?-?\d[\d.,\s]*\s?(k|m|€|eur|usd)?$/i.test(v)) return 'number'
+  return 'text'
 }
 
 /** How long after reaching out a follow-up falls due, when none was set. */
@@ -98,8 +150,8 @@ export function matches(c: Contact, filter: ContactFilter, today: string, query 
   if (filter !== 'all' && filter !== 'due' && c.status !== filter) return false
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [c.name, c.org, c.email, c.channel, c.ask, c.notes].some((f) =>
-    f.toLowerCase().includes(q)
+  return [c.name, c.org, c.email, c.channel, c.ask, c.notes, ...Object.values(c.fields ?? {})].some(
+    (f) => f.toLowerCase().includes(q)
   )
 }
 

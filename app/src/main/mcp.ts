@@ -1,6 +1,14 @@
 import { registerAppTools } from './app-tools'
-import { addContact, findContact, listContacts, updateContact } from './contacts'
-import { isDue, sortContacts, toStatus, ymd, type Contact } from '../shared/contacts'
+import {
+  addContact,
+  ensureField,
+  findContact,
+  listContacts,
+  listFields,
+  removeField,
+  updateContact
+} from './contacts'
+import { fieldKey, isDue, sortContacts, toStatus, ymd, type Contact } from '../shared/contacts'
 import { chatToken, chatTokenValid } from './mcp-token'
 import { registerComputerTools } from './computer-tools'
 import { registerMailTools } from './mail-tools'
@@ -1564,8 +1572,14 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     ...(c.lastContactAt
       ? { lastContact: new Date(c.lastContactAt).toISOString().slice(0, 10) }
       : {}),
-    ...(c.notes ? { notes: c.notes } : {})
+    ...(c.notes ? { notes: c.notes } : {}),
+    ...(Object.keys(c.fields).length ? { fields: labelled(c) } : {})
   })
+  /** A contact's own fields by their labels, for the agent to read. */
+  const labelled = (c: Contact): Record<string, string> => {
+    const defs = new Map(listFields(c.workspaceId).map((f) => [f.key, f.label]))
+    return Object.fromEntries(Object.entries(c.fields).map(([k, v]) => [defs.get(k) ?? k, v]))
+  }
   const contactFields = {
     name: z.string().optional().describe('The person or organisation'),
     org: z.string().optional().describe('Organisation, role, or how you know them'),
@@ -1579,7 +1593,13 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
         'not_sent, sent (waiting on them), replied, yes or no. Near-misses are understood.'
       ),
     followUp: z.string().optional().describe('The day to follow up, YYYY-MM-DD'),
-    notes: z.string().optional().describe('Anything worth keeping')
+    notes: z.string().optional().describe('Anything worth keeping'),
+    fields: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        'The project\'s own fields, by label, e.g. {"Budget": "€18,000", "Country": "Germany", "Deadline": "2026-12-15"}. A label not used before becomes a new field on every contact of the project; the same label (any case) is the same field. An empty value clears it. Use these for anything the user asks you to track beyond the built-in columns instead of cramming it into notes.'
+      )
   }
 
   server.registerTool(
@@ -1612,6 +1632,55 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
               : 'No contacts' +
                 (status ? ` with status ${status}` : '') +
                 '. Add them with contacts_add.'
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'contacts_fields',
+    {
+      description:
+        "This project's own contact fields (beyond name, who, email, ask, status, follow-up and notes): list them, define one before any contact has a value, or remove one (it is taken off every contact). Fields are also created by simply using a new label in `fields` on contacts_add or contacts_update, so call this mainly to see what is already tracked, to keep labels consistent, or to remove a field the user no longer wants.",
+      inputSchema: {
+        define: z.string().optional().describe('A label to add as a field, e.g. "Budget"'),
+        remove: z.string().optional().describe('A field label to remove everywhere')
+      }
+    },
+    async ({ define, remove }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      const notes: string[] = []
+      if (define) {
+        const f = ensureField(ws, define)
+        notes.push(
+          f
+            ? `Field "${f.label}" is there.`
+            : `Could not add "${define}" (empty, or the project has the most fields it can).`
+        )
+      }
+      if (remove) {
+        const f = listFields(ws).find(
+          (x) => x.key === fieldKey(remove) || x.label.toLowerCase() === remove.trim().toLowerCase()
+        )
+        notes.push(
+          f && removeField(ws, f.key)
+            ? `Removed "${f.label}" from every contact.`
+            : `No field "${remove}".`
+        )
+      }
+      if (define || remove) broadcastToWindows('contacts:changed', { workspaceId: ws })
+      const fields = listFields(ws)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: [
+              ...notes,
+              fields.length
+                ? `Fields: ${fields.map((f) => `${f.label} (${f.type})`).join(', ')}.`
+                : 'No fields beyond the built-in ones yet.'
+            ].join(' ')
           }
         ]
       }

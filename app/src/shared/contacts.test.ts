@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   addDays,
   addresses,
+  fieldKey,
+  guessFieldType,
   afterEmail,
   isDue,
   matches,
@@ -24,6 +26,7 @@ const base = (over: Partial<Contact>): Contact => ({
   lastContactAt: null,
   followUp: '',
   notes: '',
+  fields: {},
   history: [],
   createdAt: 0,
   updatedAt: 0,
@@ -138,5 +141,36 @@ describe('contacts', () => {
     ])
     expect(addresses(['x@a.de', 'Y <y@b.de>'])).toEqual(['x@a.de', 'y@b.de'])
     expect(addresses(undefined)).toEqual([])
+  })
+
+  describe('the project’s own fields', () => {
+    it('turns a label into a stable key', () => {
+      expect(fieldKey('Budget')).toBe('budget')
+      expect(fieldKey('Budget (€)')).toBe('budget')
+      expect(fieldKey('Déadline für Förderung')).toBe('deadline_fur_forderung')
+      expect(fieldKey('  ')).toBe('')
+      expect(fieldKey('???')).toBe('')
+    })
+
+    it('never collides with a built-in field', () => {
+      expect(fieldKey('Name')).toBe('name_2')
+      expect(fieldKey('Status')).toBe('status_2')
+      expect(fieldKey('Follow up')).toBe('follow_up_2')
+    })
+
+    it('guesses what a value is', () => {
+      expect(guessFieldType('https://example.org/apply')).toBe('url')
+      expect(guessFieldType('2026-12-15')).toBe('date')
+      expect(guessFieldType('€18,000')).toBe('number')
+      expect(guessFieldType('18k')).toBe('number')
+      expect(guessFieldType('Germany')).toBe('text')
+    })
+
+    it('searches them too', () => {
+      const c = base({ name: 'Art foundation', fields: { country: 'Germany', budget: '€18,000' } })
+      expect(matches(c, 'all', '2026-11-25', 'germany')).toBe(true)
+      expect(matches(c, 'all', '2026-11-25', '18,000')).toBe(true)
+      expect(matches(c, 'all', '2026-11-25', 'france')).toBe(false)
+    })
   })
 })

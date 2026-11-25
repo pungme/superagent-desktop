@@ -8,9 +8,14 @@ import {
   afterEmail,
   toDay,
   toStatus,
+  FIELDS_MAX,
+  FIELD_VALUE_MAX,
+  fieldKey,
+  guessFieldType,
   type Contact,
   type ContactEvent,
-  type ContactStatus
+  type ContactStatus,
+  type FieldDef
 } from '../shared/contacts'
 
 /**
@@ -44,7 +49,19 @@ function schema(d: Database.Database): Database.Database {
       updatedAt INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS contacts_by_ws ON contacts (workspaceId);
+    -- The project's own fields, and where each sits in the list.
+    CREATE TABLE IF NOT EXISTS contact_fields (
+      workspaceId TEXT NOT NULL,
+      key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'text',
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspaceId, key)
+    );
   `)
+  const cols = d.prepare('PRAGMA table_info(contacts)').all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'fields'))
+    d.exec("ALTER TABLE contacts ADD COLUMN fields TEXT NOT NULL DEFAULT '{}'")
   return d
 }
 
@@ -55,8 +72,9 @@ export function _useDbForTests(d: Database.Database): void {
 
 const HISTORY_KEPT = 50
 
-interface Row extends Omit<Contact, 'history'> {
+interface Row extends Omit<Contact, 'history' | 'fields'> {
   history: string
+  fields: string
 }
 
 function fromRow(r: Row): Contact {
@@ -66,7 +84,92 @@ function fromRow(r: Row): Contact {
   } catch {
     history = []
   }
-  return { ...r, status: toStatus(r.status) ?? 'not_sent', history }
+  let fields: Record<string, string> = {}
+  try {
+    const parsed = JSON.parse(r.fields || '{}') as Record<string, unknown>
+    for (const [k, v] of Object.entries(parsed)) if (typeof v === 'string') fields[k] = v
+  } catch {
+    fields = {}
+  }
+  return { ...r, status: toStatus(r.status) ?? 'not_sent', history, fields }
+}
+
+// --- the project's own fields -----------------------------------------------
+
+export function listFields(workspaceId: string): FieldDef[] {
+  return conn()
+    .prepare(
+      'SELECT key, label, type FROM contact_fields WHERE workspaceId = ? ORDER BY position, label'
+    )
+    .all(workspaceId) as FieldDef[]
+}
+
+/**
+ * Make sure a field exists, by its label: the same label (any case or accent) is
+ * the same field. null when there is no usable label or the project has as many
+ * fields as it may.
+ */
+export function ensureField(
+  workspaceId: string,
+  label: string,
+  sample = '',
+  type?: FieldDef['type']
+): FieldDef | null {
+  const clean = label.trim().slice(0, 60)
+  const key = fieldKey(clean)
+  if (!key) return null
+  const have = listFields(workspaceId)
+  const found = have.find((f) => f.key === key)
+  if (found) return found
+  if (have.length >= FIELDS_MAX) return null
+  const def: FieldDef = { key, label: clean, type: type ?? guessFieldType(sample) }
+  conn()
+    .prepare(
+      'INSERT INTO contact_fields (workspaceId, key, label, type, position) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(workspaceId, def.key, def.label, def.type, have.length)
+  return def
+}
+
+/** Take a field away from the project and from every contact that has it. */
+export function removeField(workspaceId: string, key: string): boolean {
+  const d = conn()
+  const gone = d
+    .prepare('DELETE FROM contact_fields WHERE workspaceId = ? AND key = ?')
+    .run(workspaceId, key).changes
+  if (!gone) return false
+  for (const c of listContacts(workspaceId)) {
+    if (!(key in c.fields)) continue
+    const rest = { ...c.fields }
+    delete rest[key]
+    d.prepare('UPDATE contacts SET fields = ? WHERE id = ?').run(JSON.stringify(rest), c.id)
+  }
+  announce(workspaceId)
+  return true
+}
+
+/**
+ * Values by label → values by key, defining the fields that are new. An empty
+ * value clears the field on that contact (a new field with no value is still
+ * defined, so it shows up to be filled in).
+ */
+function applyFields(
+  workspaceId: string,
+  current: Record<string, string>,
+  input: unknown
+): Record<string, string> {
+  const out = { ...current }
+  if (!input || typeof input !== 'object') return out
+  for (const [label, raw] of Object.entries(input as Record<string, unknown>)) {
+    const value = (typeof raw === 'number' ? String(raw) : typeof raw === 'string' ? raw : '')
+      .trim()
+      .slice(0, FIELD_VALUE_MAX)
+    const def = ensureField(workspaceId, label, value)
+    if (!def) continue
+    if (value) out[def.key] = value
+    else delete out[def.key]
+  }
+  return out
 }
 
 function announce(workspaceId: string): void {
@@ -96,6 +199,8 @@ export interface ContactInput {
   status?: unknown
   followUp?: unknown
   notes?: unknown
+  /** The project's own fields, by label. */
+  fields?: unknown
 }
 
 const text = (v: unknown, max = 2000): string | undefined =>
@@ -135,16 +240,17 @@ export function addContact(
     lastContactAt: null,
     followUp: fields.followUp ?? '',
     notes: fields.notes ?? '',
+    fields: applyFields(workspaceId, {}, input.fields),
     history: [{ at: now, by, text: 'Added' }],
     createdAt: now,
     updatedAt: now
   }
   conn()
     .prepare(
-      `INSERT INTO contacts (id, workspaceId, name, org, email, channel, ask, status, lastContactAt, followUp, notes, history, createdAt, updatedAt)
-       VALUES (@id, @workspaceId, @name, @org, @email, @channel, @ask, @status, @lastContactAt, @followUp, @notes, @history, @createdAt, @updatedAt)`
+      `INSERT INTO contacts (id, workspaceId, name, org, email, channel, ask, status, lastContactAt, followUp, notes, fields, history, createdAt, updatedAt)
+       VALUES (@id, @workspaceId, @name, @org, @email, @channel, @ask, @status, @lastContactAt, @followUp, @notes, @fields, @history, @createdAt, @updatedAt)`
     )
-    .run({ ...c, history: JSON.stringify(c.history) })
+    .run({ ...c, fields: JSON.stringify(c.fields), history: JSON.stringify(c.history) })
   announce(workspaceId)
   return c
 }
@@ -165,7 +271,14 @@ export function updateContact(
   const fields = clean(input)
   if (fields.name === '') delete fields.name
   const now = Date.now()
-  const next: Contact = { ...c, ...fields, updatedAt: now, history: [...c.history] }
+  const next: Contact = {
+    ...c,
+    ...fields,
+    fields:
+      input.fields === undefined ? c.fields : applyFields(c.workspaceId, c.fields, input.fields),
+    updatedAt: now,
+    history: [...c.history]
+  }
   if (fields.status && fields.status !== c.status) {
     next.history.push({ at: now, by, text: `Status: ${fields.status.replace('_', ' ')}` })
     if (fields.status === 'replied' || fields.status === 'yes' || fields.status === 'no')
@@ -177,9 +290,9 @@ export function updateContact(
   conn()
     .prepare(
       `UPDATE contacts SET name=@name, org=@org, email=@email, channel=@channel, ask=@ask, status=@status,
-       lastContactAt=@lastContactAt, followUp=@followUp, notes=@notes, history=@history, updatedAt=@updatedAt WHERE id=@id`
+       lastContactAt=@lastContactAt, followUp=@followUp, notes=@notes, fields=@fields, history=@history, updatedAt=@updatedAt WHERE id=@id`
     )
-    .run({ ...next, history: JSON.stringify(next.history) })
+    .run({ ...next, fields: JSON.stringify(next.fields), history: JSON.stringify(next.history) })
   announce(c.workspaceId)
   return next
 }
@@ -253,6 +366,10 @@ export function registerContactsIpc(): void {
     updateContact(String(id), input ?? {}, 'you', typeof note === 'string' ? note : undefined)
   )
   ipcMain.handle('contacts:delete', (_e, id: string) => deleteContact(String(id)))
+  ipcMain.handle('contacts:fields', (_e, ws: string) => listFields(String(ws)))
+  ipcMain.handle('contacts:remove-field', (_e, ws: string, key: string) =>
+    removeField(String(ws), String(key))
+  )
   ipcMain.handle('contacts:due', (_e, today: string) => dueContacts(String(today)))
 }
 
