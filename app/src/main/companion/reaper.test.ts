@@ -16,11 +16,12 @@ vi.mock('../agent', async () => {
   }
 })
 
-const { startReaper } = await import('./reaper')
+const { startReaper, _resetReaperForTests } = await import('./reaper')
 
 describe('the reaper for chats the phone started', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    _resetReaperForTests()
     h.sessions.length = 0
     h.stopped.length = 0
   })
@@ -48,5 +49,32 @@ describe('the reaper for chats the phone started', () => {
     })
     vi.advanceTimersByTime(12 * 60_000)
     expect(h.stopped).toEqual(['s2', 's1'])
+  })
+
+  // Antigravity says only that its sub-agent went to the background, and later
+  // that it ended (the follower's task_notification): no task list in between.
+  it('leaves an Antigravity session alone while its sub-agent works', () => {
+    startReaper()
+    h.sessions.push({ id: 'agy', owned: false })
+    h.bus.emit('started', { id: 'agy' })
+    h.bus.emit('event', {
+      id: 'agy',
+      event: {
+        type: 'system',
+        subtype: 'task_started',
+        task_type: 'local_agent',
+        tool_use_id: 'card-2',
+        task_id: 'child',
+        is_backgrounded: true
+      }
+    })
+    vi.advanceTimersByTime(40 * 60_000)
+    expect(h.stopped).toEqual([])
+    h.bus.emit('event', {
+      id: 'agy',
+      event: { type: 'system', subtype: 'task_notification', tool_use_id: 'card-2' }
+    })
+    vi.advanceTimersByTime(12 * 60_000)
+    expect(h.stopped).toEqual(['agy'])
   })
 })

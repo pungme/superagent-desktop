@@ -11,6 +11,7 @@ import { agentLog } from './agent-log'
 import { forgetStuckSamples, stepStuck, stopStep } from './stuck-step-watch'
 import {
   clearChatSession,
+  getChat,
   swapAgentSession,
   takeCatchUp,
   takeResumeNext,
@@ -363,6 +364,22 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   // path there is.
   // Switched back to an agent that ran this chat before: its own thread, which
   // the window (it cleared its copy at the switch) does not know.
+  // The chat's record says which thread is its agent's own; main writes it when
+  // a session starts and when the agent is switched. A window can still hold the
+  // id of the agent it ran before: the chat was moved to Antigravity from the
+  // phone, the open window kept Claude's id, and Antigravity was asked to resume
+  // a Claude thread it has never heard of ("could not be resumed", 2026-11-25).
+  if (opts.resumeSessionId && opts.chatId) {
+    const recorded = getChat(opts.chatId)
+    if (recorded && recorded.claudeSessionId !== opts.resumeSessionId) {
+      agentLog(
+        'resume-corrected',
+        '-',
+        `chat=${opts.chatId} asked=${opts.resumeSessionId} recorded=${recorded.claudeSessionId ?? '-'}`
+      )
+      opts = { ...opts, resumeSessionId: recorded.claudeSessionId ?? undefined }
+    }
+  }
   if (!opts.resumeSessionId && opts.chatId) {
     const back = takeResumeNext(opts.chatId)
     if (back) opts = { ...opts, resumeSessionId: back }
