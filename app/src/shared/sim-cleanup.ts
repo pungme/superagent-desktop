@@ -5,10 +5,11 @@
  * is tested.
  *
  * Two ways to go: the person picks from a list in Settings (any device that is not
- * running and that no conversation holds), or, with the switch on, devices that
- * appeared AFTER Superagent first looked, that are shut down, held by nobody, and
- * unused for a week. What was already there at the first look is the person's own
- * and is only ever removed by hand.
+ * running and that no conversation holds), or, with the switch on, a device that is
+ * shut down, held by nobody, not Apple's own (named for a device type), not marked
+ * Keep, and unused for three days. It used to spare whatever was there when
+ * Superagent first looked; that was most of a Mac where agents had been making
+ * simulators for weeks (17 of 20), so the clean-up never reached them.
  */
 
 export interface SimInfo {
@@ -21,7 +22,7 @@ export interface SimInfo {
   lastUsedAt: number | null
 }
 
-export type SimKeep = 'running' | 'held' | 'baseline' | 'recent' | null
+export type SimKeep = 'running' | 'held' | 'kept' | 'stock' | 'recent' | null
 
 export interface SimRow extends SimInfo {
   /** Why it will not be cleared automatically; null when it will, once idle long enough. */
@@ -30,22 +31,27 @@ export interface SimRow extends SimInfo {
   removable: boolean
 }
 
-export const IDLE_DAYS = 7
+export const IDLE_DAYS = 3
 export const IDLE_MS = IDLE_DAYS * 24 * 60 * 60 * 1000
 
 export interface PlanContext {
   now: number
   /** Devices a conversation holds or has open: never removed. */
   held: ReadonlySet<string>
-  /** UDIDs present at the first look: the person's own, never removed automatically. */
-  baseline: ReadonlySet<string>
+  /** UDIDs the person marked Keep: never removed. */
+  kept: ReadonlySet<string>
+  /** Names (lower case) of Apple's own device types: a device with exactly one is a stock one. */
+  stock: ReadonlySet<string>
   idleMs?: number
 }
 
 function keepReason(d: SimInfo, c: PlanContext): SimKeep {
   if (d.state !== 'Shutdown') return 'running'
   if (c.held.has(d.udid)) return 'held'
-  if (c.baseline.has(d.udid)) return 'baseline'
+  if (c.kept.has(d.udid)) return 'kept'
+  // Xcode's own devices carry a device type's name ("iPhone 17"); anything an agent
+  // made has a name of its own ("Fold Audit", "iPhone Duo (11)").
+  if (c.stock.has(d.name.trim().toLowerCase())) return 'stock'
   const idle = c.idleMs ?? IDLE_MS
   // No date at all counts as old: a device simctl cannot place was not used lately.
   if (d.lastUsedAt !== null && c.now - d.lastUsedAt < idle) return 'recent'

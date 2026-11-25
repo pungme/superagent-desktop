@@ -746,6 +746,8 @@ export interface CoveApi {
     udids: string[]
   ) => Promise<{ deleted: number; freedBytes: number; skipped: number }>
   simCleanupAuto: (on: boolean) => Promise<boolean>
+  /** Mark a simulator Keep (the clean-up never deletes it), or release it. */
+  simCleanupKeep: (udid: string, on: boolean) => Promise<string[]>
   /** Whether macOS's "quit unexpectedly" pop-ups are switched off; and switching them. */
   simCrashDialogsHidden: () => Promise<boolean>
   simSetCrashDialogsHidden: (hide: boolean) => Promise<boolean>
@@ -1709,6 +1711,7 @@ const cove: CoveApi = {
   simCleanupState: () => ipcRenderer.invoke('sim:cleanup-state'),
   simCleanupDelete: (udids) => ipcRenderer.invoke('sim:cleanup-delete', udids),
   simCleanupAuto: (on) => ipcRenderer.invoke('sim:cleanup-auto', on),
+  simCleanupKeep: (udid, on) => ipcRenderer.invoke('sim:cleanup-keep', udid, on),
   simCrashDialogsHidden: () => ipcRenderer.invoke('sim:crash-dialogs'),
   simSetCrashDialogsHidden: (hide) => ipcRenderer.invoke('sim:crash-dialogs-set', hide),
   chatSetNow: (chatId, text) => ipcRenderer.invoke('chat:setNow', chatId, text),

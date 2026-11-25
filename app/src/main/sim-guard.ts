@@ -62,7 +62,7 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
   // loop over `simctl list`, killing the simulator service. How a conversation
   // clearing its own clutter took another one's device with it.
   for (const m of command.matchAll(/\bsimctl\s+(shutdown|erase|delete)\s+all\b/g))
-    return `Not run: \`simctl ${m[1]} all\` reaches every conversation's simulator, not only this one's. ${own} If the user asked for ALL simulators to be turned off, call the sim_shutdown_all tool: it asks them in a dialog.`
+    return `Not run: \`simctl ${m[1]} all\` reaches every conversation's simulator, not only this one's. ${own} If the user asked for ALL simulators to be turned off, call the sim_shutdown_all tool (or sim_delete to delete unused ones): it asks them in a dialog.`
   if (
     simctl &&
     (/\bxargs\b[^\n;]*\bsimctl\b/.test(command) ||
@@ -72,7 +72,7 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
           command
         )))
   )
-    return `Not run: a list of simulators fed into simctl would act on other conversations' devices too. Name this conversation's UDID in the command. ${own}`
+    return `Not run: a list of simulators fed into simctl would act on other conversations' devices too. Name this conversation's UDID in the command. ${own} To delete unused simulators, call the sim_delete tool: it asks the user in a dialog.`
   if (/\b(killall|pkill)\b[^\n;|&]*\b(CoreSimulator|SimulatorTrampoline|Simulator)\b/.test(command))
     return `Not run: stopping Simulator or CoreSimulator stops every conversation's device. ${own}`
 

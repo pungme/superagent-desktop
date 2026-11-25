@@ -29,7 +29,7 @@ vi.mock('child_process', async () => {
   }
   return { execFile }
 })
-vi.mock('./store', () => ({ kvGet: () => null, kvSet: () => undefined }))
+vi.mock('./store', () => ({ kvGet: () => null, kvSet: () => undefined, getChat: () => undefined }))
 vi.mock('./simulator', () => ({
   chatHoldingSimulator: () => null,
   openSimulators: () => [],

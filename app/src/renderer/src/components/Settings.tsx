@@ -11,7 +11,7 @@ import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account, Connector, SimCleanupState } from '../../../preload'
-import { IDLE_MS, sizeLabel, type SimKeep } from '../../../shared/sim-cleanup'
+import { IDLE_DAYS, sizeLabel, type SimKeep } from '../../../shared/sim-cleanup'
 import { SkillsPanel } from './SkillsPanel'
 import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state'
 import { IconEditor } from './IconEditor'
@@ -878,15 +878,16 @@ function ClaudeCodeUpdates(): React.JSX.Element {
 const KEEP_WORDS: Record<NonNullable<SimKeep>, string> = {
   running: 'running',
   held: 'in use by a conversation',
-  baseline: 'yours: only cleared by hand',
-  recent: 'used this week'
+  kept: 'kept',
+  stock: 'Apple’s own: kept',
+  recent: 'used lately'
 }
 
 /**
  * The simulators on this Mac. Agents create them and never delete them, and each is
  * 2 to 14 GB. Cleared by hand from this list, or (switch on, the default) by
- * themselves once they are new since Superagent first looked, shut down, held by no
- * conversation and a week unused. See main/sim-cleanup.ts.
+ * themselves once they are shut down, held by no conversation, not Apple's own, not
+ * marked Keep, and three days unused. See main/sim-cleanup.ts.
  */
 function SimulatorCleanup(): React.JSX.Element | null {
   const [st, setSt] = useState<SimCleanupState | null | undefined>(undefined)
@@ -928,9 +929,8 @@ function SimulatorCleanup(): React.JSX.Element | null {
   const rows = st.rows
   const pickedBytes = rows.filter((r) => picked.has(r.udid)).reduce((n, r) => n + r.sizeBytes, 0)
   const now = Date.now()
-  const idleRows = rows.filter(
-    (r) => r.removable && (r.lastUsedAt === null || now - r.lastUsedAt > IDLE_MS)
-  )
+  // What the automatic clean-up would delete now.
+  const idleRows = rows.filter((r) => r.keep === null)
   const toggle = (udid: string): void =>
     setPicked((p) => {
       const n = new Set(p)
@@ -963,7 +963,7 @@ function SimulatorCleanup(): React.JSX.Element | null {
       <GroupLabel>Simulators</GroupLabel>
       <Row
         title="Clear out unused simulators"
-        desc={`Agents create simulators and never delete them: ${rows.length} here take ${sizeLabel(st.totalBytes)}. With this on, new ones that nobody has used for a week are deleted by themselves, every few hours. Simulators that were already here are only deleted by you, below.`}
+        desc={`Agents create simulators and never delete them: ${rows.length} here take ${sizeLabel(st.totalBytes)}. With this on, one that nobody has used for ${IDLE_DAYS} days is deleted by itself, every few hours. Apple's own devices (named for a device type, like “iPhone 17”), ones in use and ones you mark Keep are never deleted.`}
       >
         <Toggle
           checked={st.auto}
@@ -989,12 +989,28 @@ function SimulatorCleanup(): React.JSX.Element | null {
             />
             <span className="settings-sim-name">{r.name}</span>
             <span className="settings-sim-meta">
-              {r.keep && r.keep !== 'baseline' && r.keep !== 'recent'
+              {r.keep && r.keep !== 'recent'
                 ? KEEP_WORDS[r.keep]
                 : r.lastUsedAt
                   ? `used ${ago(r.lastUsedAt, now)}`
                   : 'never used'}
             </span>
+            {r.removable && r.keep !== 'stock' && (
+              <button
+                className="settings-sim-keep"
+                title={
+                  r.keep === 'kept'
+                    ? 'Let the clean-up delete it again'
+                    : 'Never delete this one automatically'
+                }
+                onClick={(e) => {
+                  e.preventDefault()
+                  void window.cove.simCleanupKeep(r.udid, r.keep !== 'kept').then(load)
+                }}
+              >
+                {r.keep === 'kept' ? 'Kept' : 'Keep'}
+              </button>
+            )}
             <span className="settings-sim-size">{sizeLabel(r.sizeBytes)}</span>
           </label>
         ))}
@@ -1005,7 +1021,7 @@ function SimulatorCleanup(): React.JSX.Element | null {
           disabled={busy || !idleRows.length}
           onClick={() => setPicked(new Set(idleRows.map((r) => r.udid)))}
         >
-          Select the {idleRows.length} unused for a week
+          Select the {idleRows.length} the clean-up would delete
         </button>
         <button
           className="settings-cli-check"

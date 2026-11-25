@@ -36,7 +36,7 @@ import {
   postureAngle
 } from './simulator'
 import { withoutStealingFocus } from './browser'
-import { shutDownAllSimulators } from './sim-cleanup'
+import { shutDownAllSimulators, deleteSimulatorsWithConsent } from './sim-cleanup'
 import { recordFileHandover } from './companion/log'
 import { nativeImage } from 'electron'
 import { readFileSync, unlinkSync } from 'fs'
@@ -466,6 +466,24 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
         : r.done.length
           ? `Turned off ${r.done.length}: ${r.done.join(', ')}.`
           : 'No simulator was running.'
+      return { content: [{ type: 'text', text }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_delete',
+    {
+      description:
+        "Delete the simulators nobody needs: shut down, not used by any conversation, not marked Keep, not Apple's stock devices. Use it when the user asks to delete or clean up simulators; the shell route (simctl delete in a loop) is refused. The user is asked in a dialog and may decline.",
+      inputSchema: {}
+    },
+    async () => {
+      const r = await deleteSimulatorsWithConsent()
+      const text = r.declined
+        ? 'The user declined in the dialog; nothing was deleted. Do not try another way.'
+        : r.deleted
+          ? `Deleted ${r.deleted} simulator${r.deleted === 1 ? '' : 's'} (${Math.round(r.freedBytes / 1e6)} MB freed).`
+          : 'Nothing to delete: every simulator is running, in use, kept, stock or recently used.'
       return { content: [{ type: 'text', text }] }
     }
   )

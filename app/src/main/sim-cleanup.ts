@@ -1,10 +1,11 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { kvGet, kvSet } from './store'
+import { getChat, kvGet, kvSet } from './store'
 import { chatHoldingSimulator, openSimulators, releaseSimulatorHelpers } from './simulator'
 import { healthLog } from './health'
 import {
+  IDLE_MS,
   autoCleanup,
   describeSimulators,
   simulatorsToSleep,
@@ -25,6 +26,7 @@ import {
 
 const run = promisify(execFile)
 const BASELINE_KEY = 'sim.baseline'
+const KEEP_KEY = 'sim.keep'
 const AUTO_KEY = 'sim.autoClean'
 const EVERY_MS = 6 * 60 * 60 * 1000
 const FIRST_MS = 3 * 60 * 1000
@@ -77,13 +79,69 @@ function baseline(devices: SimInfo[]): Set<string> {
 
 function heldSet(devices: SimInfo[]): Set<string> {
   const held = new Set<string>()
-  for (const d of devices) if (chatHoldingSimulator(d.udid)) held.add(d.udid)
-  for (const o of openSimulators()) held.add(o.udid)
+  const shown = new Set(openSimulators().map((o) => o.udid))
+  for (const d of devices) {
+    const owner = chatHoldingSimulator(d.udid)
+    if (!owner) continue
+    // A conversation untouched for days, with no agent running, no longer needs its device.
+    const chat = getChat(owner)
+    const stale =
+      !shown.has(d.udid) &&
+      (!chat || (Date.now() - chat.updatedAt > IDLE_MS && !agentRunning(owner)))
+    if (!stale) held.add(d.udid)
+  }
+  for (const u of shown) held.add(u)
   return held
 }
 
-async function context(devices: SimInfo[]): Promise<PlanContext> {
-  return { now: Date.now(), held: heldSet(devices), baseline: baseline(devices) }
+/** The UDIDs the person marked Keep. */
+function keptSet(): Set<string> {
+  try {
+    return new Set(JSON.parse(kvGet(KEEP_KEY) ?? '[]') as string[])
+  } catch {
+    return new Set()
+  }
+}
+
+export function setSimKept(udid: string, on: boolean): string[] {
+  const kept = keptSet()
+  if (on) kept.add(udid)
+  else kept.delete(udid)
+  kvSet(KEEP_KEY, JSON.stringify([...kept]))
+  return [...kept]
+}
+
+let stockNames: Set<string> | null = null
+/**
+ * The names of Apple's own device types ("iPhone 17", "iPad Pro 11-inch (M5)"), asked
+ * once. A simulator named exactly so is a stock one. If simctl cannot say, nothing is
+ * taken for stock: the auto clean-up then leaves everything alone, never deleting on a guess.
+ */
+async function stockSet(): Promise<{ names: Set<string>; known: boolean }> {
+  if (stockNames) return { names: stockNames, known: true }
+  try {
+    const { stdout } = await run('xcrun', ['simctl', 'list', 'devicetypes', '--json'], {
+      timeout: 30_000,
+      maxBuffer: 8 * 1024 * 1024
+    })
+    const types = (JSON.parse(stdout) as { devicetypes?: { name: string }[] }).devicetypes ?? []
+    const names = new Set(types.map((t) => t.name.trim().toLowerCase()).filter(Boolean))
+    if (names.size) stockNames = names
+    return { names, known: names.size > 0 }
+  } catch {
+    return { names: new Set(), known: false }
+  }
+}
+
+async function context(devices: SimInfo[]): Promise<PlanContext & { stockKnown: boolean }> {
+  const stock = await stockSet()
+  return {
+    now: Date.now(),
+    held: heldSet(devices),
+    kept: keptSet(),
+    stock: stock.names,
+    stockKnown: stock.known
+  }
 }
 
 export interface SimCleanupState {
@@ -132,8 +190,8 @@ export async function deleteSimulators(
 export async function autoCleanSimulators(): Promise<SimRow[]> {
   const devices = await scanSimulators()
   const ctx = await context(devices)
+  if (!autoCleanOn() || !ctx.stockKnown) return []
   const gone = autoCleanup(devices, ctx)
-  if (!autoCleanOn()) return []
   if (gone.length) {
     const r = await deleteSimulators(gone.map((g) => g.udid))
     healthLog(`simulator clean-up removed ${r.deleted} (${Math.round(r.freedBytes / 1e6)} MB)`)
@@ -209,6 +267,44 @@ export async function shutDownAllSimulators(
   return { done, declined: false }
 }
 
+/**
+ * "Delete these simulators", for an agent the person asked to. Only ones the clean-up
+ * rules call removable (never running, held, kept or Apple's own) and only after a
+ * yes in the app's own dialog.
+ */
+export async function deleteSimulatorsWithConsent(
+  ask: (names: string[]) => Promise<boolean> = askDeleteSimulators
+): Promise<{ deleted: number; freedBytes: number; declined: boolean; names: string[] }> {
+  const devices = await scanSimulators()
+  const ctx = await context(devices)
+  if (!ctx.stockKnown) return { deleted: 0, freedBytes: 0, declined: false, names: [] }
+  const rows = describeSimulators(devices, ctx).filter((r) => r.removable)
+  if (!rows.length) return { deleted: 0, freedBytes: 0, declined: false, names: [] }
+  const names = rows.map((r) => r.name)
+  if (!(await ask(names))) return { deleted: 0, freedBytes: 0, declined: true, names }
+  const r = await deleteSimulators(rows.map((x) => x.udid))
+  return { ...r, declined: false, names }
+}
+
+async function askDeleteSimulators(names: string[]): Promise<boolean> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const options = {
+    type: 'question' as const,
+    buttons: ['Cancel', 'Delete them'],
+    defaultId: 0,
+    cancelId: 0,
+    message: `Delete ${names.length} unused simulator${names.length === 1 ? '' : 's'}?`,
+    detail:
+      'Shut down, not in use by any conversation, not marked Keep. Their apps and data go.\n\n' +
+      names.slice(0, 12).join('\n') +
+      (names.length > 12 ? `\n… and ${names.length - 12} more` : '')
+  }
+  const { response } = win
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options)
+  return response === 1
+}
+
 async function askShutDownAll(names: string[]): Promise<boolean> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   const options = {
@@ -257,6 +353,11 @@ export function registerSimCleanupIpc(): void {
     deleteSimulators(
       Array.isArray(udids) ? udids.filter((u): u is string => typeof u === 'string') : []
     )
+  )
+  ipcMain.handle('sim:cleanup-keep', (_e, udid: unknown, on: unknown) =>
+    typeof udid === 'string' && /^[0-9A-F-]{36}$/i.test(udid)
+      ? setSimKept(udid.toUpperCase(), on === true)
+      : []
   )
   ipcMain.handle('sim:cleanup-auto', (_e, on: unknown) => {
     kvSet(AUTO_KEY, on ? '1' : '0')

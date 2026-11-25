@@ -40,11 +40,11 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
         },
         {
           udid: 'B',
-          name: 'iPhone Duo (11)',
+          name: 'iPhone 17',
           state: 'Shutdown',
           sizeBytes: 9e9,
           lastUsedAt: Date.now() - 12 * day,
-          keep: 'baseline',
+          keep: 'stock',
           removable: true
         },
         {
@@ -63,6 +63,15 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
           sizeBytes: 2e9,
           lastUsedAt: Date.now() - 1 * day,
           keep: 'recent',
+          removable: true
+        },
+        {
+          udid: 'E',
+          name: 'Phone Audit',
+          state: 'Shutdown',
+          sizeBytes: 1e9,
+          lastUsedAt: Date.now() - 4 * day,
+          keep: null,
           removable: true
         }
       ]
@@ -92,6 +101,11 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
           skipped: 0
         }
       })
+      ipcMain.removeHandler('sim:cleanup-keep')
+      ipcMain.handle('sim:cleanup-keep', (_e, udid: string, on: boolean) => {
+        rows = rows.map((r) => (r.udid === udid ? { ...r, keep: on ? 'kept' : null } : r))
+        return []
+      })
       ipcMain.removeHandler('sim:cleanup-auto')
       ipcMain.handle('sim:cleanup-auto', (_e, on: boolean) => {
         g.auto.push(on)
@@ -105,28 +119,55 @@ test('the simulator list shows size and why one is kept, and deletes what is pic
     await page.click('.settings-nav-item:has-text("Agents")')
 
     const rows = page.locator('.settings-sim-row')
-    await expect(rows).toHaveCount(4)
+    await expect(rows).toHaveCount(5)
     await expect(rows.nth(0)).toContainText('iPhone Duo')
     await expect(rows.nth(0)).toContainText('14 GB')
     await expect(rows.nth(0)).toContainText('running')
     await expect(rows.nth(0).locator('input')).toBeDisabled()
+    // Apple's own device is kept, and cannot be marked: it already is.
+    await expect(rows.nth(1)).toContainText('iPhone 17')
+    await expect(rows.nth(1)).toContainText('Apple’s own: kept')
+    await expect(rows.nth(1).getByRole('button')).toHaveCount(0)
     await expect(rows.nth(2)).toContainText('Fold Audit')
     await expect(rows.nth(2)).toContainText('3.0 GB')
     await page.locator('.settings-sim-actions').scrollIntoViewIfNeeded()
     if (process.env.SHOT) await page.screenshot({ path: '/tmp/sa-sim.png' })
 
-    // "Unused for a week" picks the two that are, not the one used yesterday or the running one.
-    await page.getByRole('button', { name: /Select the 2 unused/ }).click()
-    await expect(rows.nth(1).locator('input')).toBeChecked()
+    // The explanation says what the switch does now.
+    await expect(
+      page.locator('.settings-row', { hasText: 'Clear out unused simulators' })
+    ).toContainText('nobody has used for 3 days')
+
+    // Marking one Keep takes it out of what the clean-up would delete.
+    await expect(
+      page.getByRole('button', { name: /Select the 2 the clean-up would delete/ })
+    ).toBeVisible()
+    await rows.nth(2).getByRole('button', { name: 'Keep' }).click()
+    await expect(rows.nth(2)).toContainText('kept')
+    await expect(rows.nth(2).getByRole('button', { name: 'Kept' })).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Select the 1 the clean-up would delete/ })
+    ).toBeVisible()
+    // Letting it go puts it back.
+    await rows.nth(2).getByRole('button', { name: 'Kept' }).click()
+    await expect(
+      page.getByRole('button', { name: /Select the 2 the clean-up would delete/ })
+    ).toBeVisible()
+
+    // The clean-up's picks: Fold Audit and Phone Audit, not Apple's own, the one used
+    // yesterday or the running one.
+    await page.getByRole('button', { name: /Select the 2 the clean-up would delete/ }).click()
+    await expect(rows.nth(1).locator('input')).not.toBeChecked()
     await expect(rows.nth(2).locator('input')).toBeChecked()
     await expect(rows.nth(3).locator('input')).not.toBeChecked()
+    await expect(rows.nth(4).locator('input')).toBeChecked()
     page.once('dialog', (d) => void d.accept())
     await page.getByRole('button', { name: /^Delete 2/ }).click()
-    await expect(rows).toHaveCount(2)
-    await expect(page.locator('.settings-sim-note')).toContainText('Deleted 2, freed 12 GB')
+    await expect(rows).toHaveCount(3)
+    await expect(page.locator('.settings-sim-note')).toContainText('Deleted 2, freed 4.0 GB')
     expect(
       await app.evaluate(() => (globalThis as unknown as { deleted: string[][] }).deleted)
-    ).toEqual([['B', 'C']])
+    ).toEqual([['C', 'E']])
 
     // The pop-ups switch: off to start with, and main says what it is after.
     const popups = page.locator('.settings-row', { hasText: 'quit unexpectedly' })

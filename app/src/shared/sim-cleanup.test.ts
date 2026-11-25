@@ -22,10 +22,11 @@ const dev = (udid: string, over: Partial<SimInfo> = {}): SimInfo => ({
   lastUsedAt: NOW - 10 * day,
   ...over
 })
-const ctx = (over: { held?: string[]; baseline?: string[] } = {}): PlanContext => ({
+const ctx = (over: { held?: string[]; kept?: string[]; stock?: string[] } = {}): PlanContext => ({
   now: NOW,
   held: new Set(over.held ?? []),
-  baseline: new Set(over.baseline ?? [])
+  kept: new Set(over.kept ?? []),
+  stock: new Set(over.stock ?? [])
 })
 
 describe('autoCleanup', () => {
@@ -40,10 +41,33 @@ describe('autoCleanup', () => {
   it('never touches one a conversation holds', () => {
     expect(autoCleanup([dev('a')], ctx({ held: ['a'] }))).toEqual([])
   })
-  it("leaves the person's own (there at the first look) alone", () => {
-    expect(autoCleanup([dev('a')], ctx({ baseline: ['a'] }))).toEqual([])
+  it('leaves one the person marked Keep alone', () => {
+    expect(autoCleanup([dev('a')], ctx({ kept: ['a'] }))).toEqual([])
   })
-  it('waits until it has been idle a week', () => {
+  it("leaves Apple's own devices alone, named for a device type, whatever the case", () => {
+    expect(
+      autoCleanup(
+        [dev('a', { name: 'iPhone 17' }), dev('b', { name: ' IPAD PRO 11-inch (M5) ' })],
+        ctx({ stock: ['iphone 17', 'ipad pro 11-inch (m5)'] })
+      )
+    ).toEqual([])
+  })
+  it('takes what an agent made, whatever it was named: Fold Audit, iPhone Duo (11), sb-iap-check', () => {
+    const stock = ['iphone 17', 'iphone duo']
+    const gone = autoCleanup(
+      [
+        dev('1', { name: 'Fold Audit' }),
+        dev('2', { name: 'iPhone Duo (11)' }),
+        dev('3', { name: 'sb-iap-check' }),
+        dev('4', { name: 'iPhone 17 (3)' }),
+        dev('5', { name: 'iPhone 17' })
+      ],
+      ctx({ stock })
+    )
+    expect(gone.map((r) => r.udid).sort()).toEqual(['1', '2', '3', '4'])
+  })
+  it('waits until it has been idle three days', () => {
+    expect(IDLE_MS).toBe(3 * day)
     expect(autoCleanup([dev('a', { lastUsedAt: NOW - IDLE_MS + 1000 })], ctx())).toEqual([])
     expect(autoCleanup([dev('a', { lastUsedAt: NOW - IDLE_MS - 1000 })], ctx()).length).toBe(1)
     expect(autoCleanup([dev('a', { lastUsedAt: null })], ctx()).length).toBe(1)
@@ -60,11 +84,11 @@ describe('describeSimulators', () => {
         dev('busy', { sizeBytes: 4e9 }),
         dev('fresh', { sizeBytes: 2e9, lastUsedAt: NOW - day })
       ],
-      ctx({ baseline: ['mine'], held: ['busy'] })
+      ctx({ kept: ['mine'], held: ['busy'] })
     )
     expect(rows.map((r) => [r.udid, r.keep, r.removable])).toEqual([
       ['big', 'running', false],
-      ['mine', 'baseline', true],
+      ['mine', 'kept', true],
       ['busy', 'held', false],
       ['fresh', 'recent', true],
       ['small', null, true]
