@@ -3472,6 +3472,26 @@ export function EasyChat({
         return
       }
 
+      // The agent started a turn nobody typed (a background task finished, a
+      // scheduled wake-up, the agent carrying on after asking): there is no user
+      // message to switch "working" on, so the chat filled with steps and showed
+      // no spinner. Real output means a turn is running; the result ends it.
+      if (!generatingRef.current && type === 'stream_event') {
+        const t = (event.event as Record<string, unknown> | undefined)?.type
+        if (t === 'message_start' || t === 'content_block_start') {
+          setGenerating(true)
+          setThinking(true)
+        }
+      }
+      if (
+        !generatingRef.current &&
+        type === 'assistant' &&
+        (event.message as { model?: string } | undefined)?.model !== '<synthetic>'
+      ) {
+        setGenerating(true)
+        setThinking(true)
+      }
+
       if (type === 'stream_event') {
         const ev = event.event as Record<string, unknown>
         const evType = ev?.type as string
