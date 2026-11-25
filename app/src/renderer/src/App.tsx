@@ -1,5 +1,6 @@
 import { goBack, visited, type Visit } from '../../shared/visit-history'
 import { TodayView } from './components/TodayView'
+import { RoutinesOverview } from './components/RoutinesOverview'
 import { applySavedFromMac } from './lib/saved-prompts'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
@@ -400,7 +401,7 @@ function App(): React.JSX.Element {
     // its own state and covers them both, so going to one leaves it too:
     // clicking a chat in the sidebar's Chats list with Settings open used to
     // open the chat behind Settings, and nothing appeared to happen.
-    const show = (o: 'today' | 'computer' | 'chats'): void => {
+    const show = (o: 'today' | 'computer' | 'chats' | 'routines'): void => {
       setOverlay(o)
       setSettingsOpen(false)
     }
@@ -495,7 +496,9 @@ function App(): React.JSX.Element {
       setSettingsInitialSection('skills')
       setSettingsOpen(true)
     }
-    const openRoutines = openOnDesktop('routines')
+    // All routines of all projects on one page (the per-project panel stays
+    // reachable from the project's Computer).
+    const openRoutines = (): void => show('routines')
     // Picking anything in the sidebar leaves every full-window surface — the
     // dashboard/computer overlays AND the Settings page (which is its own state,
     // so it wasn't closing before: you'd click a project and Settings stayed up).
@@ -818,6 +821,12 @@ function App(): React.JSX.Element {
         {overlay === 'today' && !settingsOpen && (
           <div className="today-host">
             <TodayView visible />
+          </div>
+        )}
+        {/* Routines: every project's scheduled runs on one page. */}
+        {overlay === 'routines' && !settingsOpen && (
+          <div className="today-host">
+            <RoutinesOverview visible />
           </div>
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,

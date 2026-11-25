@@ -101,6 +101,17 @@ export interface Routine {
   chatId?: string | null
 }
 
+/** One run of a routine, from the history the overview shows. */
+export interface RoutineRun {
+  id: string
+  routineId: string
+  startedAt: number
+  endedAt: number | null
+  status: 'ok' | 'error' | 'running'
+  tokens: number
+  summary: string | null
+}
+
 /** One step in a routine run's transcript (JSON-encoded in Routine.lastRunTranscript). */
 export type RoutineStep =
   | { kind: 'thinking'; text: string }
@@ -1262,6 +1273,11 @@ export interface CoveApi {
   routinesSetEnabled: (id: string, enabled: boolean) => Promise<Routine[]>
   routinesDelete: (id: string) => Promise<Routine[]>
   routinesRunNow: (id: string) => void
+  routinesRuns: (routineId?: string) => Promise<RoutineRun[]>
+  routinesUpdate: (
+    id: string,
+    patch: { prompt?: string; intervalMinutes?: number }
+  ) => Promise<Routine[] | null>
   onRoutinesChanged: (cb: () => void) => () => void
 
   /** Skills and slash commands, from the directories the given agent keeps them in. */
@@ -1943,6 +1959,8 @@ const cove: CoveApi = {
   routinesSetEnabled: (id, enabled) => ipcRenderer.invoke('routines:setEnabled', id, enabled),
   routinesDelete: (id) => ipcRenderer.invoke('routines:delete', id),
   routinesRunNow: (id) => ipcRenderer.send('routines:runNow', id),
+  routinesRuns: (routineId) => ipcRenderer.invoke('routines:runs', routineId),
+  routinesUpdate: (id, patch) => ipcRenderer.invoke('routines:update', id, patch),
   onRoutinesChanged: (cb) => subscribe('routines:changed', () => cb()),
 
   skillsList: (projectPath, provider) => ipcRenderer.invoke('skills:list', projectPath, provider),

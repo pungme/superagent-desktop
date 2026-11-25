@@ -105,7 +105,82 @@ function initDb(): void {
   if (!cols.some((c) => c.name === 'chatId')) {
     db.exec('ALTER TABLE routines ADD COLUMN chatId TEXT')
   }
+  // One row per run, so the overview can show a routine's history and what its
+  // runs cost; the routine row itself only keeps the latest.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS routine_runs (
+      id TEXT PRIMARY KEY,
+      routineId TEXT NOT NULL,
+      startedAt INTEGER NOT NULL,
+      endedAt INTEGER,
+      status TEXT NOT NULL,
+      tokens INTEGER NOT NULL DEFAULT 0,
+      summary TEXT
+    );
+    CREATE INDEX IF NOT EXISTS routine_runs_by_routine ON routine_runs (routineId, startedAt DESC);
+  `)
+  // A routine that ran before the history existed keeps its latest run in it.
+  db.exec(`
+    INSERT INTO routine_runs (id, routineId, startedAt, endedAt, status, tokens, summary)
+    SELECT 'seed-' || r.id, r.id, r.lastRunAt, r.lastRunAt, r.lastRunStatus, r.lastRunTokens, r.lastRunSummary
+    FROM routines r
+    WHERE r.lastRunAt IS NOT NULL AND r.lastRunStatus IN ('ok', 'error')
+      AND NOT EXISTS (SELECT 1 FROM routine_runs x WHERE x.routineId = r.id)
+  `)
   backfillRoutineChats()
+}
+
+/** Runs kept per routine. */
+export const RUNS_KEPT = 30
+
+export interface RoutineRun {
+  id: string
+  routineId: string
+  startedAt: number
+  endedAt: number | null
+  status: 'ok' | 'error' | 'running'
+  tokens: number
+  summary: string | null
+}
+
+/** A routine's runs, newest first; every routine's when no id is given. */
+export function listRoutineRuns(routineId?: string, limit = RUNS_KEPT): RoutineRun[] {
+  const n = Math.max(1, Math.min(limit, 500))
+  const rows = routineId
+    ? db
+        .prepare('SELECT * FROM routine_runs WHERE routineId = ? ORDER BY startedAt DESC LIMIT ?')
+        .all(routineId, n)
+    : db.prepare('SELECT * FROM routine_runs ORDER BY startedAt DESC LIMIT ?').all(n * 20)
+  return rows as RoutineRun[]
+}
+
+/**
+ * Change what a routine says or how often it runs, in place. The interval keeps
+ * its floor; a changed interval counts from now, so slowing a routine down
+ * takes effect at once instead of after the old slot.
+ */
+export function updateRoutine(
+  id: string,
+  patch: { prompt?: string; intervalMs?: number }
+): boolean {
+  const row = db.prepare('SELECT intervalMs FROM routines WHERE id = ?').get(id) as
+    { intervalMs: number } | undefined
+  if (!row) return false
+  if (typeof patch.prompt === 'string') {
+    const prompt = patch.prompt.trim()
+    if (!prompt) return false
+    db.prepare('UPDATE routines SET prompt = ? WHERE id = ?').run(prompt, id)
+  }
+  if (typeof patch.intervalMs === 'number' && Number.isFinite(patch.intervalMs)) {
+    const interval = flooredInterval(patch.intervalMs)
+    if (interval !== row.intervalMs)
+      db.prepare('UPDATE routines SET intervalMs = ?, nextRunAt = ? WHERE id = ?').run(
+        interval,
+        nowMs() + interval,
+        id
+      )
+  }
+  return true
 }
 
 /**
@@ -210,6 +285,7 @@ export function setRoutineEnabled(id: string, enabled: boolean): void {
 
 export function deleteRoutine(id: string): void {
   db.prepare('DELETE FROM routines WHERE id = ?').run(id)
+  db.prepare('DELETE FROM routine_runs WHERE routineId = ?').run(id)
 }
 
 // Date.now() is fine in the Electron main process (only workflow scripts forbid it).
@@ -228,6 +304,11 @@ function broadcast(): void {
 export async function runRoutine(routine: Routine): Promise<void> {
   if (running.has(routine.id)) return
   running.add(routine.id)
+  const runId = randomUUID()
+  const startedAt = nowMs()
+  db.prepare(
+    "INSERT INTO routine_runs (id, routineId, startedAt, status) VALUES (?, ?, ?, 'running')"
+  ).run(runId, routine.id, startedAt)
   // Reset the transcript/summary so the live viewer starts fresh for this run
   // (steps are streamed in below as they arrive, not just written at the end).
   db.prepare(
@@ -320,6 +401,17 @@ export async function runRoutine(routine: Routine): Promise<void> {
       result.tokens,
       routine.id
     )
+    try {
+      db.prepare(
+        'UPDATE routine_runs SET endedAt = ?, status = ?, tokens = ?, summary = ? WHERE id = ?'
+      ).run(nowMs(), result.ok ? 'ok' : 'error', result.tokens, result.summary, runId)
+      db.prepare(
+        `DELETE FROM routine_runs WHERE routineId = ? AND id NOT IN
+           (SELECT id FROM routine_runs WHERE routineId = ? ORDER BY startedAt DESC LIMIT ?)`
+      ).run(routine.id, routine.id, RUNS_KEPT)
+    } catch {
+      // the history must never stop a routine from rescheduling
+    }
     // Free the offscreen WebContentsView (cookies live in the partition, not the
     // pane, so login persists); the next run recreates it on demand.
     destroyBrowserPane(paneId)
@@ -355,6 +447,9 @@ export function startRoutines(): void {
   db.prepare(
     "UPDATE routines SET lastRunStatus = 'error', lastRunSummary = ? WHERE lastRunStatus = 'running'"
   ).run('Interrupted — the app restarted mid-run.')
+  db.prepare(
+    "UPDATE routine_runs SET status = 'error', endedAt = ?, summary = ? WHERE status = 'running'"
+  ).run(nowMs(), 'Interrupted — the app restarted mid-run.')
   // On launch, pull any overdue routine to exactly one catch-up run (drop the backlog).
   const now = nowMs()
   const overdue = db
@@ -383,6 +478,21 @@ export function registerRoutinesIpc(): void {
       const r = createRoutine(workspaceId, workspacePath, prompt, intervalMinutes * 60 * 1000)
       broadcast() // keep the sidebar tree + any open panel in sync
       return r
+    }
+  )
+  ipcMain.handle('routines:runs', (_e, routineId?: string) =>
+    listRoutineRuns(typeof routineId === 'string' ? routineId : undefined)
+  )
+  ipcMain.handle(
+    'routines:update',
+    (_e, id: string, patch: { prompt?: unknown; intervalMinutes?: unknown }) => {
+      const ok = updateRoutine(String(id), {
+        prompt: typeof patch?.prompt === 'string' ? patch.prompt : undefined,
+        intervalMs:
+          typeof patch?.intervalMinutes === 'number' ? patch.intervalMinutes * 60_000 : undefined
+      })
+      broadcast()
+      return ok ? listRoutines() : null
     }
   )
   ipcMain.handle('routines:setEnabled', (_e, id: string, enabled: boolean) => {

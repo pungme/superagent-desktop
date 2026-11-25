@@ -2465,6 +2465,13 @@ function useSplitDrag(): {
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const needsYouCount = useStore((s) => s.guardrailAsks.length)
+  // Routines whose last run failed, across every project: unattended runs fail unseen.
+  const failedRoutines = useStore((s) =>
+    Object.values(s.routines).reduce(
+      (n, list) => n + list.filter((r) => r.enabled && r.lastRunStatus === 'error').length,
+      0
+    )
+  )
   const overlay = useStore((s) => s.overlay)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
@@ -2742,6 +2749,31 @@ export function Sidebar(): React.JSX.Element {
             Today
             {needsYouCount > 0 && (
               <span className="sidebar-dash-badge">{needsYouCount} needs you</span>
+            )}
+          </button>
+          <button
+            className={`sidebar-dash-row ${overlay === 'routines' ? 'on' : ''}`}
+            data-testid="sidebar-routines"
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-routines'))}
+          >
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.8-4.1" />
+              <path d="M13.8 2.2v3h-3" />
+              <path d="M8 5v3l2 1.2" />
+            </svg>
+            Routines
+            {failedRoutines > 0 && (
+              <span className="sidebar-dash-badge">{failedRoutines} failed</span>
             )}
           </button>
           {/* Under Today: the fixed way in first, then what you made. */}

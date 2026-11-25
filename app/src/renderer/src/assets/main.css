@@ -16985,3 +16985,246 @@ button.today-ag:hover {
   color: var(--text-secondary);
   font-size: 12px;
 }
+
+/* Routines overview: every project's scheduled runs on one page. */
+.rov {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 32px 20px;
+  gap: 12px;
+  overflow: hidden;
+}
+.rov-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.rov-head h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.rov-sub {
+  color: var(--text-tertiary);
+  font-size: 13.5px;
+}
+.rov-note {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.rov-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 12px;
+}
+.rov-empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 32px 4px;
+}
+.rov-project h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0 0 8px;
+}
+.rov-project-name {
+  all: unset;
+  cursor: pointer;
+}
+.rov-project-name:hover {
+  color: var(--text-primary);
+}
+.rov-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rov-card.rov-error {
+  border-color: rgba(249, 117, 131, 0.45);
+}
+.rov-card.paused {
+  opacity: 0.6;
+}
+.rov-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.rov-card-top .routine-tree-dot {
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.rov-prompt {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  cursor: text;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rov-prompt:hover {
+  color: var(--accent);
+}
+.rov-edit {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: var(--bg-content);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.rov-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rov-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.rov-btn {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.rov-btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.rov-icon {
+  all: unset;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.rov-icon:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.rov-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.rov-toggle input {
+  accent-color: var(--accent);
+  margin-top: 5px;
+}
+.rov-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  padding-left: 18px;
+}
+.rov-every select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  background: var(--bg-content);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 4px;
+  margin-left: 5px;
+}
+.rov-last-error {
+  color: #f97583;
+}
+.rov-last-ok {
+  color: #3fb950;
+}
+.rov-cost {
+  color: var(--text-secondary);
+}
+.rov-link {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+.rov-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.rov-saved {
+  font-size: 12.5px;
+  color: #3fb950;
+  padding-left: 18px;
+}
+.rov-error {
+  font-size: 12.5px;
+  color: #f97583;
+  padding-left: 18px;
+}
+.rov-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.rov-run {
+  all: unset;
+  display: grid;
+  grid-template-columns: 8px 84px 92px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+button.rov-run:not(:disabled) {
+  cursor: pointer;
+}
+button.rov-run:not(:disabled):hover {
+  background: var(--hover);
+}
+.rov-run-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+}
