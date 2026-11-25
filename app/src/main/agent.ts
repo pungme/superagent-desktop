@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { agentLog } from './agent-log'
+import { forgetStuckSamples, stepStuck, stopStep } from './stuck-step-watch'
 import {
   clearChatSession,
   swapAgentSession,
@@ -551,6 +552,7 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     exit(code, reason) {
       const session = sessions.get(id)
       sessions.delete(id)
+      forgetStuckSamples(id)
       agentLog(
         'exit',
         id,
@@ -804,7 +806,10 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
   agentLog('interrupt', id, `chat=${session.chatId ?? '-'}`)
   agentBus.emit('interrupted', { chatId: session.chatId })
   const ended = await session.backend.hardInterrupt()
-  if (ended) sessions.delete(id)
+  if (ended) {
+    sessions.delete(id)
+    forgetStuckSamples(id)
+  }
   return ended
 }
 
@@ -818,6 +823,7 @@ export function stopAgent(id: string, why = 'unspecified'): void {
     session.killed = true // don't trigger the resume→fresh fallback on a deliberate stop
     stoppedOnPurpose.add(id)
     sessions.delete(id)
+    forgetStuckSamples(id)
     session.backend.kill()
   }
 }
@@ -849,6 +855,16 @@ export function suggestTitle(
  */
 
 export function registerAgentIpc(): void {
+  // A step that has done nothing for a long time (stuck-step-watch.ts). Asked by
+  // the window while one of its steps runs long; the pid is the session's own.
+  ipcMain.handle('agent:step-stuck', (_e, id: string, stepSince: number) => {
+    const s = sessions.get(String(id))
+    return stepStuck(String(id), s?.backend.pid, Number(stepSince))
+  })
+  ipcMain.handle('agent:stop-step', (_e, id: string, stepSince: number) => {
+    const s = sessions.get(String(id))
+    return stopStep(s?.backend.pid, Number(stepSince))
+  })
   ipcMain.handle(
     'agent:suggestTitle',
     (_e, cwd: string, excerpt: string, provider?: AgentProvider) =>

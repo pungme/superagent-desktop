@@ -70,6 +70,11 @@ export interface AgentBackend {
    */
   reconnectMcp?(serverName: string): boolean
   readonly writable: boolean
+  /**
+   * The agent's own process, for the stuck-step watch (stuck-step.ts): what a
+   * step runs is under it. Undefined while there is none.
+   */
+  readonly pid?: number
 }
 
 /**

@@ -61,6 +61,11 @@ export class CodexClient extends EventEmitter {
     super()
   }
 
+  /** The app-server's process id, while it runs. */
+  get pid(): number | undefined {
+    return this.proc?.pid
+  }
+
   get alive(): boolean {
     return !!this.proc && !this.closed && this.proc.exitCode === null
   }

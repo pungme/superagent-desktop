@@ -531,6 +531,9 @@ export function startAntigravitySession(
   }
 
   const backend: AgentBackend = {
+    get pid() {
+      return proc?.pid
+    },
     get writable() {
       return !ended
     },

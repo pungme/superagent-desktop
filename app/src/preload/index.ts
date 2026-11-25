@@ -1346,6 +1346,13 @@ export interface CoveApi {
     permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
     model?: string
   }) => Promise<string>
+  /** A step of this session that has used no CPU for ten minutes, or null. */
+  agentStepStuck: (
+    id: string,
+    stepSince: number
+  ) => Promise<{ pids: number[]; command: string; idleSince: number } | null>
+  /** End that step's processes; the agent gets an error back and carries on. */
+  agentStopStep: (id: string, stepSince: number) => Promise<number>
   agentSuggestTitle: (
     cwd: string,
     excerpt: string,
@@ -1978,6 +1985,8 @@ const cove: CoveApi = {
     ipcRenderer.invoke('skills:remove', skill, provider, projectPath),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
+  agentStepStuck: (id, stepSince) => ipcRenderer.invoke('agent:step-stuck', id, stepSince),
+  agentStopStep: (id, stepSince) => ipcRenderer.invoke('agent:stop-step', id, stepSince),
   agentSuggestTitle: (cwd, excerpt, provider) =>
     ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt, provider),
   agentSend: (id, text, images, replyTo) =>

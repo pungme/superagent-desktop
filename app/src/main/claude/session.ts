@@ -137,6 +137,9 @@ function claudeBackend(proc: ChildProcessWithoutNullStreams): AgentBackend {
     return false
   }
   return {
+    get pid() {
+      return proc.pid
+    },
     get writable() {
       return proc.stdin.writable
     },

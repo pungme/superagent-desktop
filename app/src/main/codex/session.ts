@@ -221,6 +221,9 @@ export function startCodexSession(
   }
 
   const backend: AgentBackend = {
+    get pid() {
+      return client.pid
+    },
     get writable() {
       return !ended && client.alive
     },

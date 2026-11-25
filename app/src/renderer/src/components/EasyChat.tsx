@@ -717,6 +717,43 @@ function StepWaiting({
   )
 }
 
+/**
+ * A step that has used no CPU for ten minutes: waiting on something that will not
+ * answer (iCloud files not on the Mac, a prompt nobody types into). Says so, and
+ * ends just that step: the agent gets an error back and carries on.
+ */
+function StepStuck({
+  stuck,
+  onStop
+}: {
+  stuck: { command: string; idleMins: number }
+  onStop: () => Promise<void>
+}): React.JSX.Element {
+  const [stopping, setStopping] = useState(false)
+  const mins = Math.max(10, stuck.idleMins)
+  const idle = mins < 120 ? `${mins} min` : `${Math.round(mins / 60)} h`
+  return (
+    <div className="easy-step-stuck" role="alert" data-testid="step-stuck">
+      <span>
+        This step looks stuck: nothing has happened for {idle}.{' '}
+        <span className="easy-step-waiting-what" title={stuck.command}>
+          {stuck.command.slice(0, 80)}
+        </span>
+      </span>
+      <button
+        className="easy-step-stop urgent"
+        disabled={stopping}
+        onClick={() => {
+          setStopping(true)
+          void onStop().finally(() => setStopping(false))
+        }}
+      >
+        {stopping ? 'Stopping…' : 'Stop this step'}
+      </button>
+    </div>
+  )
+}
+
 /** Monochrome line icon, matching the sidebar's — currentColor, no emoji. */
 function MicIcon(): React.JSX.Element {
   return (
@@ -1952,6 +1989,10 @@ export function EasyChat({
     detail: string
     since: number
   } | null>(null)
+  /** The current step, when it has used no CPU for ten minutes (stuck-step.ts). */
+  const [stuck, setStuck] = useState<{ since: number; command: string; idleMins: number } | null>(
+    null
+  )
   // The confirm menu shown when you hold Send (or right-click it) while the
   // agent is working: "send now" vs "send when it finishes".
   const [sendMenu, setSendMenu] = useState(false)
@@ -2264,6 +2305,38 @@ export function EasyChat({
   const swipeRef = useRef<{ dx: number; fired: boolean; el: HTMLElement } | null>(null)
   const swipeTimer = useRef<number | null>(null)
   const agentIdRef = useRef<string | null>(null)
+  // Once a step has run ten minutes, ask main every minute whether anything it
+  // started is still doing work. Nothing to ask before then: a step that short
+  // cannot be stuck by this measure.
+  const stepSince = step?.since ?? null
+  useEffect(() => {
+    if (stepSince === null) return
+    let alive = true
+    // How often to look; main decides what counts as stuck. A test shortens it.
+    const every = Number(localStorage.getItem('cove.e2e.stuckPollMs')) || 60_000
+    const look = (): void => {
+      const id = agentIdRef.current
+      if (!id || (every >= 60_000 && Date.now() - stepSince < 9 * 60_000)) return
+      void window.cove.agentStepStuck?.(id, stepSince).then((r) => {
+        if (!alive) return
+        setStuck(
+          r
+            ? {
+                since: stepSince,
+                command: r.command,
+                idleMins: Math.round((Date.now() - r.idleSince) / 60_000)
+              }
+            : null
+        )
+      })
+    }
+    const t = setInterval(look, every)
+    look()
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [stepSince])
   // The last human-readable line the CLI wrote to stderr this turn — Claude's
   // real diagnostic (org access disabled, invalid key…). We show it verbatim
   // when a turn errors, instead of the generic "ended the turn" note. Reset each
@@ -6335,6 +6408,16 @@ export function EasyChat({
               )}
               {step && <StepNow step={step} />}
             </div>
+          )}
+          {generating && step && stuck && stuck.since === step.since && (
+            <StepStuck
+              stuck={stuck}
+              onStop={async () => {
+                const id = agentIdRef.current
+                if (id) await window.cove.agentStopStep(id, step.since)
+                setStuck(null)
+              }}
+            />
           )}
           {generating &&
             step &&
