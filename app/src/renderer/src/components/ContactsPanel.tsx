@@ -8,6 +8,7 @@ import {
   matches,
   sortContacts,
   summarize,
+  fieldKey,
   ymd,
   type ContactFilter,
   type ContactStatus
@@ -15,14 +16,16 @@ import {
 
 /**
  * A project's contacts: who it is reaching out to, and where each one stands.
- * Follow-ups that are due come first and are called out at the top. Click a row
- * to see and change it; the agent keeps the same list with its contacts_* tools,
- * and an email sent to someone here updates them by itself.
+ *
+ * Quiet on purpose. The list is one line a person; what is due is a line above it,
+ * not a box. A contact opens beside the list as plain text you click to change —
+ * only what has a value is shown, and one line adds the rest. The agent keeps the
+ * same list with its contacts_* tools.
  */
 
 const FILTERS: { key: ContactFilter; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'due', label: 'Follow-up due' },
+  { key: 'due', label: 'Due' },
   { key: 'sent', label: 'Waiting' },
   { key: 'replied', label: 'Replied' },
   { key: 'not_sent', label: 'Not sent' },
@@ -30,16 +33,25 @@ const FILTERS: { key: ContactFilter; label: string }[] = [
   { key: 'no', label: 'No' }
 ]
 
+/** The built-in details, in the order they are offered. */
+const DETAILS = [
+  { key: 'email', label: 'Email' },
+  { key: 'org', label: 'Who' },
+  { key: 'channel', label: 'Other way' },
+  { key: 'ask', label: 'Ask' },
+  { key: 'followUp', label: 'Follow up' }
+] as const
+type DetailKey = (typeof DETAILS)[number]['key']
+
 function shortDay(day: string, today: string): string {
   if (!day) return ''
   if (day === today) return 'Today'
   if (day === addDays(Date.parse(today + 'T12:00:00'), 1)) return 'Tomorrow'
-  const d = new Date(day + 'T12:00:00')
-  return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+  return new Date(day + 'T12:00:00').toLocaleDateString([], { day: 'numeric', month: 'short' })
 }
 
 function ago(ms: number | null): string {
-  if (!ms) return '—'
+  if (!ms) return ''
   return new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short' })
 }
 
@@ -84,33 +96,53 @@ export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.J
   const due = list.filter((c) => isDue(c, today))
 
   return (
-    <div className={`contacts ${open ? 'has-detail' : ''}`} data-testid="contacts-panel">
-      <div className="contacts-main">
-        <div className="contacts-head">
-          <span className="contacts-sub">
-            {list.length === 0
-              ? 'The people this project is reaching out to'
-              : `${counts.all} ${counts.all === 1 ? 'person' : 'people'} · ${counts.sent} waiting · ${counts.yes} yes`}
-          </span>
-          <button className="contacts-add-btn" onClick={() => setAdding(true)}>
+    <div className={`cq ${open ? 'has-detail' : ''}`} data-testid="contacts-panel">
+      <div className="cq-main">
+        <div className="cq-top">
+          <div className="cq-filters">
+            {list.length > 0 &&
+              FILTERS.map((f) => {
+                const n = f.key === 'all' ? counts.all : counts[f.key]
+                if (f.key !== 'all' && f.key !== filter && n === 0) return null
+                return (
+                  <button
+                    key={f.key}
+                    className={`cq-filter ${filter === f.key ? 'on' : ''}`}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                    {f.key !== 'all' && <i>{n}</i>}
+                  </button>
+                )
+              })}
+          </div>
+          {list.length >= 4 && (
+            <input
+              className="cq-search"
+              placeholder="Search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          )}
+          <button className="cq-add" onClick={() => setAdding(true)}>
             + Add
           </button>
         </div>
-        {due.length > 0 && (
-          <div className="contacts-due" data-testid="contacts-due">
+
+        {due.length > 0 && filter !== 'due' && (
+          <div className="cq-due" data-testid="contacts-due">
+            <b>{due.length === 1 ? '1 follow-up is due' : `${due.length} follow-ups are due`}</b>
             <span>
-              <b>{due.length === 1 ? '1 follow-up is due' : `${due.length} follow-ups are due`}:</b>{' '}
               {due
                 .slice(0, 3)
                 .map((c) => c.name)
                 .join(', ')}
-              {due.length > 3 ? ` and ${due.length - 3} more` : ''}
+              {due.length > 3 ? ` +${due.length - 3}` : ''}
             </span>
-            <button className="contacts-link" onClick={() => setFilter('due')}>
-              Show them
-            </button>
+            <button onClick={() => setFilter('due')}>Show</button>
           </div>
         )}
+
         {adding && (
           <AddContact
             onDone={() => setAdding(false)}
@@ -121,80 +153,56 @@ export function ContactsPanel({ workspaceId }: { workspaceId: string }): React.J
             }}
           />
         )}
-        {list.length > 0 && (
-          <div className="contacts-filters">
-            {FILTERS.map((f) => {
-              const n = f.key === 'all' ? counts.all : counts[f.key]
-              if (f.key !== 'all' && f.key !== filter && n === 0) return null
-              return (
-                <button
-                  key={f.key}
-                  className={`contacts-chip ${filter === f.key ? 'on' : ''}`}
-                  onClick={() => setFilter(f.key)}
-                >
-                  {f.label} <i>{n}</i>
-                </button>
-              )
-            })}
-            <input
-              className="contacts-search"
-              placeholder="Search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-        )}
+
         {list.length === 0 && !adding && (
-          <div className="contacts-empty">
+          <div className="cq-empty">
             <p>No contacts yet.</p>
             <p>
-              Add people here, or ask the agent: “put everyone in my outreach list into contacts”.
-              It keeps their status as you go, and an email sent to one of them marks them as
-              waiting, with a follow-up a week later.
+              Add someone, or tell the agent: “put everyone in my outreach list into contacts”. An
+              email sent to one of them marks them as waiting.
             </p>
           </div>
         )}
-        <div className="contacts-rows">
+
+        <div className="cq-rows">
           {shown.map((c) => {
             const late = isDue(c, today)
+            const state = late ? 'due' : c.status
+            const sub = c.ask || c.org || c.email || c.channel
+            const settled = c.status === 'yes' || c.status === 'no'
+            const when = settled ? ago(c.lastContactAt) : shortDay(c.followUp, today)
             return (
               <button
                 key={c.id}
-                className={`contacts-row ${openId === c.id ? 'sel' : ''}`}
+                className={`cq-row ${openId === c.id ? 'sel' : ''}`}
                 data-testid="contact-row"
                 onClick={() => setOpenId(openId === c.id ? null : c.id)}
               >
-                <span className="contacts-who">
+                <span className="cq-who">
                   <b>{c.name}</b>
-                  <span>{[c.org, c.email || c.channel].filter(Boolean).join(' · ')}</span>
+                  {sub && <span>{sub}</span>}
                 </span>
-                <span className="contacts-ask">
-                  {c.ask}
-                  {defs
+                {!open &&
+                  defs
                     .filter((f) => c.fields[f.key])
                     .slice(0, 2)
                     .map((f) => (
-                      <em key={f.key} className="contacts-tag" title={f.label}>
+                      <span key={f.key} className="cq-tag" title={f.label}>
                         {c.fields[f.key]}
-                      </em>
+                      </span>
                     ))}
-                </span>
-                <span className={`contacts-pill s-${late ? 'due' : c.status}`}>
+                <span className={`cq-state s-${state}`}>
+                  <i />
                   {late ? 'Follow up' : STATUS_LABEL[c.status]}
                 </span>
-                <span className={`contacts-next ${late ? 'late' : ''}`}>
-                  {c.status === 'yes' || c.status === 'no'
-                    ? ago(c.lastContactAt)
-                    : shortDay(c.followUp, today) || ago(c.lastContactAt)}
-                </span>
+                <span className={`cq-when ${late ? 'late' : ''}`}>{when}</span>
               </button>
             )
           })}
-          {list.length > 0 && shown.length === 0 && (
-            <div className="contacts-empty">Nobody here with that filter.</div>
-          )}
+          {list.length > 0 && shown.length === 0 && <div className="cq-empty">Nobody here.</div>}
         </div>
       </div>
+
       {open && (
         <ContactDetail
           key={open.id}
@@ -222,36 +230,75 @@ function AddContact({
   const submit = (): void => {
     if (name.trim()) void onAdd({ name, email, ask })
   }
+  const key = (e: React.KeyboardEvent): void => {
+    if (e.key === 'Enter') submit()
+    if (e.key === 'Escape') onDone()
+  }
   return (
-    <div className="contacts-new" data-testid="contact-new">
+    <div className="cq-new" data-testid="contact-new">
       <input
         autoFocus
         placeholder="Name or organisation"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit()
-          if (e.key === 'Escape') onDone()
-        }}
+        onKeyDown={key}
       />
       <input
         placeholder="Email (optional)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={key}
       />
       <input
         placeholder="What you are asking for (optional)"
         value={ask}
         onChange={(e) => setAsk(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
+        onKeyDown={key}
       />
-      <button className="contacts-btn primary" disabled={!name.trim()} onClick={submit}>
+      <button className="cq-go" disabled={!name.trim()} onClick={submit}>
         Add
       </button>
-      <button className="contacts-btn" onClick={onDone}>
+      <button className="cq-quiet" onClick={onDone}>
         Cancel
       </button>
     </div>
+  )
+}
+
+/** A value that is plain text until you click it: no box until you are changing it. */
+function Quiet({
+  value,
+  onSave,
+  type = 'text',
+  placeholder,
+  multiline
+}: {
+  value: string
+  onSave: (v: string) => void
+  type?: 'text' | 'date'
+  placeholder?: string
+  multiline?: boolean
+}): React.JSX.Element {
+  const commit = (v: string): void => {
+    if (v.trim() !== value) onSave(v)
+  }
+  return multiline ? (
+    <textarea
+      className="cq-quiet-in"
+      rows={Math.min(6, Math.max(2, value.split('\n').length))}
+      defaultValue={value}
+      placeholder={placeholder}
+      onBlur={(e) => commit(e.target.value)}
+    />
+  ) : (
+    <input
+      className="cq-quiet-in"
+      type={type}
+      defaultValue={value}
+      placeholder={placeholder}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+    />
   )
 }
 
@@ -270,105 +317,123 @@ function ContactDetail({
 }): React.JSX.Element {
   const [note, setNote] = useState('')
   const [newField, setNewField] = useState<string | null>(null)
+  const [editName, setEditName] = useState(false)
+  const [asked, setAsked] = useState<DetailKey[]>([])
+  const [askedFields, setAskedFields] = useState<string[]>([])
+  const [allHistory, setAllHistory] = useState(false)
   const save = (input: ContactEdit, line?: string): void =>
     void window.cove.contactsUpdate(c.id, input, line)
-  const field = (
-    key: 'name' | 'org' | 'email' | 'channel' | 'ask',
-    label: string
-  ): React.JSX.Element => (
-    <label className="contacts-field">
-      <span>{label}</span>
-      <input
-        defaultValue={c[key]}
-        onBlur={(e) => {
-          if (e.target.value.trim() !== c[key]) save({ [key]: e.target.value })
-        }}
-      />
-    </label>
-  )
+
+  const has = (k: DetailKey): boolean => !!c[k] || asked.includes(k)
+  const missing = DETAILS.filter((d) => !has(d.key))
+  const late = isDue(c, today)
+  const history = [...c.history].reverse()
+  const visibleHistory = allHistory ? history : history.slice(0, 3)
+
   return (
-    <aside className="contacts-detail" data-testid="contact-detail">
-      <div className="contacts-detail-head">
-        <h3>{c.name}</h3>
-        <button className="contacts-close" onClick={onClose} title="Close">
+    <aside className="cq-detail" data-testid="contact-detail">
+      <div className="cq-dhead">
+        {editName ? (
+          <input
+            className="cq-name-in"
+            autoFocus
+            defaultValue={c.name}
+            onBlur={(e) => {
+              if (e.target.value.trim() && e.target.value.trim() !== c.name)
+                save({ name: e.target.value })
+              setEditName(false)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+        ) : (
+          <h3 title="Click to rename" onClick={() => setEditName(true)}>
+            {c.name}
+          </h3>
+        )}
+        <button className="cq-x" onClick={onClose} title="Close">
           ✕
         </button>
       </div>
-      <div className="contacts-status">
+
+      <div className="cq-status">
         {CONTACT_STATUSES.map((s) => (
           <button
             key={s}
-            className={`contacts-pill s-${s} ${c.status === s ? 'on' : 'off'}`}
+            className={`cq-st s-${s} ${c.status === s ? 'on' : ''}`}
             onClick={() => c.status !== s && save({ status: s as ContactStatus })}
           >
             {STATUS_LABEL[s]}
           </button>
         ))}
       </div>
-      <label className="contacts-field">
-        <span>Follow up</span>
-        <span className="contacts-follow">
-          <input
-            type="date"
-            value={c.followUp}
-            onChange={(e) => save({ followUp: e.target.value })}
-          />
-          {isDue(c, today) && <em>due</em>}
-          <button
-            className="contacts-link"
-            onClick={() => save({ followUp: addDays(Date.now(), 7) })}
-          >
-            in a week
+
+      <div className="cq-grid">
+        {DETAILS.filter((d) => has(d.key)).map((d) => (
+          <div key={d.key} className="cq-line" data-testid={`detail-${d.key}`}>
+            <label>{d.label}</label>
+            <div>
+              {d.key === 'followUp' ? (
+                <span className="cq-follow">
+                  <Quiet type="date" value={c.followUp} onSave={(v) => save({ followUp: v })} />
+                  {late && <em>due</em>}
+                  <button onClick={() => save({ followUp: addDays(Date.now(), 7) })}>
+                    +1 week
+                  </button>
+                </span>
+              ) : (
+                <Quiet value={c[d.key]} onSave={(v) => save({ [d.key]: v })} />
+              )}
+            </div>
+          </div>
+        ))}
+        {defs
+          .filter((f) => c.fields[f.key] || askedFields.includes(f.key))
+          .map((f) => (
+            <div key={f.key} className="cq-line" data-testid={`field-${f.key}`}>
+              <label>
+                {f.label}
+                <button
+                  className="cq-gone"
+                  title={`Remove "${f.label}" from every contact`}
+                  onClick={() => {
+                    if (window.confirm(`Remove the field "${f.label}" from every contact?`))
+                      void window.cove.contactsRemoveField(workspaceId, f.key)
+                  }}
+                >
+                  ×
+                </button>
+              </label>
+              <div>
+                <Quiet
+                  value={c.fields[f.key] ?? ''}
+                  type={f.type === 'date' ? 'date' : 'text'}
+                  onSave={(v) => save({ fields: { [f.label]: v } })}
+                />
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <div className="cq-more">
+        {missing.map((d) => (
+          <button key={d.key} onClick={() => setAsked((a) => [...a, d.key])}>
+            + {d.label}
           </button>
-        </span>
-      </label>
-      {field('name', 'Name')}
-      {field('org', 'Who')}
-      {field('email', 'Email')}
-      {field('channel', 'Other way')}
-      {field('ask', 'Ask')}
-      <label className="contacts-field">
-        <span>Notes</span>
-        <textarea
-          rows={3}
-          defaultValue={c.notes}
-          onBlur={(e) => e.target.value.trim() !== c.notes && save({ notes: e.target.value })}
-        />
-      </label>
-      {(defs.length > 0 || newField !== null) && <div className="contacts-sec">Details</div>}
-      {defs.map((f) => (
-        <label key={f.key} className="contacts-field" data-testid={`field-${f.key}`}>
-          <span className="contacts-field-label">
-            {f.label}
-            <button
-              className="contacts-link"
-              title={`Remove "${f.label}" from every contact`}
-              onClick={(e) => {
-                e.preventDefault()
-                if (window.confirm(`Remove the field "${f.label}" from every contact?`))
-                  void window.cove.contactsRemoveField(workspaceId, f.key)
-              }}
-            >
-              remove
+        ))}
+        {defs
+          .filter((f) => !c.fields[f.key] && !askedFields.includes(f.key))
+          .map((f) => (
+            <button key={f.key} onClick={() => setAskedFields((a) => [...a, f.key])}>
+              + {f.label}
             </button>
-          </span>
+          ))}
+        {newField === null ? (
+          <button data-testid="add-field" onClick={() => setNewField('')}>
+            + Add a field
+          </button>
+        ) : (
           <input
-            defaultValue={c.fields[f.key] ?? ''}
-            type={f.type === 'date' ? 'date' : 'text'}
-            onBlur={(e) => {
-              if (e.target.value.trim() !== (c.fields[f.key] ?? ''))
-                save({ fields: { [f.label]: e.target.value } })
-            }}
-          />
-        </label>
-      ))}
-      {newField === null ? (
-        <button className="contacts-link" data-testid="add-field" onClick={() => setNewField('')}>
-          + Add a field
-        </button>
-      ) : (
-        <div className="contacts-newfield">
-          <input
+            className="cq-newfield"
             autoFocus
             placeholder="Field name, e.g. Budget"
             value={newField}
@@ -377,27 +442,39 @@ function ContactDetail({
               if (e.key === 'Escape') setNewField(null)
               if (e.key === 'Enter' && newField.trim()) {
                 save({ fields: { [newField.trim()]: '' } })
+                setAskedFields((a) => [...a, fieldKey(newField.trim())])
                 setNewField(null)
               }
             }}
+            onBlur={() => !newField.trim() && setNewField(null)}
           />
-        </div>
-      )}
-      <div className="contacts-sec">History</div>
-      <ol className="contacts-history">
-        {[...c.history].reverse().map((e, i) => (
-          <li key={i} className={`by-${e.by}`}>
-            {e.text}
-            <small>
-              {new Date(e.at).toLocaleDateString([], { day: 'numeric', month: 'short' })}
-              {e.by === 'agent' ? ' · agent' : e.by === 'mail' ? ' · Mail' : ''}
-            </small>
-          </li>
-        ))}
-      </ol>
-      <div className="contacts-note">
+        )}
+      </div>
+
+      <div className="cq-notes">
+        <Quiet multiline placeholder="Notes" value={c.notes} onSave={(v) => save({ notes: v })} />
+      </div>
+
+      <div className="cq-hist">
+        <ol>
+          {visibleHistory.map((e, i) => (
+            <li key={i}>
+              <span>{e.text}</span>
+              <small>
+                {new Date(e.at).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                {e.by === 'agent' ? ' · agent' : e.by === 'mail' ? ' · Mail' : ''}
+              </small>
+            </li>
+          ))}
+        </ol>
+        {history.length > 3 && (
+          <button className="cq-quiet" onClick={() => setAllHistory((v) => !v)}>
+            {allHistory ? 'Show less' : `Show all ${history.length}`}
+          </button>
+        )}
         <input
-          placeholder="Add a note (what they said, what's next)"
+          className="cq-note-in"
+          placeholder="Add a note to the history"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => {
@@ -408,8 +485,9 @@ function ContactDetail({
           }}
         />
       </div>
+
       <button
-        className="contacts-delete"
+        className="cq-remove"
         onClick={() => {
           if (window.confirm(`Remove ${c.name} from contacts?`)) {
             void window.cove.contactsDelete(c.id)
@@ -417,7 +495,7 @@ function ContactDetail({
           }
         }}
       >
-        Remove
+        Remove contact
       </button>
     </aside>
   )

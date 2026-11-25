@@ -118,7 +118,8 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     await expect(page.getByTestId('contact-row')).toHaveCount(3)
 
     // Max's follow-up has come: called out, and first in the list.
-    await expect(page.getByTestId('contacts-due')).toContainText('1 follow-up is due: Max Wagner')
+    await expect(page.getByTestId('contacts-due')).toContainText('1 follow-up is due')
+    await expect(page.getByTestId('contacts-due')).toContainText('Max Wagner')
     await expect(page.getByTestId('contact-row').first()).toContainText('Max Wagner')
     await expect(page.getByTestId('contact-row').first()).toContainText('Follow up')
 
@@ -166,6 +167,8 @@ test('contacts: by hand and by the agent, status history, follow-ups due, Today'
     expect(await tool('contacts_list')).toContain('"Budget": "€2,000"')
     // They show on the list, and are searchable.
     const studio = page.getByTestId('contact-row').filter({ hasText: 'Studio café' })
+    // With a contact open the list stays narrow; closed, the tags are there.
+    await page.getByTestId('contact-detail').getByTitle('Close').click()
     await expect(studio).toContainText('€2,000')
     await page.getByPlaceholder('Search').fill('germany')
     await expect(page.getByTestId('contact-row')).toHaveCount(1)
