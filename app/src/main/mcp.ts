@@ -1,4 +1,6 @@
 import { registerAppTools } from './app-tools'
+import { addContact, findContact, listContacts, updateContact } from './contacts'
+import { isDue, sortContacts, toStatus, ymd, type Contact } from '../shared/contacts'
 import { chatToken, chatTokenValid } from './mcp-token'
 import { registerComputerTools } from './computer-tools'
 import { registerMailTools } from './mail-tools'
@@ -1548,6 +1550,146 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       }
     )
   }
+
+  // The project's contacts (contacts.ts): who it is reaching out to and where each stands.
+  const contactLine = (c: Contact): Record<string, unknown> => ({
+    id: c.id,
+    name: c.name,
+    ...(c.org ? { org: c.org } : {}),
+    ...(c.email ? { email: c.email } : {}),
+    ...(c.channel ? { channel: c.channel } : {}),
+    ...(c.ask ? { ask: c.ask } : {}),
+    status: c.status,
+    ...(c.followUp ? { followUp: c.followUp } : {}),
+    ...(c.lastContactAt
+      ? { lastContact: new Date(c.lastContactAt).toISOString().slice(0, 10) }
+      : {}),
+    ...(c.notes ? { notes: c.notes } : {})
+  })
+  const contactFields = {
+    name: z.string().optional().describe('The person or organisation'),
+    org: z.string().optional().describe('Organisation, role, or how you know them'),
+    email: z.string().optional().describe('Email address; an email sent to it updates the contact'),
+    channel: z.string().optional().describe('Phone, WhatsApp, in person: how else to reach them'),
+    ask: z.string().optional().describe('What you are asking them for'),
+    status: z
+      .string()
+      .optional()
+      .describe(
+        'not_sent, sent (waiting on them), replied, yes or no. Near-misses are understood.'
+      ),
+    followUp: z.string().optional().describe('The day to follow up, YYYY-MM-DD'),
+    notes: z.string().optional().describe('Anything worth keeping')
+  }
+
+  server.registerTool(
+    'contacts_list',
+    {
+      description:
+        "List this project's contacts: the people it is reaching out to (funders, venues, partners, customers) with their status (not_sent, sent = waiting on them, replied, yes, no), follow-up day and what was asked. Read this before adding someone so you don't add them twice, and to answer questions like who still owes an answer or whose follow-up is due.",
+      inputSchema: {
+        status: z
+          .string()
+          .optional()
+          .describe('Only this status, or "due" for follow-ups due today or earlier')
+      }
+    },
+    async ({ status }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      const today = ymd(new Date())
+      let list = sortContacts(listContacts(ws), today)
+      if (status === 'due') list = list.filter((c) => isDue(c, today))
+      else if (status) {
+        const st = toStatus(status)
+        if (st) list = list.filter((c) => c.status === st)
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: list.length
+              ? JSON.stringify(list.map(contactLine), null, 2)
+              : 'No contacts' +
+                (status ? ` with status ${status}` : '') +
+                '. Add them with contacts_add.'
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'contacts_add',
+    {
+      description:
+        "Add people to this project's contacts, one or many at once (e.g. everyone in an outreach list the user shared). Each needs a name; the rest is optional. Skips anyone already there by the same email or name.",
+      inputSchema: {
+        contacts: z.array(z.object(contactFields)).min(1).max(200)
+      }
+    },
+    async ({ contacts }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      const existing = listContacts(ws)
+      const added: string[] = []
+      const skipped: string[] = []
+      for (const input of contacts) {
+        const name = (input.name ?? '').trim()
+        const email = (input.email ?? '').trim().toLowerCase()
+        const dup = existing.some(
+          (c) => (email && c.email === email) || c.name.toLowerCase() === name.toLowerCase()
+        )
+        if (!name || dup) {
+          if (name) skipped.push(name)
+          continue
+        }
+        const c = addContact(ws, input, 'agent')
+        if (c) {
+          existing.push(c)
+          added.push(c.name)
+        }
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text:
+              `Added ${added.length}: ${added.join(', ') || 'nobody'}.` +
+              (skipped.length ? ` Already there: ${skipped.join(', ')}.` : '')
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'contacts_update',
+    {
+      description:
+        "Change one of this project's contacts: its status when you reached out or heard back, the follow-up day, details. `contact` is its id, email or exact name. `note` adds a line to its history (e.g. what they replied). An email sent with mail_send already updates the contact by itself.",
+      inputSchema: {
+        contact: z.string().describe('The id from contacts_list, or the email or exact name'),
+        ...contactFields,
+        note: z.string().optional().describe('A line for its history')
+      }
+    },
+    async ({ contact, note, ...fields }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      const c = findContact(ws, contact)
+      if (!c)
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No contact "${contact}" in this project. contacts_list shows them.`
+            }
+          ]
+        }
+      const next = updateContact(c.id, fields, 'agent', note)
+      return {
+        content: [{ type: 'text', text: next ? JSON.stringify(contactLine(next)) : 'Not changed.' }]
+      }
+    }
+  )
 
   server.registerTool(
     'board_list',

@@ -641,6 +641,7 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
     computer: 'the Computer',
     chats: 'Chats',
     board: 'the todo board',
+    contacts: 'the contacts',
     files: 'the files',
     browser: 'the browser',
     simulator: 'the simulator'
@@ -649,9 +650,18 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
     'app_open_view',
     {
       description:
-        'Show one of Superagent\'s screens. For the whole app: "settings", "computer" (the desktop with its Dashboard, Skills and Routines), "chats" (conversations that belong to no project). For a project: its "board" (todo list), "files", "browser" or "simulator"; give `project` to go to that project first ("show me the wepush board"), or leave it out for the project on screen.',
+        'Show one of Superagent\'s screens. For the whole app: "settings", "computer" (the desktop with its Dashboard, Skills and Routines), "chats" (conversations that belong to no project). For a project: its "board" (todo list), "contacts" (who it is reaching out to), "files", "browser" or "simulator"; give `project` to go to that project first ("show me the wepush board"), or leave it out for the project on screen.',
       inputSchema: {
-        view: z.enum(['settings', 'computer', 'chats', 'board', 'files', 'browser', 'simulator']),
+        view: z.enum([
+          'settings',
+          'computer',
+          'chats',
+          'board',
+          'contacts',
+          'files',
+          'browser',
+          'simulator'
+        ]),
         project: z.string().max(200).optional()
       }
     },

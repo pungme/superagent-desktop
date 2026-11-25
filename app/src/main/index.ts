@@ -1,4 +1,5 @@
 // Before everything: what the released app will not be started with.
+import { registerContactsIpc } from './contacts'
 import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
@@ -384,6 +385,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerFloatChatIpc()
   registerRoutinesIpc()
+  registerContactsIpc()
   registerEnvironmentIpc()
   registerOpenRequests()
   registerDot()

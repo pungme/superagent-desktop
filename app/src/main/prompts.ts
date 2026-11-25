@@ -69,6 +69,15 @@ const TODO_PROMPT =
   'the user live in its Tasks panel, so create the tasks up front and keep their status current as ' +
   'you work.'
 
+// Outreach: who the project is in touch with, kept apart from the work list.
+const CONTACTS_PROMPT =
+  'This project also keeps its contacts: the people it is reaching out to (funders, venues, ' +
+  'partners, customers) with what was asked and where each stands (not_sent, sent = waiting ' +
+  'on them, replied, yes, no) and a follow-up day. The user sees them on the Contacts tab. ' +
+  'When the user works on outreach, or shares a list of people to contact, keep them there ' +
+  'with contacts_list, contacts_add and contacts_update (record a reply, a yes or a no, and ' +
+  'set the next follow-up). An email you send with mail_send to a contact updates it by itself.'
+
 // The board outlives the conversation, so it is where work that isn't happening
 // right now belongs — the todo list above is per-turn and disappears with it.
 const BOARD_PROMPT =
@@ -429,6 +438,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
       : 'Apple Mail is not connected. For email tasks, tell the user they can connect it in Settings → Connections and start a new chat. Do not access Mail through shell or UI automation to bypass this choice.',
     computerUseOn() ? COMPUTER_PROMPT : COMPUTER_PROMPT + COMPUTER_OFF_NOTE,
     BOARD_PROMPT,
+    CONTACTS_PROMPT,
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     REPLY_PROMPT,

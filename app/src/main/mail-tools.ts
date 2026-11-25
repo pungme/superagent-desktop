@@ -1,3 +1,4 @@
+import { noteEmailSent } from './contacts'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { callMail, mailConnected, mailSchemas } from './mail'
 import { requestApproval } from './hooks'
@@ -61,6 +62,25 @@ export function registerMailTools(server: McpServer, ctx?: MailContext): void {
               }
           }
           const data = await callMail(op, input)
+          // Sent to a contact of this project: they are waiting on, with a follow-up
+          // a week out (contacts.ts). The send went through; a slip here must not undo it.
+          if (op === 'send' && ctx) {
+            try {
+              const m = input as {
+                to?: unknown[]
+                cc?: unknown[]
+                bcc?: unknown[]
+                subject?: unknown
+              }
+              noteEmailSent(
+                ctx.workspaceId,
+                [...(m.to ?? []), ...(m.cc ?? []), ...(m.bcc ?? [])],
+                typeof m.subject === 'string' ? m.subject : ''
+              )
+            } catch {
+              // the contacts list is a convenience; the email is what mattered
+            }
+          }
           return {
             content: [
               {

@@ -1,4 +1,5 @@
 const transcriptFlushers = new Set<() => Promise<void>>()
+import type { Contact } from '../shared/contacts'
 import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
 import type { MailConnectionStatus } from '../shared/mail'
 import type {
@@ -100,6 +101,8 @@ export interface Routine {
   /** The conversation that set it up, when an agent did. */
   chatId?: string | null
 }
+
+export type { Contact }
 
 /** One run of a routine, from the history the overview shows. */
 export interface RoutineRun {
@@ -1193,7 +1196,8 @@ export interface CoveApi {
   /** An agent asked for one of the app's own screens (main/app-tools.ts). */
   onAppOpenView: (
     cb: (p: {
-      view: 'settings' | 'computer' | 'chats' | 'board' | 'files' | 'browser' | 'simulator'
+      view:
+        'settings' | 'computer' | 'chats' | 'board' | 'contacts' | 'files' | 'browser' | 'simulator'
     }) => void
   ) => () => void
   /** Keep working with the lid closed: whether it is on, and turning it on or off. */
@@ -1275,6 +1279,12 @@ export interface CoveApi {
   routinesSetEnabled: (id: string, enabled: boolean) => Promise<Routine[]>
   routinesDelete: (id: string) => Promise<Routine[]>
   routinesRunNow: (id: string) => void
+  contactsList: (workspaceId: string) => Promise<Contact[]>
+  contactsAdd: (workspaceId: string, input: Partial<Contact>) => Promise<Contact | null>
+  contactsUpdate: (id: string, input: Partial<Contact>, note?: string) => Promise<Contact | null>
+  contactsDelete: (id: string) => Promise<boolean>
+  contactsDue: (today: string) => Promise<Contact[]>
+  onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   routinesRuns: (routineId?: string) => Promise<RoutineRun[]>
   routinesUpdate: (
     id: string,
@@ -1929,7 +1939,15 @@ const cove: CoveApi = {
     subscribe('app:open-view', (p) =>
       cb(
         p as {
-          view: 'settings' | 'computer' | 'chats' | 'board' | 'files' | 'browser' | 'simulator'
+          view:
+            | 'settings'
+            | 'computer'
+            | 'chats'
+            | 'board'
+            | 'contacts'
+            | 'files'
+            | 'browser'
+            | 'simulator'
         }
       )
     ),
@@ -1970,6 +1988,12 @@ const cove: CoveApi = {
   routinesSetEnabled: (id, enabled) => ipcRenderer.invoke('routines:setEnabled', id, enabled),
   routinesDelete: (id) => ipcRenderer.invoke('routines:delete', id),
   routinesRunNow: (id) => ipcRenderer.send('routines:runNow', id),
+  contactsList: (ws) => ipcRenderer.invoke('contacts:list', ws),
+  contactsAdd: (ws, input) => ipcRenderer.invoke('contacts:add', ws, input),
+  contactsUpdate: (id, input, note) => ipcRenderer.invoke('contacts:update', id, input, note),
+  contactsDelete: (id) => ipcRenderer.invoke('contacts:delete', id),
+  contactsDue: (today) => ipcRenderer.invoke('contacts:due', today),
+  onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
   routinesRuns: (routineId) => ipcRenderer.invoke('routines:runs', routineId),
   routinesUpdate: (id, patch) => ipcRenderer.invoke('routines:update', id, patch),
   onRoutinesChanged: (cb) => subscribe('routines:changed', () => cb()),

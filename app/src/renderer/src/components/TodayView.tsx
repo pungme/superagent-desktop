@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { BoardCard, CalendarEvent, Chat } from '../../../preload'
+import type { BoardCard, CalendarEvent, Chat, Contact } from '../../../preload'
 import { useStore } from '../state'
 import { pickTodos } from '../../../shared/today'
 
@@ -63,6 +63,8 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
     () => tree.flatMap((g) => g.workspaces).filter((w) => w.kind === 'app'),
     [tree]
   )
+  /** Contacts in any project whose follow-up has come (ContactsPanel). */
+  const [followUps, setFollowUps] = useState<Contact[]>([])
   const [todoProject, setTodoProject] = useState('')
   const project = todoProject || projects[0]?.id || ''
 
@@ -78,6 +80,7 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
     setEvents(ev)
     setCards(cs)
     setChats(all)
+    setFollowUps(await window.cove.contactsDue(today))
   }, [today])
 
   useEffect(() => {
@@ -87,10 +90,12 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
     const t = setInterval(() => void load(), 5000)
     const onBoard = (): void => void load()
     const off = window.cove.onBoardChanged?.(onBoard)
+    const offContacts = window.cove.onContactsChanged?.(onBoard)
     return () => {
       clearTimeout(first)
       clearInterval(t)
       off?.()
+      offContacts?.()
     }
   }, [visible, load])
 
@@ -215,6 +220,37 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
 
         <section className="today-col" aria-label="To-do">
           <h2>To-do</h2>
+          {followUps.length > 0 && (
+            <div className="today-follow" data-testid="today-followups">
+              <div className="today-follow-h">
+                {followUps.length === 1 ? '1 follow-up due' : `${followUps.length} follow-ups due`}
+              </div>
+              {followUps.slice(0, 5).map((c) => (
+                <button
+                  key={c.id}
+                  className="today-follow-row"
+                  onClick={() => {
+                    setOverlay(null)
+                    setActive(c.workspaceId)
+                    // The project's Contacts tab (ChatDesk opens it).
+                    setTimeout(
+                      () =>
+                        window.dispatchEvent(
+                          new CustomEvent('cove:app-pane', { detail: { pane: 'contacts' } })
+                        ),
+                      50
+                    )
+                  }}
+                >
+                  <span>{c.name}</span>
+                  <small>
+                    {names.get(c.workspaceId) ?? 'Project'}
+                    {c.ask ? ` · ${c.ask}` : ''}
+                  </small>
+                </button>
+              ))}
+            </div>
+          )}
           {cards.length === 0 && <p className="today-empty">No open to-dos in any project.</p>}
           {todos.shown.map((c) => {
             const chat = c.chatId ? chatById.get(c.chatId) : undefined

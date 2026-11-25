@@ -3,6 +3,7 @@ import type { BoardCard } from '../../../preload'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useStore } from '../state'
 import { Markdown } from './Markdown'
+import { ContactsPanel } from './ContactsPanel'
 import { when } from '../lib/relative-time'
 
 type Status = BoardCard['status']
@@ -34,6 +35,23 @@ export function BoardPanel({
   workspaceId: string
   onClose: () => void
 }): React.JSX.Element {
+  const tabKey = `deskTab:${workspaceId}`
+  const [tab, setTab] = useState<'todo' | 'contacts'>(() =>
+    localStorage.getItem(tabKey) === 'contacts' ? 'contacts' : 'todo'
+  )
+  const pickTab = (t: 'todo' | 'contacts'): void => {
+    localStorage.setItem(tabKey, t)
+    setTab(t)
+  }
+  // Asked for by name ("show me the contacts"): ChatDesk opens the panel and says which tab.
+  useEffect(() => {
+    const on = (e: Event): void => {
+      const d = (e as CustomEvent<{ workspaceId: string; tab: 'todo' | 'contacts' }>).detail
+      if (d?.workspaceId === workspaceId) setTab(d.tab)
+    }
+    window.addEventListener('cove:desk-tab', on)
+    return () => window.removeEventListener('cove:desk-tab', on)
+  }, [workspaceId])
   const [cards, setCards] = useState<BoardCard[]>([])
   const [draft, setDraft] = useState('')
   /** The row being dragged, and the row it would land above. */
@@ -131,20 +149,52 @@ export function BoardPanel({
 
   const done = cards.filter((c) => c.status === 'done').length
 
-  return (
-    <div className="board-panel">
-      <div className="board-head">
-        <h2>Todo</h2>
+  const head = (
+    <div className="board-head">
+      {/* Two lists per project: the work, and the people it is reaching out to. */}
+      <div className="board-tabs" role="tablist">
+        <button
+          role="tab"
+          aria-selected={tab === 'todo'}
+          className={`board-tab ${tab === 'todo' ? 'on' : ''}`}
+          onClick={() => pickTab('todo')}
+        >
+          Todo
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'contacts'}
+          className={`board-tab ${tab === 'contacts' ? 'on' : ''}`}
+          data-testid="tab-contacts"
+          onClick={() => pickTab('contacts')}
+        >
+          Contacts
+        </button>
+      </div>
+      {tab === 'todo' && (
         <span className="board-sub">
           {cards.length === 0
             ? 'Claude adds work here as it goes — or type your own'
             : `${done} of ${cards.length} done`}
         </span>
-        <div className="board-head-spacer" />
-        <button className="board-close" onClick={onClose} title="Close the to-do">
-          ✕
-        </button>
+      )}
+      <div className="board-head-spacer" />
+      <button className="board-close" onClick={onClose} title="Close">
+        ✕
+      </button>
+    </div>
+  )
+  if (tab === 'contacts')
+    return (
+      <div className="board-panel">
+        {head}
+        <ContactsPanel workspaceId={workspaceId} />
       </div>
+    )
+
+  return (
+    <div className="board-panel">
+      {head}
 
       {/* Above the list and outside its scrolling: at the foot of it, adding an
           item meant scrolling past every other one first. */}
