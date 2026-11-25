@@ -52,7 +52,7 @@ import {
   agentSaidInChat
 } from '../store'
 import { modeBelongsTo, startModel, toProvider } from '../../shared/agent-provider'
-import { accountForChat, listAccounts, pinChatAccount, refreshUsage } from '../accounts'
+import { accountForChat, listAccounts, pickChatAccount, refreshUsage } from '../accounts'
 import { createHash } from 'crypto'
 import { homedir, tmpdir } from 'os'
 import {
@@ -653,7 +653,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const provider = getChatProvider(chat.id)
         if (!listAccounts(provider).some((a) => a.id === p.data.accountId))
           return fail('not-found', "that account is not one this chat's agent can use")
-        pinChatAccount(chat.id, p.data.accountId)
+        pickChatAccount(chat.id, p.data.accountId)
         // A window with the chat open restarts its agent on it when idle, as
         // it does for a pick made at the Mac; otherwise the next start uses it.
         broadcastToWindows('accounts:picked', { chatId: chat.id, accountId: p.data.accountId })

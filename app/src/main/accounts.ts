@@ -132,6 +132,14 @@ interface AccountsFile {
    * user moves by hand (its pin no longer `to`) is left where they put it.
    */
   moved: Record<string, { from: AgentProvider; to: string }>
+  /**
+   * Chats whose account the user picked by hand (the Account pill, the phone).
+   * Only these keep their account; every other chat follows the order, so a chat
+   * moved down the list by a limit goes back up once the account above is free.
+   * Pins alone used to be sticky: eleven chats stayed on the last account in the
+   * order long after the first ones had allowance again (2026-11-25).
+   */
+  picked: Record<string, true>
   /** Accounts whose credentials the CLI last refused, with its reason. */
   auth: Record<string, string>
   /** What each account last said about its allowance (see usage.ts). */
@@ -211,6 +219,7 @@ function load(): AccountsFile {
       limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
       moved: raw.moved && typeof raw.moved === 'object' ? raw.moved : {},
+      picked: raw.picked && typeof raw.picked === 'object' ? raw.picked : {},
       auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
       usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {},
       defaults: raw.defaults && typeof raw.defaults === 'object' ? raw.defaults : {},
@@ -227,6 +236,7 @@ function load(): AccountsFile {
       limits: {},
       chats: {},
       moved: {},
+      picked: {},
       auth: {},
       usage: {},
       defaults: {},
@@ -425,16 +435,32 @@ export function accountForChat(
       return back
     }
   }
+  const f = load()
   const all = listAccounts(provider)
-  const pinned = chatId ? all.find((a) => a.id === load().chats[chatId]) : undefined
-  if (pinned && !pinned.limitedUntil) return pinned
+  const pinned = chatId ? all.find((a) => a.id === f.chats[chatId]) : undefined
+  // Picked by hand: that one, while it has allowance.
+  if (pinned && chatId && f.picked[chatId] && !pinned.limitedUntil) return pinned
+  // Otherwise the order: the chosen default first, then the rest as listed.
   const chosen = all.find((a) => a.isDefault)
-  if (chosen && !chosen.limitedUntil) return chosen
-  return all.find((a) => !a.limitedUntil) ?? pinned ?? chosen ?? all[0]
+  const ordered = chosen ? [chosen, ...all.filter((a) => a !== chosen)] : all
+  const first = ordered.find((a) => !a.limitedUntil && !a.needsAuth)
+  return first ?? ordered.find((a) => !a.limitedUntil) ?? pinned ?? chosen ?? all[0]
 }
 
+/** Put a chat on an account for now (a limit moved it, or it went back): the order still rules. */
 export function pinChatAccount(chatId: string, accountId: string): void {
-  load().chats[chatId] = accountId
+  const f = load()
+  f.chats[chatId] = accountId
+  delete f.picked[chatId]
+  save()
+}
+
+/** The user picked this chat's account: it stays there until they pick another or it runs out. */
+export function pickChatAccount(chatId: string, accountId: string): void {
+  const f = load()
+  f.chats[chatId] = accountId
+  f.picked[chatId] = true
+  delete f.moved[chatId]
   save()
 }
 
@@ -1313,7 +1339,11 @@ export function removeAccount(id: string): void {
   if (!stored) return
   f.accounts = f.accounts.filter((a) => a.id !== id)
   delete f.limits[id]
-  for (const [chatId, acct] of Object.entries(f.chats)) if (acct === id) delete f.chats[chatId]
+  for (const [chatId, acct] of Object.entries(f.chats))
+    if (acct === id) {
+      delete f.chats[chatId]
+      delete f.picked[chatId]
+    }
   if (f.defaults[stored.provider] === id) delete f.defaults[stored.provider]
   if (f.order?.[stored.provider]) {
     f.order[stored.provider] = f.order[stored.provider]!.filter((x) => x !== id)
@@ -1823,7 +1853,7 @@ export function registerAccountsIpc(): void {
   // Picked by hand from the chat's Account pill: the chat goes to it, and a
   // pick is announced like any other change so every pill redraws.
   ipcMain.handle('accounts:pick', (_e, chatId: string, id: string) => {
-    pinChatAccount(chatId, id)
+    pickChatAccount(chatId, id)
     // Picked by hand: the chat goes to it. A mark saying the account is out
     // used to override the pick in silence (accountForChat skips a limited
     // account), so the click did nothing. If it really is out, the CLI says

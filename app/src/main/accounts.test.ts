@@ -65,6 +65,7 @@ import {
   markModelLimited,
   modelLimitedUntil,
   pinChatAccount,
+  pickChatAccount,
   removeAccount,
   reorderAccounts,
   recordUsage,
@@ -324,7 +325,7 @@ describe('accounts', () => {
 
   it('a chat runs on its own pick until that one is out, then the next with allowance', () => {
     const work = addClaudeToken('Work', TOKEN)
-    pinChatAccount('c1', work.id)
+    pickChatAccount('c1', work.id)
     expect(accountForChat('claude', 'c1').id).toBe(work.id)
     markLimited(work.id, Date.now() + 60_000)
     expect(accountForChat('claude', 'c1').id).toBe(LOGIN_ID.claude)
@@ -336,6 +337,52 @@ describe('accounts', () => {
     vi.setSystemTime(Date.now() + 61_000)
     expect(listAccounts('claude').find((a) => a.id === work.id)?.limitedUntil).toBeNull()
     vi.useRealTimers()
+  })
+
+  describe('the order', () => {
+    // 2026-11-25: chats moved down the list by limits stayed on the last account
+    // (campaigns@) long after the ones above had allowance again.
+    it('a chat a limit moved goes back up the order once the account above is free', () => {
+      const admin = addClaudeToken('admin', TOKEN)
+      const campaigns = addClaudeToken('campaigns', TOKEN)
+      // Moved to the bottom of the list, and nothing recorded why (an older file).
+      pinChatAccount('c1', campaigns.id)
+      expect(accountForChat('claude', 'c1').id).toBe(LOGIN_ID.claude)
+      // The top one out: the next in the order, not wherever it was pinned.
+      markLimited(LOGIN_ID.claude, Date.now() + 60_000)
+      expect(accountForChat('claude', 'c1').id).toBe(admin.id)
+    })
+
+    it('follows the order the user set, not the order accounts were added', () => {
+      const a = addClaudeToken('A', TOKEN)
+      const b = addClaudeToken('B', TOKEN)
+      setPriority([b.id, LOGIN_ID.claude, a.id])
+      expect(accountForChat('claude', 'new-chat').id).toBe(b.id)
+      markLimited(b.id, Date.now() + 60_000)
+      expect(accountForChat('claude', 'new-chat').id).toBe(LOGIN_ID.claude)
+    })
+
+    it('keeps a pick made by hand, even below a free account', () => {
+      const work = addClaudeToken('Work', TOKEN)
+      pickChatAccount('c1', work.id)
+      expect(accountForChat('claude', 'c1').id).toBe(work.id)
+      // An automatic move ends the pick: the order rules again.
+      pinChatAccount('c1', work.id)
+      expect(accountForChat('claude', 'c1').id).toBe(LOGIN_ID.claude)
+    })
+
+    it('skips an account whose sign-in was refused', () => {
+      const work = addClaudeToken('Work', TOKEN)
+      markAuth(LOGIN_ID.claude, 'Invalid API key')
+      expect(accountForChat('claude', 'c1').id).toBe(work.id)
+    })
+
+    it('a pick survives a restart', () => {
+      const work = addClaudeToken('Work', TOKEN)
+      pickChatAccount('c1', work.id)
+      _resetAccountsForTests()
+      expect(accountForChat('claude', 'c1').id).toBe(work.id)
+    })
   })
 
   it('assumes the usual window when the CLI gave no reset time', () => {
@@ -426,7 +473,7 @@ describe('accounts', () => {
     setLimitMode('auto')
     _setLoginForTests('claude', { detail: 'Max', signedIn: true })
     reportLimit('c1', 'claude', LOGIN_ID.claude, Date.now() + 3_600_000)
-    pinChatAccount('c1', other.id)
+    pickChatAccount('c1', other.id)
     clearLimit(LOGIN_ID.claude)
     expect(switchBackFor('c1')).toBeNull()
     expect(accountForChat('claude', 'c1', { switchBack: true }).id).toBe(other.id)
@@ -910,8 +957,8 @@ describe('signing another Claude account in fully', () => {
 
   it('takes a token account’s place: its chats and its default move to the new one', async () => {
     const token = addClaudeToken('Campaigns', TOKEN)
-    pinChatAccount('c1', token.id)
-    pinChatAccount('c2', LOGIN_ID.claude)
+    pickChatAccount('c1', token.id)
+    pickChatAccount('c2', LOGIN_ID.claude)
     setDefaultAccount('claude', token.id)
     const full = await signedIn('campaigns@songpush.com', '', token.id)
     _resetAccountsForTests()
@@ -956,7 +1003,7 @@ describe('the default account for new chats', () => {
   it('a chat’s own pick still wins', () => {
     const work = addClaudeToken('Work', TOKEN)
     setDefaultAccount('claude', work.id)
-    pinChatAccount('c1', LOGIN_ID.claude)
+    pickChatAccount('c1', LOGIN_ID.claude)
     expect(accountForChat('claude', 'c1').id).toBe(LOGIN_ID.claude)
   })
 
