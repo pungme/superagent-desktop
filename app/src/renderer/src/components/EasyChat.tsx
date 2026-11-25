@@ -1,6 +1,11 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
 import { GhostGlyph } from './GhostGlyph'
-import { currentStep, noteSubagentEvent, type SubActivity } from '../../../shared/subagent-activity'
+import {
+  currentStep,
+  noteSubagentEvent,
+  progressOf,
+  type SubActivity
+} from '../../../shared/subagent-activity'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
@@ -7796,9 +7801,31 @@ export function EasyChat({
                           {secs < 120 ? `${secs}s` : `${Math.round(secs / 60)} min`}
                         </span>
                       </div>
+                      {(() => {
+                        const pr = progressOf(steps)
+                        if (!pr.calls && !pr.tasks) return null
+                        return (
+                          <div className="easy-agent-progress" data-testid="subagent-progress">
+                            {pr.tasks && (
+                              <span className="easy-agent-bar" aria-hidden="true">
+                                <span
+                                  style={{
+                                    width: `${Math.round((pr.tasks.done / Math.max(1, pr.tasks.total)) * 100)}%`
+                                  }}
+                                />
+                              </span>
+                            )}
+                            <span>
+                              {pr.tasks
+                                ? `${pr.tasks.done} of ${pr.tasks.total} tasks done${pr.tasks.now ? ` · on: ${pr.tasks.now}` : ''}`
+                                : `${pr.calls} ${pr.calls === 1 ? 'step' : 'steps'}${pr.waiting ? ` · ${pr.waiting} running` : ''}`}
+                            </span>
+                          </div>
+                        )
+                      })()}
                       {!steps?.length && (
                         <div className="easy-run-desc">
-                          Working, nothing it has done has come through yet.
+                          Working. No steps from it have come through.
                         </div>
                       )}
                       <ol className="easy-agent-steps">
@@ -7819,6 +7846,8 @@ export function EasyChat({
                                 </span>
                                 <code title={st.detail}>{st.detail}</code>
                               </>
+                            ) : st.kind === 'thinking' ? (
+                              <span className="easy-agent-step-think">Thinking: {st.detail}</span>
                             ) : (
                               <span className="easy-agent-step-said">{st.detail}</span>
                             )}

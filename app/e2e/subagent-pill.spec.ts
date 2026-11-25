@@ -39,6 +39,12 @@ process.stdin.on('data', (c) => {
       sub(P, [{ type: 'tool_use', id: 's1', name: 'Read', input: { file_path: '/repo/src/todo/List.tsx' } }])
       sub(P, [{ type: 'tool_result', tool_use_id: 's1', content: 'ok' }], 'user')
       sub(P, [{ type: 'text', text: 'The list renders every row; checking the query.' }])
+      sub(P, [{ type: 'tool_use', id: 'w1', name: 'TodoWrite', input: { todos: [
+        { content: 'Read the list', status: 'completed' },
+        { content: 'Profile the query', status: 'in_progress' },
+        { content: 'Write it up', status: 'pending' } ] } }])
+      sub(P, [{ type: 'tool_result', tool_use_id: 'w1', content: 'ok' }], 'user')
+      sub(P, [{ type: 'thinking', thinking: 'The query returns every row, so the cost is in the render.' }])
       sub(P, [{ type: 'tool_use', id: 's2', name: 'Bash', input: { command: 'cd /repo && python profile.py' } }])
     }, 800)
     // Stay working until told to stop.
@@ -106,8 +112,14 @@ test('the sub-agent pill opens onto what the sub-agent is doing', async () => {
     const menu = page.getByTestId('subagent-menu')
     await expect(menu).toBeVisible()
     await expect(menu).toContainText('Find why To-do loads slowly')
+    // How far along it is: its own to-do list, and what it is on.
+    const progress = menu.getByTestId('subagent-progress')
+    await expect(progress).toContainText('1 of 3 tasks done')
+    await expect(progress).toContainText('on: Profile the query')
+    // Its latest thinking.
+    await expect(menu).toContainText('Thinking: The query returns every row')
     // A call that came back, what it said, and the one still running.
-    await expect(menu.locator('.easy-agent-step.ok')).toContainText('List.tsx')
+    await expect(menu.locator('.easy-agent-step.ok', { hasText: 'List.tsx' })).toHaveCount(1)
     await expect(menu).toContainText('The list renders every row')
     await expect(menu.locator('.easy-agent-step.now')).toContainText('python profile.py')
 

@@ -4,6 +4,8 @@ import {
   STEPS_KEPT,
   currentStep,
   noteSubagentEvent,
+  progressOf,
+  todosOf,
   stepDetail,
   type SubActivity
 } from './subagent-activity'
@@ -110,5 +112,81 @@ describe('a sub-agent’s activity', () => {
     expect(stepDetail({ path: '/a/b' })).toBe('/a/b')
     expect(stepDetail(null)).toBe('')
     expect(stepDetail({ command: 'x'.repeat(400) })).toHaveLength(160)
+  })
+
+  it('keeps the latest thinking as one line, not a page', () => {
+    const a: SubActivity = new Map()
+    const think = (text: string): Record<string, unknown> => ({
+      type: 'assistant',
+      parent_tool_use_id: 'g',
+      message: { content: [{ type: 'thinking', thinking: text }] }
+    })
+    noteSubagentEvent(a, think('Looking at the list component'), 1)
+    noteSubagentEvent(a, think('Looking at the list component and the query behind it'), 2)
+    expect(a.get('g')).toHaveLength(1)
+    expect(a.get('g')![0]).toMatchObject({ kind: 'thinking', at: 2 })
+    expect(a.get('g')![0].detail).toContain('the query behind it')
+    // A tool call after it, then thinking again, is a new line.
+    noteSubagentEvent(a, tool('g', 't1', 'Bash', { command: 'a' }), 3)
+    noteSubagentEvent(a, think('Now the result'), 4)
+    expect(a.get('g')!.map((s) => s.kind)).toEqual(['thinking', 'tool', 'thinking'])
+  })
+
+  describe('progress', () => {
+    const todoWrite = (id: string, todos: { content: string; status: string }[]) =>
+      tool('g', id, 'TodoWrite', { todos })
+
+    it('reads its to-do list as tasks done of all, and what it is on', () => {
+      const a: SubActivity = new Map()
+      noteSubagentEvent(
+        a,
+        todoWrite('w1', [
+          { content: 'Read the list', status: 'completed' },
+          { content: 'Profile the query', status: 'in_progress' },
+          { content: 'Write it up', status: 'pending' }
+        ]),
+        1
+      )
+      expect(progressOf(a.get('g')).tasks).toEqual({ done: 1, total: 3, now: 'Profile the query' })
+      expect(a.get('g')![0].detail).toBe('1/3 tasks')
+    })
+
+    it('uses the latest list it wrote', () => {
+      const a: SubActivity = new Map()
+      noteSubagentEvent(
+        a,
+        todoWrite('w1', [
+          { content: 'a', status: 'in_progress' },
+          { content: 'b', status: 'pending' }
+        ]),
+        1
+      )
+      noteSubagentEvent(
+        a,
+        todoWrite('w2', [
+          { content: 'a', status: 'completed' },
+          { content: 'b', status: 'completed' }
+        ]),
+        2
+      )
+      expect(progressOf(a.get('g')).tasks).toEqual({ done: 2, total: 2, now: null })
+    })
+
+    it('has no task figure without a list, only the calls and how many still wait', () => {
+      const a: SubActivity = new Map()
+      noteSubagentEvent(a, tool('g', 't1', 'Bash', { command: 'a' }), 1)
+      noteSubagentEvent(a, tool('g', 't2', 'Bash', { command: 'b' }), 2)
+      noteSubagentEvent(a, result('g', 't1'), 3)
+      expect(progressOf(a.get('g'))).toEqual({ tasks: null, calls: 2, waiting: 1 })
+      expect(progressOf(undefined)).toEqual({ tasks: null, calls: 0, waiting: 0 })
+    })
+
+    it('reads a to-do list loosely', () => {
+      expect(
+        todosOf({ todos: [{ activeForm: 'Reading', status: 'pending' }, { status: 'x' }] })
+      ).toEqual([{ text: 'Reading', status: 'pending' }])
+      expect(todosOf({})).toBeUndefined()
+      expect(todosOf(null)).toBeUndefined()
+    })
   })
 })

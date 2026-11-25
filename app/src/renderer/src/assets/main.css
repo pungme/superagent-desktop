@@ -17353,3 +17353,29 @@ button.easy-run-agent {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
+.easy-agent-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.easy-agent-bar {
+  width: 70px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.easy-agent-bar > span {
+  display: block;
+  height: 100%;
+  background: #3fb950;
+}
+.easy-agent-step-think {
+  color: var(--text-tertiary);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}

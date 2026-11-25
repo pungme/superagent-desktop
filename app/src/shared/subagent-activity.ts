@@ -11,7 +11,7 @@
 export interface SubStep {
   /** The tool call's id, for a text line a made-up one. */
   id: string
-  kind: 'tool' | 'text'
+  kind: 'tool' | 'text' | 'thinking'
   /** Tool name, or '' for text. */
   name: string
   /** The command, file or query for a tool; the words for text. */
@@ -20,6 +20,8 @@ export interface SubStep {
   /** Tools only: came back, and whether it worked. */
   done?: boolean
   ok?: boolean
+  /** A TodoWrite call: its list as the sub-agent last wrote it. */
+  todos?: { text: string; status: string }[]
 }
 
 export type SubActivity = Map<string, SubStep[]>
@@ -70,13 +72,35 @@ export function noteSubagentEvent(
       if (b.type === 'tool_use' && typeof b.id === 'string') {
         const l = list()
         if (l.some((s) => s.id === b.id)) continue
+        const todos = b.name === 'TodoWrite' ? todosOf(b.input) : undefined
         l.push({
           id: b.id,
           kind: 'tool',
           name: String(b.name ?? ''),
-          detail: stepDetail(b.input),
-          at: now
+          detail: todos
+            ? `${todos.filter((t) => t.status === 'completed').length}/${todos.length} tasks`
+            : stepDetail(b.input),
+          at: now,
+          ...(todos ? { todos } : {})
         })
+        changed = true
+      } else if (b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking.trim()) {
+        const l = list()
+        // Thinking streams as it is written: the last line says what it is on, so
+        // a run of them is one line, not a page.
+        const last = l[l.length - 1]
+        const text = b.thinking.replace(/\s+/g, ' ').trim().slice(-300)
+        if (last?.kind === 'thinking') {
+          last.detail = text
+          last.at = now
+        } else
+          l.push({
+            id: `think-${now}-${l.length}`,
+            kind: 'thinking',
+            name: '',
+            detail: text,
+            at: now
+          })
         changed = true
       } else if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) {
         list().push({
@@ -110,4 +134,48 @@ export function currentStep(steps: SubStep[] | undefined): SubStep | null {
   for (let i = steps.length - 1; i >= 0; i--)
     if (steps[i].kind === 'tool' && !steps[i].done) return steps[i]
   return steps[steps.length - 1]
+}
+
+/** A TodoWrite input as a list, or undefined when it is not one. */
+export function todosOf(input: unknown): { text: string; status: string }[] | undefined {
+  const list = (input as { todos?: unknown } | null)?.todos
+  if (!Array.isArray(list)) return undefined
+  const out = list
+    .map((t) => {
+      const o = t as { content?: unknown; activeForm?: unknown; status?: unknown }
+      const text =
+        typeof o.content === 'string'
+          ? o.content
+          : typeof o.activeForm === 'string'
+            ? o.activeForm
+            : ''
+      return { text, status: typeof o.status === 'string' ? o.status : 'pending' }
+    })
+    .filter((t) => t.text)
+  return out.length ? out : undefined
+}
+
+/**
+ * How far along it is: its own to-do list when it keeps one (the latest list it
+ * wrote), else nothing to measure, only a count of calls.
+ */
+export function progressOf(steps: SubStep[] | undefined): {
+  tasks: { done: number; total: number; now: string | null } | null
+  calls: number
+  waiting: number
+} {
+  const all = steps ?? []
+  let tasks: { done: number; total: number; now: string | null } | null = null
+  for (let i = all.length - 1; i >= 0; i--) {
+    const todos = all[i].todos
+    if (!todos) continue
+    tasks = {
+      done: todos.filter((t) => t.status === 'completed').length,
+      total: todos.length,
+      now: todos.find((t) => t.status === 'in_progress')?.text ?? null
+    }
+    break
+  }
+  const calls = all.filter((s) => s.kind === 'tool')
+  return { tasks, calls: calls.length, waiting: calls.filter((s) => !s.done).length }
 }
