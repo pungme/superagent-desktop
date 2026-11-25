@@ -21,3 +21,45 @@ export function parseCliUpdate(out: string): CliUpdateResult {
 /** How long after the app opens it first looks, and how often it looks again. */
 export const CLI_UPDATE_FIRST_MS = 90_000
 export const CLI_UPDATE_EVERY_MS = 12 * 60 * 60 * 1000
+
+/** The first x.y.z in what `<cli> --version` printed ("codex-cli 0.46.0", "1.5.17", "2.1.325 (Claude Code)"). */
+export function versionOf(out: string): string | null {
+  return /(\d+\.\d+\.\d+(?:[-.][0-9A-Za-z]+)*)/.exec(out)?.[1] ?? null
+}
+
+/**
+ * How to update Codex, from where the `codex` on the PATH really is (its real
+ * path, links followed). It has no updater of its own, so it is updated the way
+ * it was installed — and left alone when that is not known, rather than a
+ * second copy installed beside one the user put there some other way.
+ */
+export type CodexInstall = 'npm' | 'brew' | 'other'
+
+export function codexInstallKind(realPath: string): CodexInstall {
+  if (/\/node_modules\//.test(realPath)) return 'npm'
+  if (/\/(Cellar|Caskroom)\//.test(realPath)) return 'brew'
+  return 'other'
+}
+
+export const CODEX_UPDATE_COMMAND: Record<Exclude<CodexInstall, 'other'>, string> = {
+  npm: 'npm install -g @openai/codex@latest',
+  brew: 'brew upgrade codex'
+}
+
+/** Which agents are kept up to date, in the order they are looked at. */
+export const UPDATED_CLIS = ['claude', 'codex', 'antigravity'] as const
+export type UpdatedCli = (typeof UPDATED_CLIS)[number]
+
+/** One agent's CLI as the last look found it. */
+export interface CliInfo {
+  /** What `--version` says, or null when it is not installed. */
+  version: string | null
+  /** When the last look finished (ms), or 0 before the first. */
+  checkedAt: number
+  /** Installed by the last look: "0.46.0 → 0.47.1". */
+  updatedFrom: string | null
+  running: boolean
+  error: string | null
+  /** Why it is not updated by Superagent (installed some way it does not know). */
+  skipped: string | null
+}

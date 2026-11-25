@@ -1,9 +1,20 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('./store', () => ({ kvGet: () => undefined }))
-vi.mock('./claude-cli', () => ({ agentEnv: () => ({}), findClaude: () => '/x/claude' }))
+vi.mock('./claude-cli', () => ({
+  agentEnv: () => ({}),
+  findClaude: () => '/x/claude',
+  findCodex: () => '/x/codex',
+  findAgy: () => '/x/agy'
+}))
 
-import { updateClaudeCli, cliStatus } from './cli-updater'
+import {
+  updateClaudeCli,
+  updateOtherCli,
+  cliStatus,
+  _resetCliUpdaterForTests,
+  type OtherCliDeps
+} from './cli-updater'
 import { parseCliUpdate } from '../shared/cli-update'
 
 describe('parseCliUpdate', () => {
@@ -52,5 +63,106 @@ describe('updateClaudeCli', () => {
     expect(s.error).toMatch(/could not check/)
     expect(s.version).toBe('2.1.325')
     expect(cliStatus().running).toBe(false)
+  })
+})
+
+/** Stand-ins: a CLI whose version a shell command changes, and what ran. */
+function deps(opts: {
+  versions: (string | null)[]
+  real?: string | null
+  shellOk?: boolean
+}): OtherCliDeps & { ran: string[] } {
+  const ran: string[] = []
+  const versions = [...opts.versions]
+  return {
+    ran,
+    exec: async () => {
+      const v = versions.length > 1 ? versions.shift() : versions[0]
+      return { ok: v !== null, out: v === null ? 'command not found' : String(v) }
+    },
+    shell: async (command) => {
+      ran.push(command)
+      return { ok: opts.shellOk !== false, out: '' }
+    },
+    realPath: () => (opts.real === undefined ? null : opts.real)
+  }
+}
+
+describe('updateOtherCli: Antigravity', () => {
+  beforeEach(_resetCliUpdaterForTests)
+  it('runs agy update and says what it moved from', async () => {
+    const d = deps({ versions: ['1.5.17', '1.5.20'] })
+    const s = await updateOtherCli('antigravity', d, '/x/agy')
+    expect(d.ran).toEqual(["'/x/agy' update"])
+    expect(s).toMatchObject({
+      version: '1.5.20',
+      updatedFrom: '1.5.17',
+      error: null,
+      running: false
+    })
+  })
+
+  it('already the newest: no change reported', async () => {
+    const s = await updateOtherCli('antigravity', deps({ versions: ['1.5.17'] }), '/x/agy')
+    expect(s).toMatchObject({ version: '1.5.17', updatedFrom: null, error: null })
+  })
+
+  it('says so when the update failed and nothing changed', async () => {
+    const s = await updateOtherCli(
+      'antigravity',
+      deps({ versions: ['1.5.17'], shellOk: false }),
+      '/x/agy'
+    )
+    expect(s.error).toMatch(/could not check/)
+    expect(s.version).toBe('1.5.17')
+  })
+
+  it('does nothing when it is not installed', async () => {
+    const d = deps({ versions: [null] })
+    const s = await updateOtherCli('antigravity', d, 'agy')
+    expect(d.ran).toEqual([])
+    expect(s).toMatchObject({ version: null, error: null })
+  })
+
+  it('quotes a path with a space or a quote', async () => {
+    const d = deps({ versions: ['1.0.0'] })
+    await updateOtherCli('antigravity', d, "/Users/o'neil/My Tools/agy")
+    expect(d.ran[0]).toBe("'/Users/o'\\''neil/My Tools/agy' update")
+  })
+})
+
+describe('updateOtherCli: Codex', () => {
+  beforeEach(_resetCliUpdaterForTests)
+  it('updates an npm install with npm', async () => {
+    const d = deps({
+      versions: ['codex-cli 0.46.0', 'codex-cli 0.47.1'],
+      real: '/Users/me/.nvm/versions/node/v22/lib/node_modules/@openai/codex/bin/codex.js'
+    })
+    const s = await updateOtherCli('codex', d, '/x/codex')
+    expect(d.ran).toEqual(['npm install -g @openai/codex@latest'])
+    expect(s).toMatchObject({ version: '0.47.1', updatedFrom: '0.46.0', skipped: null })
+  })
+
+  it('updates a Homebrew install with brew', async () => {
+    const d = deps({
+      versions: ['0.46.0', '0.46.0'],
+      real: '/opt/homebrew/Cellar/codex/0.46.0/bin/codex'
+    })
+    await updateOtherCli('codex', d, '/x/codex')
+    expect(d.ran).toEqual(['brew upgrade codex'])
+  })
+
+  it('leaves an install it does not know alone, and says why', async () => {
+    const d = deps({ versions: ['0.46.0'], real: '/usr/local/bin/codex' })
+    const s = await updateOtherCli('codex', d, '/x/codex')
+    expect(d.ran).toEqual([])
+    expect(s.skipped).toMatch(/does not update/)
+    expect(s.version).toBe('0.46.0')
+  })
+
+  it('leaves it alone when the binary cannot be found on disk', async () => {
+    const d = deps({ versions: ['0.46.0'], real: null })
+    await updateOtherCli('codex', d, '/x/codex')
+    expect(d.ran).toEqual([])
   })
 })

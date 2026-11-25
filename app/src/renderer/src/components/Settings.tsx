@@ -825,15 +825,18 @@ function Row({
 }
 
 /**
- * Keep Claude Code up to date (main/cli-updater.ts): the model picker is the
- * CLI's own list, so a new model reaches the user once the CLI is new enough.
+ * Keep the agents' CLIs up to date (main/cli-updater.ts): Claude Code, Antigravity
+ * and Codex. The model picker is the CLI's own list, so a new model reaches the
+ * user once the CLI is new enough.
  */
+const CLI_NAMES = { claude: 'Claude Code', codex: 'Codex', antigravity: 'Antigravity' } as const
+
 function ClaudeCodeUpdates(): React.JSX.Element {
   const [on, setOn] = useState(localStorage.getItem('cove.cliAutoUpdate') !== '0')
-  const [st, setSt] = useState<Awaited<ReturnType<typeof window.cove.cliStatus>> | null>(null)
+  const [all, setAll] = useState<Awaited<ReturnType<typeof window.cove.cliStatusAll>> | null>(null)
   const [checking, setChecking] = useState(false)
   useEffect(() => {
-    void window.cove.cliStatus?.().then(setSt)
+    void window.cove.cliStatusAll?.().then(setAll)
   }, [])
   const toggle = (v: boolean): void => {
     localStorage.setItem('cove.cliAutoUpdate', v ? '1' : '0')
@@ -842,23 +845,26 @@ function ClaudeCodeUpdates(): React.JSX.Element {
   const checkNow = async (): Promise<void> => {
     setChecking(true)
     try {
-      await window.cove.cliUpdateNow()
-      setSt(await window.cove.cliStatus())
+      setAll(await window.cove.cliUpdateAllNow())
     } finally {
       setChecking(false)
     }
   }
-  const line = st?.version
-    ? `Claude Code ${st.version}${st.updatedFrom ? `, updated from ${st.updatedFrom}` : ''}.`
-    : 'Claude Code.'
+  const lines = (Object.keys(CLI_NAMES) as (keyof typeof CLI_NAMES)[])
+    .map((k) => {
+      const i = all?.[k]
+      if (!i || !i.version) return null
+      return `${CLI_NAMES[k]} ${i.version}${i.updatedFrom ? ` (updated from ${i.updatedFrom})` : ''}${
+        i.skipped ? ` — ${i.skipped}` : ''
+      }${i.error ? ` — ${i.error}` : ''}`
+    })
+    .filter(Boolean)
   return (
     <>
-      <GroupLabel>Claude Code</GroupLabel>
+      <GroupLabel>Agent updates</GroupLabel>
       <Row
-        title="Keep it up to date"
-        desc={`${line} New models show up in the picker once Claude Code is new enough to list them. Chats already open keep the version they started with.${
-          st?.error ? ` ${st.error}` : ''
-        }`}
+        title="Keep the agents up to date"
+        desc={`${lines.length ? lines.join(' · ') + '. ' : ''}Claude Code, Antigravity and Codex are checked every 12 hours. New models show up in the picker once their agent is new enough to list them. Chats already open keep the version they started with.`}
       >
         <button className="settings-cli-check" disabled={checking} onClick={() => void checkNow()}>
           {checking ? 'Checking…' : 'Check now'}

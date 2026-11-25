@@ -1,5 +1,6 @@
 const transcriptFlushers = new Set<() => Promise<void>>()
 import type { Contact, FieldDef } from '../shared/contacts'
+import type { CliInfo } from '../shared/cli-update'
 import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
 import type { MailConnectionStatus } from '../shared/mail'
 import type {
@@ -1229,6 +1230,9 @@ export interface CoveApi {
     running: boolean
     error: string | null
   }>
+  /** Every agent's CLI as the last look found it (main/cli-updater.ts). */
+  cliStatusAll: () => Promise<Record<'claude' | 'codex' | 'antigravity', CliInfo>>
+  cliUpdateAllNow: () => Promise<Record<'claude' | 'codex' | 'antigravity', CliInfo>>
   cliUpdateNow: () => Promise<{
     version: string | null
     updatedFrom: string | null
@@ -1968,6 +1972,8 @@ const cove: CoveApi = {
   todayHand: (cardId) => ipcRenderer.invoke('today:hand', cardId),
   chatDuplicate: (chatId) => ipcRenderer.invoke('chat:duplicate', chatId),
   cliStatus: () => ipcRenderer.invoke('cli:status'),
+  cliStatusAll: () => ipcRenderer.invoke('cli:status-all'),
+  cliUpdateAllNow: () => ipcRenderer.invoke('cli:update-all-now'),
   cliUpdateNow: () => ipcRenderer.invoke('cli:update-now'),
   setBatteryFloor: (floor) => ipcRenderer.invoke('power:set-battery-floor', floor),
   setLidAwake: (on) => ipcRenderer.invoke('power:set-lid-awake', on),

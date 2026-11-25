@@ -3,7 +3,7 @@ import { join } from 'path'
 import { mkdtempSync, writeFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 
-/** Settings → Agents says Claude Code is kept up to date, and the switch is remembered. */
+/** Settings → Agents says the agents are kept up to date (Claude Code, Antigravity, Codex), and the switch is remembered. */
 
 let app: ElectronApplication
 let window: Page
@@ -33,11 +33,12 @@ test.afterAll(async () => {
   for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
 })
 
-test('Claude Code is kept up to date unless switched off', async () => {
+test('the agents are kept up to date unless switched off', async () => {
   await window.click('.sidebar-settings[title="Settings"]')
   await window.click('.settings-nav-item:has-text("Agents")')
-  const row = window.locator('.settings-row', { hasText: 'Keep it up to date' })
+  const row = window.locator('.settings-row', { hasText: 'Keep the agents up to date' })
   await expect(row).toBeVisible()
+  await expect(row).toContainText('Claude Code, Antigravity and Codex are checked every 12 hours')
   await expect(row).toContainText('New models show up in the picker')
   // On by default; the switch is stored for the Mac side to read.
   expect(await window.evaluate(() => localStorage.getItem('cove.cliAutoUpdate'))).toBeNull()
