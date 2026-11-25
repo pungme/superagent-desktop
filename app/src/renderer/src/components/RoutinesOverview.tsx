@@ -148,8 +148,10 @@ export function RoutinesOverview({ visible }: { visible: boolean }): React.JSX.E
       </div>
       {unmeasured > 0 && (
         <div className="rov-note">
-          {unmeasured === 1 ? 'One routine has' : `${unmeasured} routines have`} not run yet, so
-          their cost is not known. Estimates come from real runs.
+          {unmeasured === 1
+            ? 'One routine has not run yet, so its cost is not known.'
+            : `${unmeasured} routines have not run yet, so their cost is not known.`}{' '}
+          Estimates come from real runs.
         </div>
       )}
       <div className="rov-body">

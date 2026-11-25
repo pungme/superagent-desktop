@@ -101,6 +101,13 @@ test('routines overview: all routines, failures first, cost, edit in place', asy
     const ok = page.locator('[data-routine-id="r-ok"]')
     await ok.getByRole('button', { name: /Runs \(2\)/ }).click()
     await expect(ok).toContainText('Updated 12 rows')
+    // SHOT=<dir>: pictures of the page, for release notes and the user.
+    if (process.env.SHOT) {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.waitForTimeout(300)
+      await page.screenshot({ path: join(process.env.SHOT, 'routines-page.png') })
+      await page.locator('.sidebar').screenshot({ path: join(process.env.SHOT, 'routines-sidebar.png') })
+    }
 
     // Slowing it down says what it saves, and counts from now.
     await ok.getByLabel('How often').selectOption('1440')
