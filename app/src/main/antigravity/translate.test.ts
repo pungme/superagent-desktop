@@ -489,9 +489,91 @@ describe('subagents', () => {
     expect(blocks(events)[0]).toMatchObject({ name: 'Task' })
     expect(toolResults(events)[0]).toMatchObject({
       tool_use_id: blocks(events)[0].id,
-      content: 'Started a subagent: Researcher A.',
+      content: 'Async agent launched: a subagent (Researcher A).',
       is_error: false
     })
+  })
+
+  // The shape agy 1.2.16 really sends: the subagent step ACTIVE, then DONE with
+  // the child's conversation and transcript.
+  it('shows the card while it dispatches, then hands the child over to be followed', () => {
+    const t = new AntigravityTranslator()
+    const sub = {
+      type_name: 'research',
+      role: 'Workspace File Researcher',
+      initial_prompt: 'List the files'
+    }
+    const active = run(t, [
+      step({
+        step_index: 2,
+        state: 'ACTIVE',
+        step_type: 'subagent',
+        tool_name: 'invoke_subagent',
+        subagent_info: { subagents: [sub] }
+      })
+    ])
+    expect(blocks(active)).toHaveLength(1)
+    expect(blocks(active)[0]).toMatchObject({
+      name: 'Task',
+      input: { description: 'Workspace File Researcher', subagent_type: 'research' }
+    })
+    expect(t.takeChildren()).toEqual([])
+    const done = run(t, [
+      step({
+        step_index: 2,
+        state: 'DONE',
+        step_type: 'subagent',
+        tool_name: 'invoke_subagent',
+        subagent_info: {
+          subagents: [
+            {
+              ...sub,
+              conversation_id: '32ed3058-9590-4919-96ad-0e9146597e09',
+              log_uri:
+                'file:///Users/me/.gemini/antigravity-cli/brain/32ed3058/.system_generated/logs/transcript.jsonl'
+            }
+          ]
+        }
+      })
+    ])
+    // No second card; the result says it went on in the background.
+    expect(blocks(done)).toHaveLength(0)
+    expect(toolResults(done)[0]).toMatchObject({
+      tool_use_id: blocks(active)[0].id,
+      content: 'Async agent launched: a subagent (Workspace File Researcher).'
+    })
+    expect(done.find((e) => e.subtype === 'task_started')).toMatchObject({
+      task_type: 'local_agent',
+      tool_use_id: blocks(active)[0].id,
+      task_id: '32ed3058-9590-4919-96ad-0e9146597e09',
+      is_backgrounded: true
+    })
+    expect(t.takeChildren()).toEqual([
+      {
+        toolUseId: blocks(active)[0].id,
+        logs: [
+          '/Users/me/.gemini/antigravity-cli/brain/32ed3058/.system_generated/logs/transcript.jsonl'
+        ],
+        label: 'Workspace File Researcher'
+      }
+    ])
+    // Handed over once.
+    expect(t.takeChildren()).toEqual([])
+  })
+
+  it('says so when the subagent could not start, and follows nothing', () => {
+    const t = new AntigravityTranslator()
+    const events = run(t, [
+      step({
+        step_index: 3,
+        state: 'ERROR',
+        step_type: 'subagent',
+        tool_name: 'invoke_subagent',
+        subagent_info: { subagents: [{ role: 'R' }] }
+      })
+    ])
+    expect(toolResults(events)[0]).toMatchObject({ is_error: true })
+    expect(t.takeChildren()).toEqual([])
   })
 })
 

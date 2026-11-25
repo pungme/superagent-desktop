@@ -1,3 +1,4 @@
+import { followSubagent } from './subagent-follow'
 import { browserFor, browserScope, browserName } from '../external-browser'
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
@@ -208,6 +209,8 @@ export function startAntigravitySession(
   sweepSidecars(sidecarRoot())
 
   let proc: ChildProcessWithoutNullStreams | null = null
+  /** Sub-agents being followed; each entry stops its follower. */
+  const following = new Set<() => void>()
   /** kill() or hardInterrupt(): the session is over, whatever the process does next. */
   let ended = false
   let conversationId = opts.resumeSessionId ?? ''
@@ -353,6 +356,10 @@ export function startAntigravitySession(
     const forward = (events: StreamJsonEvent[]): void => {
       if (held) held.push(...events)
       else for (const event of events) emit(event)
+      // A sub-agent was dispatched: follow its own transcript, which is the only
+      // place its steps are written (subagent-follow.ts).
+      for (const child of translator.takeChildren())
+        following.add(followSubagent(child, (event) => forward([event])))
     }
 
     const onLine = (raw: string): void => {
@@ -498,6 +505,9 @@ export function startAntigravitySession(
     // 'close', not 'exit': the last lines of stdout have been read by then, and
     // a turn that finished must not be reported as cut short.
     p.on('close', (code) => {
+      // Its sub-agents end with it.
+      for (const stop of following) stop()
+      following.clear()
       if (code && stderr) console.error('[antigravity] exited', code, stderr.slice(-300))
       gone(code ?? 0)
     })

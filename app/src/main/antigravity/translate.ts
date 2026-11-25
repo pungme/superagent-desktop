@@ -71,7 +71,9 @@ export function mapTool(name: string, params: Json): { name: string; input: Json
           ...(str(params, 'Cwd') ? { cwd: str(params, 'Cwd') } : {})
         }
       }
+    // view_file in agy 1.2.x; read_file in what sub-agents run (agy 1.2.16).
     case 'view_file':
+    case 'read_file':
       return {
         name: 'Read',
         input: {
@@ -258,8 +260,20 @@ export class AntigravityTranslator {
   /** Everything this turn processed — what the turn is stamped with. */
   private turnUsage: Record<string, number> | null = null
   private spoke = false
+  /** Sub-agents dispatched and not yet handed to whoever follows them. */
+  private children: { toolUseId: string; logs: string[]; label: string }[] = []
 
   constructor(private readonly opts: AntigravityTranslatorOptions = {}) {}
+
+  /**
+   * The sub-agents dispatched since the last call: the card they belong to and
+   * the transcript each writes (`log_uri`), for the session to follow.
+   */
+  takeChildren(): { toolUseId: string; logs: string[]; label: string }[] {
+    const out = this.children
+    this.children = []
+    return out
+  }
 
   /** The conversation id Antigravity issued, once it has. */
   get conversationId(): string {
@@ -326,9 +340,10 @@ export class AntigravityTranslator {
       case 'tool':
         return done ? this.toolDone(index, su) : this.toolActive(index, su)
       case 'subagent':
-        // The same step as the `invoke_subagent` tool line, reported once its
-        // children are dispatched: they are running, which is the card's result.
-        return done ? this.subagentDone(index, su) : []
+        // The `invoke_subagent` step: ACTIVE while it dispatches (the card shows at
+        // once), DONE once its children are running. They run on in their own
+        // conversations, which Superagent follows (subagent-follow.ts).
+        return done ? this.subagentDone(index, su) : this.subagentActive(index, su)
       // user_input is our own prompt coming back; checkpoint and system_message
       // are Antigravity's bookkeeping. None of them is something to show.
       default:
@@ -434,37 +449,70 @@ export class AntigravityTranslator {
     return out
   }
 
+  private subagentCard(index: number, list: Json[]): StreamJsonEvent[] {
+    const roles = list.map((s) => str(s, 'role', 'type_name')).filter(Boolean)
+    this.running.add(index)
+    return [
+      this.toolUse(this.toolId(index), 'Task', {
+        description: roles.join(', ') || 'subagent',
+        prompt: list
+          .map((s) => str(s, 'initial_prompt') ?? '')
+          .filter(Boolean)
+          .join('\n\n'),
+        subagent_type: str(list[0] ?? {}, 'type_name') ?? 'subagent'
+      })
+    ]
+  }
+
+  private subagentActive(index: number, su: Json): StreamJsonEvent[] {
+    if (this.running.has(index) || this.finished.has(index)) return []
+    const subs = obj(su.subagent_info).subagents
+    const list = (Array.isArray(subs) ? subs : []).map(obj)
+    return [...this.closeText(), ...this.subagentCard(index, list)]
+  }
+
   private subagentDone(index: number, su: Json): StreamJsonEvent[] {
     if (this.finished.has(index)) return []
     const subs = obj(su.subagent_info).subagents
     const list = (Array.isArray(subs) ? subs : []).map(obj)
     const id = this.toolId(index)
     const out = this.closeText()
-    if (!this.running.has(index)) {
-      const roles = list.map((s) => str(s, 'role', 'type_name')).filter(Boolean)
-      out.push(
-        this.toolUse(id, 'Task', {
-          description: roles.join(', ') || 'subagent',
-          prompt: list
-            .map((s) => str(s, 'initial_prompt') ?? '')
-            .filter(Boolean)
-            .join('\n\n'),
-          subagent_type: str(list[0] ?? {}, 'type_name') ?? 'subagent'
-        })
-      )
-    }
+    if (!this.running.has(index)) out.push(...this.subagentCard(index, list))
     this.running.delete(index)
     this.finished.add(index)
     const names = list.map((s) => str(s, 'role', 'type_name') ?? 'subagent')
+    const failed = su.state === 'ERROR' || su.state === 'CANCELED'
+    const logs = list
+      .map((s) => str(s, 'log_uri'))
+      .filter((u): u is string => !!u && u.startsWith('file://'))
+      .map((u) => decodeURIComponent(u.slice('file://'.length)))
+    const childId = list.map((s) => str(s, 'conversation_id')).find(Boolean)
+    if (failed) {
+      out.push(toolResult(id, 'The subagent could not be started.', true))
+      return out
+    }
+    // The card's own answer is that they started; they are working until their
+    // transcripts say they are done. "Async agent launched" is what tells the
+    // chat a sub-agent went on in the background (as Claude's does), and the
+    // task_started below gives it an id.
     out.push(
       toolResult(
         id,
-        names.length
-          ? `Started ${names.length === 1 ? 'a subagent' : `${names.length} subagents`}: ${names.join(', ')}.`
-          : 'Subagents started.',
+        `Async agent launched: ${names.length === 1 ? 'a subagent' : `${names.length} subagents`}${names.length ? ` (${names.join(', ')})` : ''}.`,
         false
       )
     )
+    if (logs.length) {
+      out.push({
+        type: 'system',
+        subtype: 'task_started',
+        task_type: 'local_agent',
+        tool_use_id: id,
+        task_id: childId ?? id,
+        is_backgrounded: true
+      })
+      this.children.push({ toolUseId: id, logs, label: names.join(', ') || 'subagent' })
+    }
     return out
   }
 
