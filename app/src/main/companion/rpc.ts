@@ -27,6 +27,7 @@ import {
   setChatPinned,
   reorderPinned,
   clearChatSession,
+  isIncognitoChat,
   setChatSession,
   swapAgentSession,
   isPendingBranch,
@@ -332,6 +333,11 @@ const PHONE_INPUT_HOLD_MS = 4000
 
 export async function handleRpc(method: RpcMethod, params: unknown): Promise<RpcResult> {
   try {
+    // A phone that knows an incognito chat's id (it cannot, but ids are only
+    // names) is told there is no such chat, for every method that names one.
+    const named = (params as { chatId?: unknown } | null)?.chatId
+    if (typeof named === 'string' && isIncognitoChat(named))
+      return fail('not-found', 'no such chat')
     switch (method) {
       case 'tree.list':
         return { ok: true, result: listTree() }
@@ -1346,20 +1352,23 @@ export function listTree(): WireGroup[] {
 }
 
 export function listChats(): WireChat[] {
-  return listAllChats().map((c) => ({
-    id: c.id,
-    workspaceId: c.workspaceId,
-    title: c.title,
-    updatedAt: c.updatedAt,
-    pinned: Boolean(c.pinned),
-    pinnedAt: c.pinnedAt,
-    live: isGenerating(c.id),
-    preview: lastChatPreview(c.id),
-    provider: getChatProvider(c.id),
-    cwd: c.cwd ?? '',
-    pending: isPendingBranch(c.id),
-    loop: loopFor(c.id)
-  }))
+  // An incognito chat is the Mac's only: the phone is never told it exists.
+  return listAllChats()
+    .filter((c) => c.incognito !== 1)
+    .map((c) => ({
+      id: c.id,
+      workspaceId: c.workspaceId,
+      title: c.title,
+      updatedAt: c.updatedAt,
+      pinned: Boolean(c.pinned),
+      pinnedAt: c.pinnedAt,
+      live: isGenerating(c.id),
+      preview: lastChatPreview(c.id),
+      provider: getChatProvider(c.id),
+      cwd: c.cwd ?? '',
+      pending: isPendingBranch(c.id),
+      loop: loopFor(c.id)
+    }))
 }
 
 /**

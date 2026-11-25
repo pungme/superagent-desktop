@@ -17228,3 +17228,40 @@ button.rov-run:not(:disabled):hover {
   white-space: nowrap;
   color: var(--text-tertiary);
 }
+
+/* Incognito chats: a ghost in the sidebar and a notice in the chat. */
+.incognito-glyph {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.sidebar-chat-row.incognito .sidebar-item-name {
+  font-style: italic;
+}
+.incognito-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px auto 0;
+  max-width: 720px;
+  padding: 10px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.incognito-notice .incognito-glyph {
+  margin-top: 2px;
+}
+.incognito-notice b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.incognito-notice button {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-primary);
+  text-decoration: underline;
+  white-space: nowrap;
+  margin-left: auto;
+}

@@ -175,6 +175,8 @@ export interface Chat {
   pinnedAt: number | null
   /** Worktree override — the chat's agent runs here instead of the project path. */
   cwd: string | null
+  /** 1 for an incognito chat: not on the phone, deleted when it ends. */
+  incognito?: number
   /**
    * 1 while the chat is waiting to cut its own branch on its first message.
    * Comes from main's kv — the one copy both the window and the phone write —
@@ -748,7 +750,7 @@ export interface CoveApi {
   chatMove: (chatId: string, toIndex: number) => Promise<boolean>
   /** Messages mentioning `query` across every conversation, newest first. */
   chatSearch: (query: string, limit?: number) => Promise<ChatSearchHit[]>
-  chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
+  chatCreate: (workspaceId: string, cwd?: string, incognito?: boolean) => Promise<string>
   /** Move a conversation to another workspace — Chats, to take it out of its project. */
   chatMoveToWorkspace: (chatId: string, toWorkspaceId: string) => Promise<boolean>
   /** The desktop's own chat: a workspace that belongs to no project. */
@@ -1687,7 +1689,8 @@ const cove: CoveApi = {
   chatReorderPinned: (chatIds) => ipcRenderer.invoke('chat:reorder-pinned', chatIds),
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),
   chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),
-  chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
+  chatCreate: (workspaceId, cwd, incognito) =>
+    ipcRenderer.invoke('chat:create', workspaceId, cwd, incognito),
   chatMoveToWorkspace: (chatId, toWorkspaceId) =>
     ipcRenderer.invoke('chat:move-to-workspace', chatId, toWorkspaceId),
   desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
@@ -1761,6 +1764,7 @@ const cove: CoveApi = {
       'menu:new-project',
       'menu:new-chat',
       'menu:new-group',
+      'menu:new-incognito-chat',
       'menu:skills',
       'menu:routines',
       'menu:reload-page',

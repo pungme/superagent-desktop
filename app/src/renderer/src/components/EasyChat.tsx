@@ -1,4 +1,5 @@
 import { useSavedPrompts, type SavedPrompt } from '../lib/saved-prompts'
+import { GhostGlyph } from './GhostGlyph'
 import { SavedPromptsBar } from './SavedPrompts'
 import { floatStatus, plainText } from '../../../shared/float-chat'
 import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
@@ -2453,6 +2454,9 @@ export function EasyChat({
   // agent (resuming the conversation) so the new --model / --permission-mode take
   // effect immediately without losing context.
   const model = useStore((s) => s.model)
+  const incognito = useStore(
+    (s) => s.chats[workspaceId]?.find((c) => c.id === chatId)?.incognito === 1
+  )
   /**
    * THIS conversation's model. The picker used to write the one global value
    * that every chat read, so switching the model here switched it under every
@@ -6250,6 +6254,21 @@ export function EasyChat({
           </div>
         )}
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
+          {incognito && (
+            <div className="incognito-notice" data-testid="incognito-notice">
+              <GhostGlyph size={15} />
+              <span>
+                <b>Incognito.</b> Superagent keeps nothing of this chat: it is deleted when you
+                delete it or quit, and it never shows on your phone. Your agent&rsquo;s provider
+                still receives what you write.
+              </span>
+              <button
+                onClick={() => void useStore.getState().removeChat(workspaceId, chatId, true)}
+              >
+                Delete now
+              </button>
+            </div>
+          )}
           {showMore && !(toolbarSlot && visible) && renderMore(false)}
           {items.length === 0 && (ready || suspended) && (
             <div className="easy-empty">

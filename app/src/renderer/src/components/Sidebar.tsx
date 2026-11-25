@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { GhostGlyph } from './GhostGlyph'
 import { branchLabel, cleanUpQuestion, otherBranchesLabel } from '../../../shared/other-branches'
 import { createPortal } from 'react-dom'
 import {
@@ -1876,6 +1877,19 @@ function ChatsSection(): React.JSX.Element {
               <path d="M11.5 2.5l2 2L8 10H6V8z" />
             </svg>
           </button>
+          <button
+            className="group-add"
+            title="New incognito chat — deleted when it ends, never on your phone"
+            aria-label="New incognito chat"
+            data-testid="new-incognito-chat"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('cove:new-chat', { detail: { incognito: true } })
+              )
+            }
+          >
+            <GhostGlyph size={13} />
+          </button>
         </span>
       </div>
       {!collapsed &&
@@ -1886,7 +1900,9 @@ function ChatsSection(): React.JSX.Element {
           return (
             <div
               key={c.id}
-              className={`sidebar-item sidebar-chat-row ${on ? 'active' : ''}`}
+              className={`sidebar-item sidebar-chat-row ${on ? 'active' : ''} ${
+                c.incognito === 1 ? 'incognito' : ''
+              }`}
               data-chat-id={c.id}
               onClick={() => open(c.id)}
               onDoubleClick={() => {
@@ -1923,6 +1939,7 @@ function ChatsSection(): React.JSX.Element {
                   ) : (
                     <span className={`sidebar-chat-dot ${fresh ? 'unread' : ''}`} />
                   )}
+                  {c.incognito === 1 && <GhostGlyph size={12} />}
                   <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
                   <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
                   {/* Takes the time's place on hover, so the row does not shift. */}

@@ -478,7 +478,7 @@ interface CoveState {
    * New conversation. On a git repo this ALSO creates a private worktree —
    * a chat is a checkout — falling back to a plain chat if git refuses.
    */
-  newChat: (workspaceId: string) => Promise<void>
+  newChat: (workspaceId: string, opts?: { incognito?: boolean }) => Promise<void>
   /**
    * Cut the branch a pending chat has been waiting for, named from its opening
    * message, and return the directory the agent must run in. null when there is
@@ -1510,7 +1510,7 @@ export const useStore = create<CoveState>((set, get) => ({
       chatLoadInflight.delete(workspaceId)
     }
   },
-  newChat: async (workspaceId) => {
+  newChat: async (workspaceId, opts) => {
     // A branch costs a directory, a git ref and a row in your sidebar, and until
     // you have said anything there is nothing to name it after. So a new chat is
     // only a conversation; the branch is cut on the first message, named from
@@ -1519,10 +1519,17 @@ export const useStore = create<CoveState>((set, get) => ({
     const ws = get()
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
-    const id = await window.cove.chatCreate(workspaceId)
+    const incognito = opts?.incognito === true
+    const id = await window.cove.chatCreate(workspaceId, undefined, incognito)
     // A repo, or a folder of them: either way there is something to cut a copy
-    // of, and main decides which (chat-copy.ts).
-    if (ws && ws.kind !== 'browser' && (await window.cove.projectCopyKind(ws.path)) !== null) {
+    // of, and main decides which (chat-copy.ts). Not for an incognito chat: it
+    // is meant to leave nothing behind, and a branch is something left behind.
+    if (
+      !incognito &&
+      ws &&
+      ws.kind !== 'browser' &&
+      (await window.cove.projectCopyKind(ws.path)) !== null
+    ) {
       try {
         localStorage.setItem(`pendingBranch:${id}`, '1')
       } catch {

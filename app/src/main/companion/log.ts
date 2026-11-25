@@ -15,6 +15,7 @@ import {
 } from '../transcript'
 import {
   appendChatEvent,
+  isIncognitoChat,
   appendChatItems,
   chatEventCount,
   chatEventTs,
@@ -55,6 +56,9 @@ function remember(ev: WireEvent): void {
 
 /** Persist + fan out one event. Returns the stored event. */
 export function record(chatId: string, data: WireEventData): WireEvent {
+  // An incognito chat is not on the phone: nothing is kept for it to catch up
+  // from, and nothing is sent to it.
+  if (isIncognitoChat(chatId)) return { chatId, seq: 0, ts: Date.now(), data }
   ensureBackfilled(chatId)
   const seq = appendChatEvent(chatId, data.kind, data)
   const ev: WireEvent = { chatId, seq, ts: Date.now(), data }

@@ -298,6 +298,12 @@ export function CommandPalette({
         keywords: 'bug report triage issue crash freeze logs',
         run: () => void window.cove.diagnoseOpen()
       },
+      {
+        id: 'chat.incognito',
+        label: 'New incognito chat',
+        run: () =>
+          window.dispatchEvent(new CustomEvent('cove:new-chat', { detail: { incognito: true } }))
+      },
       { id: 'nav.skills', label: 'Skills', run: () => dispatch('cove:open-skills') },
       { id: 'nav.routines', label: 'Routines', run: () => dispatch('cove:open-routines') },
       {

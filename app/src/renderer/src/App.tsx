@@ -410,13 +410,14 @@ function App(): React.JSX.Element {
     const openChats = (): void => show('chats')
     // A conversation that belongs to no project: straight into Chats with a
     // fresh one open, rather than open Chats, then find its + New chat.
-    const newChatInChats = async (): Promise<void> => {
+    const newChatInChats = async (incognito = false): Promise<void> => {
       const home = await window.cove.desktopChatHome?.()
       if (!home) return
       show('chats')
-      await useStore.getState().newChat(home.workspaceId)
+      await useStore.getState().newChat(home.workspaceId, { incognito })
     }
-    const onNewChat = (): void => void newChatInChats()
+    const onNewChat = (e: Event): void =>
+      void newChatInChats((e as CustomEvent<{ incognito?: boolean } | undefined>).detail?.incognito)
     window.addEventListener('cove:new-chat', onNewChat)
     // "Open in Superagent" on the dot: straight to that conversation, whether
     // it is a project's or one of the Computer's own.
@@ -636,6 +637,8 @@ function App(): React.JSX.Element {
       else if (action === 'command-palette') setPaletteOpen((v) => !v)
       else if (action === 'new-group') addGroup()
       else if (action === 'new-chat') window.dispatchEvent(new CustomEvent('cove:new-chat'))
+      else if (action === 'new-incognito-chat')
+        window.dispatchEvent(new CustomEvent('cove:new-chat', { detail: { incognito: true } }))
       else if (action === 'new-project') {
         const firstGroup = useStore.getState().tree[0]
         if (firstGroup) addWorkspace(firstGroup.id)

@@ -117,7 +117,8 @@ import { buildDiagnostics } from './diagnostics'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
-import { appendChatEvent, kvByPrefix } from './store'
+import { appendChatEvent, clearIncognitoLeftovers, kvByPrefix, purgeIncognitoChats } from './store'
+import { sessionHomes } from './incognito'
 import { appHotkey, bringAppForward, registerAppHotkey } from './app-hotkey'
 import { askToOpen, registerOpenRequests } from './open-request'
 import {
@@ -445,6 +446,15 @@ app.whenReady().then(async () => {
   buildMenu()
   startHookServer()
   startRoutines()
+  // Incognito chats do not outlive a session: any a crash left are gone now, with
+  // the agents' own logs of them (and of the ones the last quit left behind).
+  try {
+    const homes = sessionHomes(app.getPath('userData'))
+    purgeIncognitoChats(homes)
+    clearIncognitoLeftovers(homes)
+  } catch (e) {
+    console.error('incognito sweep failed', e)
+  }
   // The phone companion: an outbound relay connection that stays up.
   registerCompanionIpc((e) => fromMainWindow(e, isDotWindow))
   startCompanion()
@@ -1163,6 +1173,12 @@ app.on('will-quit', () => {
   stopAllSimInput()
   // Quit means quit: the conversations' simulators go too (not the person's own).
   shutDownSimulatorsOnQuit()
+  // Incognito chats end with the app.
+  try {
+    purgeIncognitoChats(sessionHomes(app.getPath('userData')))
+  } catch {
+    // the next start sweeps them
+  }
 })
 
 /** The app's own windows are all closed (the dot does not count as one). */

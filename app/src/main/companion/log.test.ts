@@ -10,7 +10,8 @@ const { mem, fakeBus, cleared } = vi.hoisted(() => {
     mem: {
       events: new Map<string, { seq: number; kind: string; data: string; ts: number }[]>(),
       items: new Map<string, unknown[]>(),
-      owned: new Map<string, boolean>()
+      owned: new Map<string, boolean>(),
+      incognito: new Set<string>()
     },
     fakeBus: new EventEmitter(),
     cleared: [] as ((ids: string[]) => void)[]
@@ -24,6 +25,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: () => [] }
 }))
 vi.mock('../store', () => ({
+  isIncognitoChat: (chatId: string) => mem.incognito.has(chatId),
   appendChatEvent: (chatId: string, kind: string, data: unknown) => {
     const buf = mem.events.get(chatId) ?? []
     const seq = buf.length + 1
@@ -72,6 +74,7 @@ function clearChat(chatId: string): void {
 
 describe('companion log', () => {
   beforeEach(() => {
+    mem.incognito.clear()
     mem.events.clear()
     mem.items.clear()
     mem.owned.clear()
@@ -210,12 +213,34 @@ describe('clipForPhone', () => {
   it('keeps the first part of a huge message and says what it left out', async () => {
     const { clipForPhone } = await import('./log')
     const big = 'x'.repeat(100_000)
-    const out = clipForPhone({ chatId: 'c', seq: 1, ts: 1, data: { kind: 'user', id: 'u', text: big } as never })
+    const out = clipForPhone({
+      chatId: 'c',
+      seq: 1,
+      ts: 1,
+      data: { kind: 'user', id: 'u', text: big } as never
+    })
     const text = (out.data as { text: string }).text
     expect(text.startsWith('x'.repeat(60_000))).toBe(true)
     expect(text.length).toBeLessThan(60_200)
     expect(text).toContain('40,000 more characters')
-    const small = { chatId: 'c', seq: 2, ts: 1, data: { kind: 'assistant', id: 'a', text: 'hi' } as never }
+    const small = {
+      chatId: 'c',
+      seq: 2,
+      ts: 1,
+      data: { kind: 'assistant', id: 'a', text: 'hi' } as never
+    }
     expect(clipForPhone(small)).toBe(small)
+  })
+  it('keeps nothing of an incognito chat and tells nobody', () => {
+    mem.incognito.add('secret')
+    const seen: unknown[] = []
+    logBus.on('event', (e: unknown) => seen.push(e))
+    const ev = record('secret', { kind: 'user', id: 'u1', text: 'private', images: [] } as never)
+    expect(ev.seq).toBe(0)
+    expect(mem.events.get('secret')).toBeUndefined()
+    expect(eventsAfter('secret', 0).events).toEqual([])
+    expect(seen).toEqual([])
+    // Another chat is recorded as before.
+    expect(record('open', { kind: 'user', id: 'u2', text: 'hi', images: [] } as never).seq).toBe(1)
   })
 })

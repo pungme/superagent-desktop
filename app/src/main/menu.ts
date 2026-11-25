@@ -68,6 +68,12 @@ export function buildMenu(): void {
           label: 'New Chat',
           click: () => send('menu:new-chat')
         },
+        // Kept only while Superagent is open, and never on the phone.
+        {
+          label: 'New Incognito Chat',
+          accelerator: 'Alt+CmdOrCtrl+Shift+N',
+          click: () => send('menu:new-incognito-chat')
+        },
         {
           label: 'New Project…',
           accelerator: 'CmdOrCtrl+N',

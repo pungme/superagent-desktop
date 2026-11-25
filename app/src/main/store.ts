@@ -28,6 +28,7 @@ import { toProvider, type AgentProvider } from '../shared/agent-provider'
 import { broadcastToWindows } from './util'
 import { deskRoot } from './desk'
 import { readThumbnail } from './companion/attachments'
+import { forgetAgentSession, sessionHomes, type SessionHomes } from './incognito'
 
 /**
  * Superagent persistence: groups → workspaces → tabs.
@@ -300,6 +301,13 @@ export function initStore(): void {
   const chatCols7 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
   if (chatCols7.length > 0 && !chatCols7.some((c) => c.name === 'agentSessions')) {
     db.exec('ALTER TABLE chats ADD COLUMN agentSessions TEXT')
+  }
+
+  // An incognito chat is kept for the session only: not on the phone, deleted
+  // when it is closed or Superagent quits (incognito.ts, purgeIncognitoChats).
+  const chatCols8 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols8.length > 0 && !chatCols8.some((c) => c.name === 'incognito')) {
+    db.exec('ALTER TABLE chats ADD COLUMN incognito INTEGER NOT NULL DEFAULT 0')
   }
 
   const chatCols6 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
@@ -685,12 +693,14 @@ export interface ChatRow {
   /** When it was pinned — fixes the Pinned list's order; null while unpinned. */
   pinnedAt: number | null
   cwd: string | null
+  /** 1 for a chat that is deleted when it ends and never reaches the phone. */
+  incognito?: number
 }
 
 export function getChat(chatId: string): ChatRow | undefined {
   const row = db
     .prepare(
-      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd FROM chats WHERE id = ?'
+      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd, incognito FROM chats WHERE id = ?'
     )
     .get(chatId) as ChatRow | undefined
   return row ? { ...row, provider: toProvider(row.provider) } : undefined
@@ -943,7 +953,7 @@ export function listAllChats(): ChatRow[] {
   return (
     db
       .prepare(
-        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC'
+        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd, incognito FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC'
       )
       .all() as ChatRow[]
   ).map((row) => ({ ...row, provider: toProvider(row.provider) }))
@@ -1127,7 +1137,71 @@ export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): bool
   return true
 }
 
+export function isIncognitoChat(chatId: string): boolean {
+  const row = db.prepare('SELECT incognito FROM chats WHERE id = ?').get(chatId) as
+    { incognito: number } | undefined
+  return row?.incognito === 1
+}
+
+const LEFTOVER_KEY = 'incognito.leftovers'
+interface Leftover {
+  provider: string
+  id: string
+}
+
+/**
+ * Delete every incognito chat, and the agents' own logs of them. Run when
+ * Superagent quits and again when it starts (a crash skips the first). The
+ * sessions are written down first, because an agent that is still shutting
+ * down can write its log once more after this ran; the next start removes
+ * those too.
+ */
+export function purgeIncognitoChats(homes: SessionHomes): number {
+  const rows = db
+    .prepare('SELECT id, provider, claudeSessionId FROM chats WHERE incognito = 1')
+    .all() as { id: string; provider: string | null; claudeSessionId: string | null }[]
+  if (!rows.length) return 0
+  let left: Leftover[] = []
+  try {
+    left = JSON.parse(kvGet(LEFTOVER_KEY) ?? '[]') as Leftover[]
+  } catch {
+    left = []
+  }
+  for (const r of rows) {
+    if (!r.claudeSessionId) continue
+    const provider = r.provider ?? 'claude'
+    forgetAgentSession(provider, r.claudeSessionId, homes)
+    left.push({ provider, id: r.claudeSessionId })
+  }
+  kvSet(LEFTOVER_KEY, JSON.stringify(left.slice(-200)))
+  for (const r of rows) deleteChat(r.id)
+  return rows.length
+}
+
+/** Called once at start-up, after a purge: the leftovers' logs are gone for good. */
+export function clearIncognitoLeftovers(homes: SessionHomes): void {
+  let left: Leftover[] = []
+  try {
+    left = JSON.parse(kvGet(LEFTOVER_KEY) ?? '[]') as Leftover[]
+  } catch {
+    left = []
+  }
+  for (const l of left) forgetAgentSession(l.provider, l.id, homes)
+  kvDel(LEFTOVER_KEY)
+}
+
 export function deleteChat(chatId: string): void {
+  // An incognito chat takes the agent's own log of its session with it.
+  const gone = db
+    .prepare('SELECT incognito, provider, claudeSessionId FROM chats WHERE id = ?')
+    .get(chatId) as
+    { incognito: number; provider: string | null; claudeSessionId: string | null } | undefined
+  if (gone?.incognito === 1 && gone.claudeSessionId)
+    forgetAgentSession(
+      gone.provider ?? 'claude',
+      gone.claudeSessionId,
+      sessionHomes(app.getPath('userData'))
+    )
   void transcriptRequest('clear', chatId).catch(console.error)
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
   db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
@@ -1180,7 +1254,7 @@ export function getChatIdBySession(sessionId: string): string | undefined {
 }
 
 /** A new, empty chat at the end of a project's list. Returns its id. */
-export function createChat(workspaceId: string, cwd?: string): string {
+export function createChat(workspaceId: string, cwd?: string, incognito = false): string {
   const id = randomUUID()
   const next =
     ((
@@ -1194,8 +1268,18 @@ export function createChat(workspaceId: string, cwd?: string): string {
   // that had never run — including ones made weeks earlier. They are supposed to
   // be independent; a per-chat choice must not reach into other chats.
   db.prepare(
-    'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd, provider) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?)'
-  ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null, toProvider(kvGet('cove.provider')))
+    'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd, provider, incognito) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    id,
+    workspaceId,
+    incognito ? 'Incognito chat' : null,
+    next,
+    Date.now(),
+    '[]',
+    cwd ?? null,
+    toProvider(kvGet('cove.provider')),
+    incognito ? 1 : 0
+  )
   return id
 }
 
@@ -2260,7 +2344,7 @@ function registerStoreIpcTail(): void {
         // pending comes from kv, where BOTH clients write it — the window used
         // to read only its own localStorage copy, so a chat the phone created
         // was invisible in the sidebar until the next launch.
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd, incognito,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending,
                 (SELECT value FROM kv WHERE key = 'chatNow:' || chats.id) AS now
          FROM chats WHERE workspaceId = ? ORDER BY pinned DESC, position ASC, updatedAt ASC`
@@ -2291,7 +2375,7 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd, incognito,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending,
                 (SELECT value FROM kv WHERE key = 'chatNow:' || chats.id) AS now
          FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC`
@@ -2346,7 +2430,8 @@ function registerStoreIpcTail(): void {
   })
   ipcMain.handle('events:dashboard', (_e, rangeDays?: number) => getDashboard(rangeDays))
 
-  ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
+  ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string, incognito?: boolean) => {
+    if (incognito === true) return createChat(String(workspaceId), cwd, true)
     const id = randomUUID()
     const next =
       ((
