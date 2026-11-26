@@ -17,6 +17,16 @@ describe('the background tasks rule', () => {
   })
 })
 
+describe('the CRM briefing', () => {
+  it('tells every agent that "our CRM" is the built-in contacts, to be read before asking', () => {
+    for (const provider of ['claude', 'codex', 'antigravity'] as const) {
+      const p = buildAppendedPrompt({ provider, workspaceId: 'w1' })
+      expect(p).toContain('built-in CRM')
+      expect(p).toContain('call contacts_list first')
+    }
+  })
+})
+
 describe('the browser briefing', () => {
   it("tells a project's agent which browser it's on and that it can use the user's own", () => {
     const p = buildAppendedPrompt({ provider: 'claude', workspaceId: 'w1', browser: 'Superagent' })

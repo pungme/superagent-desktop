@@ -71,7 +71,12 @@ const TODO_PROMPT =
 
 // Outreach: who the project is in touch with, kept apart from the work list.
 const CONTACTS_PROMPT =
-  'This project also keeps its contacts: the people it is reaching out to (funders, venues, ' +
+  'This project has a built-in CRM: its contacts. When the user says "the CRM", "our CRM", ' +
+  '"contacts", "the tracker" or "outreach list", this is what they mean: call contacts_list ' +
+  'first, before searching files or asking which one. If it is empty and the project has an ' +
+  'outreach file or spreadsheet, import it with contacts_add (then keep it in sync) instead of ' +
+  'asking where the CRM lives. ' +
+  'It keeps the people the project is reaching out to (funders, venues, ' +
   'partners, customers) with what was asked and where each stands (not_sent, sent = waiting ' +
   'on them, replied, yes, no) and a follow-up day. The user sees them on the Contacts tab. ' +
   'When the user works on outreach, or shares a list of people to contact, keep them there ' +
