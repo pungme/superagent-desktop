@@ -92,7 +92,12 @@ import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
 import { registerPromptLinks, promptLinksReady } from './prompt-links'
 import { agyModels } from './antigravity/exec'
-import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from './external-browser'
+import {
+  registerExternalBrowserIpc,
+  closeExternalBrowsers,
+  finishSignIn,
+  allowBrowserReopen
+} from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
 import { registerAccountsIpc } from './accounts'
@@ -421,7 +426,11 @@ app.whenReady().then(async () => {
   registerExternalBrowserIpc(icon)
   // A message from the user, on the Mac or the phone, means they're back from
   // any sign-in window: hand the browser back to the agent without being asked.
-  agentBus.on('user', () => finishSignIn())
+  agentBus.on('user', () => {
+    finishSignIn()
+    // A browser the user closed may be opened again once they speak: they are back.
+    allowBrowserReopen()
+  })
   // What the user last said in each chat: their own "use my Brave" lets the
   // agent's browser_use switch without asking first (browser-ask.ts).
   agentBus.on('user', ({ chatId, text }: { chatId?: string; text?: string }) =>

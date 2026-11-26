@@ -33,6 +33,7 @@ import {
   openExternalTab,
   closeExternalTab,
   stopBrowser,
+  allowBrowserReopen,
   closeExternalBrowsers,
   windowCount,
   BrowserConnection
@@ -263,6 +264,36 @@ describe.skipIf(!haveBrave)('driving a real Brave', () => {
       expect(again.targetId).not.toBe(fresh.targetId)
     } finally {
       await stopBrowser('brave')
+    }
+  }, 60_000)
+
+  it('stays closed when the user closes it, until they ask for it again', async () => {
+    // The guard is off in quiet test runs (nobody is there to close a window).
+    const quiet = process.env.COVE_E2E_QUIET
+    delete process.env.COVE_E2E_QUIET
+    allowBrowserReopen()
+    try {
+      const conn = await ensureRunning('brave')
+      // Wait until the browser has reported its first tab.
+      for (let i = 0; i < 50 && !conn.hadTabs; i++) await new Promise((r) => setTimeout(r, 100))
+      expect(conn.hadTabs).toBe(true)
+      // The user quits Brave (not Superagent: it is still on the list).
+      const gone = new Promise((r) => conn.proc.once('exit', r))
+      conn.proc.kill('SIGTERM')
+      await gone
+      // Let its helpers and the profile lock go before anything starts it again.
+      await new Promise((r) => setTimeout(r, 2000))
+      // An agent step that wants the browser does not bring it back.
+      await expect(ensureRunning('brave')).rejects.toThrow('The user closed Brave')
+      await expect(ensureRunning('brave')).rejects.toThrow('The user closed Brave')
+      // The user speaks (or opens the window): it may start again.
+      allowBrowserReopen()
+      const again = await ensureRunning('brave')
+      expect(again).not.toBe(conn)
+    } finally {
+      if (quiet !== undefined) process.env.COVE_E2E_QUIET = quiet
+      await stopBrowser('brave')
+      await new Promise((r) => setTimeout(r, 2000))
     }
   }, 60_000)
 })

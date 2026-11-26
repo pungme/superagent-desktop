@@ -190,6 +190,7 @@ export async function switchBrowser(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!installedBrowsers().some((b) => b.id === id)) return { ok: false, error: 'Not installed' }
   setBrowserFor(scope, id)
+  allowBrowserReopen(id)
   forgetExternalPages(scope)
   broadcastToWindows('browsers:changed', { scope, id })
   if (id === 'builtin' || !opts.open) return { ok: true }
@@ -257,6 +258,10 @@ export class BrowserConnection {
   closed = false
   /** Every tab open in this browser, in the order they were opened (see watchTabs). */
   readonly tabs = new Map<string, { title: string; url: string }>()
+  /** A tab has been open at some point: with none left, the user closed the last window. */
+  hadTabs = false
+  /** Superagent closed the last tab itself (closeExternalTab): empty is then expected. */
+  ownClose = false
 
   constructor(readonly proc: ChildProcess) {
     const incoming = proc.stdio[4] as Readable
@@ -541,10 +546,46 @@ export async function stopBrowser(id: BrowserId): Promise<boolean> {
   return true
 }
 
+/**
+ * Browsers the USER closed (quit them, or closed their last window) while an agent
+ * had them. An agent step that needed the browser used to start it again at once,
+ * so closing it was undone within seconds, over and over. Now a closed browser
+ * stays closed until the user asks for it (a message to the agent, Open window,
+ * choosing the browser) — see allowBrowserReopen. In a test run it is ignored.
+ */
+const closedByUser = new Map<BrowserId, number>()
+
+/** The user is back and asking: agents may open their browser again. */
+export function allowBrowserReopen(id?: BrowserId): void {
+  if (id) closedByUser.delete(id)
+  else closedByUser.clear()
+}
+
+function userClosedError(id: BrowserId): Error {
+  return new Error(
+    `The user closed ${browserName(id)}. Do not open it again by yourself: tell them what you ` +
+      'were about to do in it and ask whether to go on. It is available again after their next message.'
+  )
+}
+
 /** Start the browser with its Superagent profile (or reuse it), and return its connection. */
 export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const existing = running.get(id)
-  if (existing && !existing.closed) return existing
+  if (existing && !existing.closed) {
+    // Alive, but every window of it was closed by hand: it is closed, not waiting for a new tab.
+    if (
+      process.env.COVE_E2E_QUIET !== '1' &&
+      existing.hadTabs &&
+      existing.tabs.size === 0 &&
+      !existing.ownClose
+    ) {
+      closedByUser.set(id, Date.now())
+      void stopBrowser(id).catch(() => undefined)
+      throw userClosedError(id)
+    }
+    return existing
+  }
+  if (closedByUser.has(id) && process.env.COVE_E2E_QUIET !== '1') throw userClosedError(id)
   // The user is signing in (signInYourself): wait for them rather than fail —
   // an agent told "try again later" tried again at once, over and over.
   const waitUntil = Date.now() + signInWaitMs()
@@ -585,7 +626,12 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const conn = new BrowserConnection(proc)
   running.set(id, conn)
   proc.once('exit', () => {
-    if (running.get(id) === conn) running.delete(id)
+    // Still registered: nobody here asked it to stop (stopBrowser and quitting
+    // take it off the list first), so the user quit it, or it died.
+    if (running.get(id) === conn) {
+      running.delete(id)
+      if (conn.hadTabs && process.env.COVE_E2E_QUIET !== '1') closedByUser.set(id, Date.now())
+    }
   })
   // Ready when it answers. If this profile is already open in a copy of the
   // browser started some other way, ours hands over to it and exits at once.
@@ -634,7 +680,11 @@ function watchTabs(id: BrowserId, conn: BrowserConnection): void {
     const url = info.url ?? ''
     // The browser's own pages (DevTools, extension pages) aren't tabs to offer.
     if (/^(devtools|chrome-extension):/.test(url)) conn.tabs.delete(info.targetId)
-    else conn.tabs.set(info.targetId, { title: info.title ?? '', url })
+    else {
+      conn.tabs.set(info.targetId, { title: info.title ?? '', url })
+      conn.hadTabs = true
+      conn.ownClose = false
+    }
     const now = isGoogleSignInRejected(url)
     const was = refused.has(info.targetId)
     if (now) refused.add(info.targetId)
@@ -676,6 +726,8 @@ export function closeExternalBrowsers(): void {
  * everyday one rather than the agent's. `open -a` is only the last resort.
  */
 export async function showBrowserWindow(id: BrowserId, paneId?: string): Promise<void> {
+  // The user asked for the window: that is the "open it again" they were not given.
+  allowBrowserReopen(id)
   try {
     const page = paneId ? existingExternalPage(paneId) : undefined
     if (page) {
@@ -1002,6 +1054,7 @@ export async function openExternalTab(
 /** Close a tab. The pane whose tab it was opens a new one on its next step. */
 export async function closeExternalTab(id: BrowserId, targetId: string): Promise<void> {
   const conn = await ensureRunning(id)
+  conn.ownClose = true
   await conn.send('Target.closeTarget', { targetId }).catch(() => {})
   conn.tabs.delete(targetId)
   for (const [paneId, page] of pages) if (page.targetId === targetId) pages.delete(paneId)
