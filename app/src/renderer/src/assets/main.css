@@ -17898,3 +17898,23 @@ button.easy-run-agent {
 .settings-sim-keep:hover {
   color: var(--text-primary);
 }
+
+/* Today: delete a to-do, shown on hover. */
+.today-del {
+  all: unset;
+  cursor: pointer;
+  width: 18px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  opacity: 0;
+  flex: none;
+}
+.today-td:hover .today-del,
+.today-del:focus-visible {
+  opacity: 1;
+}
+.today-del:hover {
+  color: #d1495b;
+}

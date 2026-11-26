@@ -99,6 +99,13 @@ test("it shows today's events, every project's open to-dos, and can tick one off
   await todo.getByLabel('New to-do').press('Enter')
   await expect(todo.locator('.today-td')).toHaveCount(2)
   await expect(todo).toContainText('Book the train to Berlin')
+
+  // Deleted: gone from Today and from its project's board.
+  window.once('dialog', (d) => void d.accept())
+  await todo.locator('.today-td', { hasText: 'Book the train to Berlin' }).hover()
+  await todo.getByRole('button', { name: 'Delete: Book the train to Berlin' }).click()
+  await expect(todo.locator('.today-td')).toHaveCount(1)
+  await expect(todo).not.toContainText('Book the train to Berlin')
 })
 
 test('the ask box waits for words', async () => {

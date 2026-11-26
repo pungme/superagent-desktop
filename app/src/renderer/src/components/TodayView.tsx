@@ -289,6 +289,17 @@ export function TodayView({ visible }: { visible: boolean }): React.JSX.Element 
                     {handing === c.id ? 'Handing…' : 'Hand to agent'}
                   </button>
                 )}
+                <button
+                  className="today-del"
+                  aria-label={`Delete: ${c.title}`}
+                  title="Delete"
+                  onClick={() => {
+                    if (window.confirm(`Delete “${c.title}”?`))
+                      void window.cove.boardRemove(c.id).then(load)
+                  }}
+                >
+                  ×
+                </button>
               </div>
             )
           })}
