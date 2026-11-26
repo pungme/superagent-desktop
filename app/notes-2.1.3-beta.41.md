@@ -1,4 +1,4 @@
-# Superagent 2.1.3-beta.40
+# Superagent 2.1.3-beta.41
 
 **Contacts is a real table now.** Name with initials, a coloured status, the next follow-up date and your first custom field line up under column headers. Filter by status with counts, search always on. Open a person and every detail is there to click and fill in: status, email, who, ask, follow-up and your own fields, with the history as a timeline.
 

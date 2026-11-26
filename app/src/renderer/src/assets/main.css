@@ -17652,14 +17652,19 @@ button.easy-run-agent {
   text-overflow: ellipsis;
 }
 .cx-detail {
-  margin: 4px 10px 12px 48px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--group-card);
+  margin: 0 0 8px;
+  padding: 6px 10px 14px 48px;
+  background: var(--hover);
+  border-radius: 0 0 8px 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.cx-item.open .cx-row {
+  border-radius: 8px 8px 0 0;
+}
+.cx-item.open {
+  border-bottom-color: transparent;
 }
 .cx-dhead {
   display: flex;
@@ -17681,10 +17686,10 @@ button.easy-run-agent {
   box-sizing: content-box;
 }
 .cx-in:hover {
-  background: var(--hover);
+  background: var(--active);
 }
 .cx-in:focus {
-  background: var(--hover);
+  background: var(--active);
   border-color: var(--border-strong);
 }
 .cx-name {
