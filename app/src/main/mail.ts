@@ -5,7 +5,7 @@ import { isAbsolute, join } from 'path'
 import { ipcMain, shell } from 'electron'
 import { z } from 'zod'
 import { kvGet, kvSet } from './store'
-import { COMPOSE_SCRIPT, MAIL_SCRIPT } from './mail-script'
+import { COMPOSE_SCRIPT, MAIL_SCRIPT, MAILTO_DRAFT_SCRIPT } from './mail-script'
 import type { MailConnectionStatus } from '../shared/mail'
 
 const KEY = 'connections.appleMail'
@@ -83,11 +83,35 @@ export function mailStatus(): MailConnectionStatus {
   return { supported: process.platform === 'darwin', connected: mailConnected() }
 }
 
+/** mailto: for a plain message: recipients, cc, bcc, subject and body, percent-encoded. */
+export function mailtoUrl(m: Record<string, unknown>): string {
+  const addrs = (v: unknown): string =>
+    Array.isArray(v) ? v.map((a) => encodeURIComponent(String(a))).join(',') : ''
+  const q: string[] = []
+  if (addrs(m.cc)) q.push(`cc=${addrs(m.cc)}`)
+  if (addrs(m.bcc)) q.push(`bcc=${addrs(m.bcc)}`)
+  q.push(`subject=${encodeURIComponent(String(m.subject ?? ''))}`)
+  q.push(`body=${encodeURIComponent(String(m.body ?? ''))}`)
+  return `mailto:${addrs(m.to)}?${q.join('&')}`
+}
+
 /** The osascript arguments for one request: JXA for reading, AppleScript to write. */
 function scriptArgs(input: { op: string } & Record<string, unknown>): string[] {
   if (input.op !== 'draft' && input.op !== 'send')
     return ['-l', 'JavaScript', '-e', MAIL_SCRIPT, JSON.stringify(input)]
   const list = (v: unknown): string => (Array.isArray(v) ? v.map(String).join('\n') : '')
+  if (
+    input.op === 'draft' &&
+    !input.html &&
+    !(Array.isArray(input.attachments) && input.attachments.length)
+  )
+    return [
+      '-e',
+      MAILTO_DRAFT_SCRIPT,
+      String(input.subject ?? ''),
+      mailtoUrl(input),
+      String(input.from ?? '')
+    ]
   return [
     '-e',
     COMPOSE_SCRIPT,

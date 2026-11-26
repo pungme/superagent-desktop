@@ -10,7 +10,7 @@ vi.mock('./store', () => ({
 vi.mock('child_process', () => ({ execFile: h.exec }))
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() }, shell: { openExternal: vi.fn() } }))
 import { callMail, connectMail, disconnectMail, mailConnected, mailStatus } from './mail'
-import { COMPOSE_SCRIPT, MAIL_SCRIPT } from './mail-script'
+import { COMPOSE_SCRIPT, MAIL_SCRIPT, MAILTO_DRAFT_SCRIPT } from './mail-script'
 
 beforeEach(() => {
   vi.stubGlobal('process', { ...process, platform: 'darwin' })
@@ -120,6 +120,26 @@ describe('Apple Mail access', () => {
         attachments: ['relative.txt']
       })
     ).rejects.toThrow('absolute path')
+  })
+  it('writes a plain draft through a mailto: window, which Mail does not wrap in a quote', async () => {
+    await connectMail()
+    await callMail('draft', {
+      to: ['a@example.com'],
+      cc: ['c@example.com'],
+      subject: 'Hi & bye',
+      body: 'line one\nline two',
+      from: 'work@example.com'
+    })
+    const args = h.exec.mock.calls.at(-1)![1] as string[]
+    expect(args[1]).toBe(MAILTO_DRAFT_SCRIPT)
+    expect(args.slice(2)).toEqual([
+      'Hi & bye',
+      'mailto:a%40example.com?cc=c%40example.com&subject=Hi%20%26%20bye&body=line%20one%0Aline%20two',
+      'work@example.com'
+    ])
+    // With HTML or a file the message is built by script instead.
+    await callMail('draft', { to: ['a@example.com'], subject: 'S', body: 'b', html: '<p>b</p>' })
+    expect((h.exec.mock.calls.at(-1)![1] as string[])[1]).toBe(COMPOSE_SCRIPT)
   })
   it('does not reconnect when a pending permission probe finishes after disconnect', async () => {
     let finish!: (error: null, stdout: string, stderr: string) => void
