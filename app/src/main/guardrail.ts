@@ -100,7 +100,7 @@ export function toolPreview(toolName: string, input: unknown): string {
     const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : [])
     const files = list(o.attachments).map((p) => p.split('/').pop())
     return [
-      `Send email to ${list(o.to).join(', ') || '(recipients)'}`,
+      `Send email${o.from ? ` from ${s(o.from)}` : ''} to ${list(o.to).join(', ') || '(recipients)'}`,
       list(o.cc).length ? `Cc ${list(o.cc).join(', ')}` : '',
       list(o.bcc).length ? `Bcc ${list(o.bcc).join(', ')}` : '',
       `Subject: ${s(o.subject)}`,
@@ -117,7 +117,7 @@ export function toolPreview(toolName: string, input: unknown): string {
     return `Upload to the page in the browser:\n${files.join('\n') || '(files)'}`.slice(0, 600)
   }
   if (toolName === 'mcp__cove-browser__mail_draft')
-    return `Save unsent draft to ${Array.isArray(o.to) ? o.to.join(', ') : '(recipients)'}: ${s(o.subject)}`.slice(
+    return `Save unsent draft${o.from ? ` from ${s(o.from)}` : ''} to ${Array.isArray(o.to) ? o.to.join(', ') : '(recipients)'}: ${s(o.subject)}`.slice(
       0,
       400
     )

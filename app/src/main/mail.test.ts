@@ -73,7 +73,7 @@ describe('Apple Mail access', () => {
       html: '<p><b>hello</b></p>'
     })
     // Written through the AppleScript, its input as plain argv strings:
-    // op, subject, body, html, then newline-separated to, cc, bcc, files.
+    // op, subject, body, html, then newline-separated to, cc, bcc, files, then the from address.
     const args = h.exec.mock.calls.at(-1)![1] as string[]
     expect(args[0]).toBe('-e')
     expect(args[1]).toBe(COMPOSE_SCRIPT)
@@ -85,8 +85,17 @@ describe('Apple Mail access', () => {
       'a@example.com\nb@example.com',
       'c@example.com',
       '',
+      '',
       ''
     ])
+    // From another account: its address goes through as the last argument.
+    await callMail('draft', {
+      to: ['a@example.com'],
+      subject: 'Hi',
+      body: 'b',
+      from: 'work@example.com'
+    })
+    expect((h.exec.mock.calls.at(-1)![1] as string[]).at(-1)).toBe('work@example.com')
     await expect(callMail('draft', { to: ['bad'], subject: '', body: '' })).rejects.toThrow()
     // Sending is its own operation, whose approval is asked in mail-tools.
     const file = join(mkdtempSync(join(tmpdir(), 'mail-att-')), 'signature.html')

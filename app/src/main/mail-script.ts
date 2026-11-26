@@ -87,7 +87,7 @@ function run(argv) {
  * rather than JXA because only AppleScript's Mail dictionary attaches a file
  * and sets an HTML body: the JXA forms fail with "Can't get object". Input
  * arrives as argv strings, never as source: op, subject, plain body, HTML
- * body, and newline-separated to, cc, bcc and attachment paths. The HTML is
+ * body, newline-separated to, cc, bcc and attachment paths, and the from address. The HTML is
  * set before the attachments, which setting it would otherwise replace.
  */
 export const COMPOSE_SCRIPT = String.raw`
@@ -107,8 +107,23 @@ on run argv
 	set ccList to my splitLines(item 6 of argv)
 	set bccList to my splitLines(item 7 of argv)
 	set filePaths to my splitLines(item 8 of argv)
+	set fromAddr to item 9 of argv
 	tell application "Mail"
 		set m to make new outgoing message with properties {subject:subj, content:plainBody, visible:false}
+		if fromAddr is not "" then
+			-- Only an address of a connected account; the draft then lands in that account's Drafts.
+			set found to false
+			repeat with acc in accounts
+				repeat with e in (email addresses of acc)
+					if (e as text) is fromAddr then set found to true
+				end repeat
+			end repeat
+			if not found then
+				delete m
+				error "No Mail account has the address " & fromAddr & ". Use an email from mail_accounts."
+			end if
+			set sender of m to fromAddr
+		end if
 		repeat with a in toList
 			make new to recipient at end of to recipients of m with properties {address:(a as text)}
 		end repeat

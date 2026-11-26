@@ -38,6 +38,7 @@ function compose(): {
   body: z.ZodString
   html: z.ZodDefault<z.ZodString>
   attachments: z.ZodDefault<z.ZodArray<z.ZodString>>
+  from: z.ZodOptional<z.ZodEmail>
 } {
   return {
     to: z.array(z.email().max(320)).min(1).max(50),
@@ -49,7 +50,9 @@ function compose(): {
     /** Formatted body (a designed signature, a newsletter). Images by https URL. */
     html: z.string().max(200000).default(''),
     /** Absolute paths of files on this Mac. */
-    attachments: z.array(z.string().min(1).max(2000)).max(20).default([])
+    attachments: z.array(z.string().min(1).max(2000)).max(20).default([]),
+    /** The address to send or save from: one of mail_accounts' emails. Default: Mail's default account. */
+    from: z.email().max(320).optional()
   }
 }
 
@@ -95,7 +98,8 @@ function scriptArgs(input: { op: string } & Record<string, unknown>): string[] {
     list(input.to),
     list(input.cc),
     list(input.bcc),
-    list(input.attachments)
+    list(input.attachments),
+    String(input.from ?? '')
   ]
 }
 
