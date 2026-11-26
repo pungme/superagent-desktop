@@ -17918,3 +17918,85 @@ button.easy-run-agent {
 .today-del:hover {
   color: #d1495b;
 }
+
+/* The start screen: no project yet. */
+.start {
+  max-width: 520px;
+  padding: 0 24px;
+  text-align: center;
+}
+.start h1 {
+  font-size: 26px;
+  font-weight: 650;
+  margin: 0 0 10px;
+}
+.start > p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 22px;
+}
+.start-main {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.start-cta {
+  all: unset;
+  cursor: pointer;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+.start-cta:hover {
+  opacity: 0.9;
+}
+.start-alt {
+  all: unset;
+  cursor: pointer;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.start-alt:hover {
+  background: var(--hover);
+}
+.start-or {
+  margin: 28px 0 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.start-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.start-card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--group-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.start-card:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+.start-card b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.start-card span {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}

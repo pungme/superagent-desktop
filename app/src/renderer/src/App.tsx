@@ -15,6 +15,7 @@ import { Tour } from './tour/Tour'
 import { REPLAY_TOUR_EVENT } from './tour/tour-keys'
 import { ComputerPanel } from './components/ComputerPanel'
 import { Onboarding } from './components/Onboarding'
+import { StartScreen } from './components/StartScreen'
 import { Settings } from './components/Settings'
 import { CommandPalette } from './components/CommandPalette'
 import { useStore, keepChatChanges, keepErrorText, SHOT_TTL_MS } from './state'
@@ -410,14 +411,27 @@ function App(): React.JSX.Element {
     const openChats = (): void => show('chats')
     // A conversation that belongs to no project: straight into Chats with a
     // fresh one open, rather than open Chats, then find its + New chat.
-    const newChatInChats = async (incognito = false): Promise<void> => {
+    const newChatInChats = async (incognito = false, prompt?: string): Promise<void> => {
       const home = await window.cove.desktopChatHome?.()
       if (!home) return
       show('chats')
       await useStore.getState().newChat(home.workspaceId, { incognito })
+      // A starter from the start screen: sent once the new chat's composer is up.
+      if (prompt)
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent('cove:work-on', {
+                detail: { workspaceId: home.workspaceId, text: prompt }
+              })
+            ),
+          600
+        )
     }
-    const onNewChat = (e: Event): void =>
-      void newChatInChats((e as CustomEvent<{ incognito?: boolean } | undefined>).detail?.incognito)
+    const onNewChat = (e: Event): void => {
+      const d = (e as CustomEvent<{ incognito?: boolean; prompt?: string } | undefined>).detail
+      void newChatInChats(d?.incognito, d?.prompt)
+    }
     window.addEventListener('cove:new-chat', onNewChat)
     // "Open in Superagent" on the dot: straight to that conversation, whether
     // it is a project's or one of the Computer's own.
@@ -760,15 +774,15 @@ function App(): React.JSX.Element {
         {/* Where the windows of a split start: just below whatever sits above them. */}
         <div ref={sentinelRef} className="split-sentinel" />
         {openedWorkspaces.length === 0 && !contentCovered ? (
-          <div className="empty-state">
-            <div className="empty-state-inner">
-              <h1>Welcome to Superagent</h1>
-              <p>
-                Add a project from the sidebar — a code folder or a browser project — to get
-                started.
-              </p>
-            </div>
-          </div>
+          <StartScreen
+            onChat={(prompt) => {
+              window.dispatchEvent(new CustomEvent('cove:new-chat', { detail: { prompt } }))
+            }}
+            onProject={() => {
+              const group = tree[0]
+              if (group) void useStore.getState().addWorkspace(group.id)
+            }}
+          />
         ) : (
           openedWorkspaces.map((ws) => {
             // Split view: every project with a window in it is on screen, its
