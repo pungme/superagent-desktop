@@ -441,6 +441,12 @@ test('conductor: each session gets its own worktree, and closing one with unmerg
     git(a, 'add', '.')
     git(a, 'commit', '-qm', 'Fix the header')
     expect(await tool('conductor_list_sessions')).toContain('1 unmerged')
+    // #102 edits the same file without committing: Main's list shows the collision.
+    writeFileSync(join(b, 'header.txt'), 'other\n')
+    const listed = await tool('conductor_list_sessions')
+    expect(listed).toContain('touches header.txt')
+    expect(listed).toContain('Overlap: #101 and #102 both change header.txt')
+    rmSync(join(b, 'header.txt'))
     const refused = await tool('conductor_close_session', { ticket: 101 }).catch((e) => String(e))
     expect(refused).toContain('not in the main branch')
     expect(await tool('conductor_list_sessions')).toContain('#101')

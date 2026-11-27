@@ -21,6 +21,23 @@ export interface ConductorSession {
   branch?: string
   /** Commits on its branch not yet in the project's main branch. */
   unmerged?: number
+  /** Files it has changed against the main branch (commits and uncommitted work). */
+  files?: string[]
+}
+
+/** Pairs of live sessions that both changed the same files: where their work will collide. */
+export function overlaps(
+  sessions: ConductorSession[]
+): { a: ConductorSession; b: ConductorSession; files: string[] }[] {
+  const live = sessions.filter((s) => s.status !== 'closed' && s.files?.length)
+  const out: { a: ConductorSession; b: ConductorSession; files: string[] }[] = []
+  for (let i = 0; i < live.length; i++)
+    for (let j = i + 1; j < live.length; j++) {
+      const other = new Set(live[j].files)
+      const files = live[i].files!.filter((f) => other.has(f))
+      if (files.length) out.push({ a: live[i], b: live[j], files })
+    }
+  return out
 }
 
 export const FIRST_TICKET = 101
@@ -76,10 +93,17 @@ export function buildManifest(input: {
       s.title || 'Untitled',
       STATUS_WORD[s.status],
       s.branch ? `branch ${s.branch}${s.unmerged ? ` (${s.unmerged} unmerged)` : ''}` : '',
+      s.files?.length
+        ? `touches ${s.files.slice(0, 4).join(', ')}${s.files.length > 4 ? ` +${s.files.length - 4} more` : ''}`
+        : '',
       s.summary
     ].filter(Boolean)
     lines.push(`- ${bits.join(' · ')}`)
   }
+  for (const o of overlaps(input.sessions))
+    lines.push(
+      `Overlap: ${ticketLabel(o.a.ticket ?? 0)} and ${ticketLabel(o.b.ticket ?? 0)} both change ${o.files.slice(0, 3).join(', ')}${o.files.length > 3 ? ` +${o.files.length - 3} more` : ''}.`
+    )
   if (closed)
     lines.push(`${closed} closed (conductor_list_sessions with includeClosed shows them).`)
   if (input.unlinked.length)
@@ -114,6 +138,12 @@ export function conductorPrompt(routing: ConductorRouting): string {
     '("WD-284 Fix header wrap"). Say the number when you mention a session. ' +
     'The session list that follows is as it was when this conversation began: call ' +
     'conductor_list_sessions for the current one before you route a message or answer about status. ' +
+    'Sessions work side by side, so keep them from colliding: before you start a session or send ' +
+    'a message, compare it with what the working sessions touch (the list shows the files). If it ' +
+    'would change the same files or the same feature as one that is still working, do not start a ' +
+    'parallel one: ask whether to add it to that session or wait until it is done (in Auto too). ' +
+    'Independent work gets its own session. When the list shows an Overlap, merge those sessions ' +
+    'one at a time and tell the person about the likely conflict. ' +
     'Before closing a session with unmerged commits, offer: merge into main and close, close and ' +
     'keep the branch, or discard and close (only if the person asks for that). ' +
     'When a session finishes work the person has seen or approved (its list entry shows unmerged ' +

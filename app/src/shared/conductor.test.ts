@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { autoTitle, buildManifest, conductorPrompt, parseTicketRef, ticketLabel } from './conductor'
+import {
+  autoTitle,
+  buildManifest,
+  conductorPrompt,
+  overlaps,
+  parseTicketRef,
+  ticketLabel
+} from './conductor'
 
 describe('conductor helpers', () => {
   it('writes and reads ticket numbers', () => {
@@ -71,5 +78,33 @@ describe('conductor helpers', () => {
   it('says which routing mode applies', () => {
     expect(conductorPrompt('confirm')).toContain('Routing is Confirm')
     expect(conductorPrompt('auto')).toContain('Routing is Auto')
+  })
+})
+
+describe('overlap between sessions', () => {
+  const mk = (ticket: number, files: string[], status: 'working' | 'closed' = 'working') =>
+    ({
+      chatId: `c${ticket}`,
+      title: `T${ticket}`,
+      ticket,
+      summary: '',
+      status,
+      updatedAt: 0,
+      files
+    }) as never
+  it('names the files two live sessions both change', () => {
+    const s = [mk(101, ['a.ts', 'b.ts']), mk(102, ['b.ts', 'c.ts']), mk(103, ['z.ts'])]
+    const o = overlaps(s)
+    expect(o).toHaveLength(1)
+    expect(o[0].files).toEqual(['b.ts'])
+    const text = buildManifest({ project: 'P', routing: 'confirm', sessions: s, unlinked: [] })
+    expect(text).toContain('Overlap: #101 and #102 both change b.ts')
+    expect(text).toContain('touches a.ts, b.ts')
+  })
+  it('ignores closed sessions', () => {
+    expect(overlaps([mk(101, ['a.ts']), mk(102, ['a.ts'], 'closed')])).toHaveLength(0)
+  })
+  it('tells Main not to start a parallel session on the same files', () => {
+    expect(conductorPrompt('auto')).toContain('same files')
   })
 })

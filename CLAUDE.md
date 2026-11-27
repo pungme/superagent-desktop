@@ -405,6 +405,7 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
   (`ConductorEscalations.tsx`). The Sessions tab stays open as you move between sessions.
 - `conductor-live.spec.ts`: a real agent as Main (`CONDUCTOR_AGENTS=claude,codex,antigravity`, `CLAUDE_LIVE=1`): Auto starts a titled session, Confirm asks first, a follow-up routes to the existing session.
 - Starting: the project's right-click menu calls `startConductorDialog` (unit-tested in `conductor-start.test.ts`). Merging: `conductor_merge_session` (keeps it open) or `conductor_close_session how:'merge'`; the prompt tells Main to offer it, never to merge without a yes.
+- Overlap: `sessionsOf` adds each session's changed files (`changedFiles`: diff against main plus uncommitted); `overlaps()` in shared/conductor.ts feeds an "Overlap:" line in the list, and the prompt tells Main to ask rather than start a parallel session on the same files.
 - ⌘\ toggles the sidebar through the View menu item (menu accelerators work while a native view has focus; a renderer keydown does not).
 - Not built: a worker's chat mounted inside the panel (a row opens it normally and expands to its
   latest messages).

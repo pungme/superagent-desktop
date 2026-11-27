@@ -138,6 +138,33 @@ function unmergedCount(cwd: string | null): number | null {
   return null
 }
 
+/** Files a worker has changed against the main branch, committed or not. */
+function changedFiles(cwd: string | null): string[] | undefined {
+  if (!cwd) return undefined
+  const run = (args: string[]): string[] | null => {
+    try {
+      return execFileSync('git', ['-C', cwd, ...args], {
+        encoding: 'utf8',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore']
+      })
+        .split('\n')
+        .filter(Boolean)
+    } catch {
+      return null
+    }
+  }
+  let files: string[] | null = null
+  for (const base of ['main', 'master']) {
+    files = run(['diff', '--name-only', `${base}...HEAD`])
+    if (files) break
+  }
+  if (!files) return undefined
+  const dirty = run(['status', '--porcelain']) ?? []
+  const all = new Set([...files, ...dirty.map((l) => l.slice(3).replace(/^.* -> /, ''))])
+  return [...all].sort()
+}
+
 function branchOf(cwd: string | null): string | undefined {
   if (!cwd) return undefined
   try {
@@ -173,7 +200,8 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
               : 'idle',
       updatedAt: r.updatedAt,
       branch: branchOf(cwd),
-      unmerged: unmergedCount(cwd) ?? undefined
+      unmerged: unmergedCount(cwd) ?? undefined,
+      files: changedFiles(cwd)
     }
   })
 }
@@ -252,7 +280,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     'conductor_list_sessions',
     {
       description:
-        "This project's sessions: number, title, status (Working / Idle / Closed), branch, unmerged commits, and a one-line summary of where each stands, plus chats not connected to Main. Call it at the start of a turn when you need to know where things stand.",
+        "This project's sessions: number, title, status (Working / Idle / Closed), branch, unmerged commits, the files it changed (an Overlap line when two sessions touch the same file), and a one-line summary of where each stands, plus chats not connected to Main. Call it at the start of a turn when you need to know where things stand.",
       inputSchema: { includeClosed: z.boolean().optional() }
     },
     async ({ includeClosed }) => {
