@@ -401,8 +401,11 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
   while an approval of its is open; the panel and sidebar read them.
 - Routing is a pill in the Sessions tab (Confirm / Auto); the mode is in the Main's briefing.
 - e2e: `conductor.spec.ts` (tools over HTTP; a stand-in `claude` for spawn/send/summary).
-- Not built: curved connector lines, approval cards inline in Main, a worker's chat mounted in the
-  panel (a row opens it normally, and expands to its latest messages).
+- Sessions that need you also show as Approve / Deny cards inside the Main chat
+  (`ConductorEscalations.tsx`). The Sessions tab stays open as you move between sessions.
+- `conductor-live.spec.ts` (`CLAUDE_LIVE=1`): a real agent as Main, in Auto, starts #101 for a clear task.
+- Not built: a worker's chat mounted inside the panel (a row opens it normally and expands to its
+  latest messages).
 
 ## Checks
 

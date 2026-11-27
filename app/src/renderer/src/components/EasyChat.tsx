@@ -12,6 +12,7 @@ import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
 import { promptLink } from '../../../shared/prompt-link'
 import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
+import { ConductorEscalations } from './ConductorEscalations'
 import { itemKeys, mergeTranscripts, type Keyed } from '../../../shared/transcript-merge'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
@@ -2723,22 +2724,19 @@ export function EasyChat({
    * Put what the Mac now holds (the phone drove this conversation while the window sat on an
    * older copy) together with this window's copy, and make that the window's copy.
    */
-  const adoptStored = useCallback(
-    async (): Promise<void> => {
-      const { json, revision } = await window.cove.chatLoadSnapshot(chatId)
-      const stored = JSON.parse(json || '[]') as Item[]
-      if (!Array.isArray(stored)) throw new Error('Saved transcript is unreadable')
-      const merged = mergeTranscripts(
-        stored as unknown as Keyed[],
-        itemsRef.current as unknown as Keyed[],
-        baseKeysRef.current
-      ) as unknown as Item[]
-      transcriptWriter.current = makeWriter(stored, revision)
-      itemsRef.current = merged
-      setItems(merged)
-    },
-    [chatId]
-  )
+  const adoptStored = useCallback(async (): Promise<void> => {
+    const { json, revision } = await window.cove.chatLoadSnapshot(chatId)
+    const stored = JSON.parse(json || '[]') as Item[]
+    if (!Array.isArray(stored)) throw new Error('Saved transcript is unreadable')
+    const merged = mergeTranscripts(
+      stored as unknown as Keyed[],
+      itemsRef.current as unknown as Keyed[],
+      baseKeysRef.current
+    ) as unknown as Item[]
+    transcriptWriter.current = makeWriter(stored, revision)
+    itemsRef.current = merged
+    setItems(merged)
+  }, [chatId])
 
   /** Save; when the Mac changed under this copy, merge and save again, once. Throws if it cannot. */
   const saveNow = useCallback(async (): Promise<void> => {
@@ -6294,6 +6292,7 @@ export function EasyChat({
           <button onClick={saveTranscript}>Retry save</button>
         </div>
       )}
+      <ConductorEscalations workspaceId={workspaceId} chatId={chatId} />
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {agentFailed && (
         <div className="easy-error">

@@ -18327,3 +18327,50 @@ button.easy-run-agent {
 .cd-list {
   position: relative;
 }
+
+/* Inside Main: sessions waiting on you (components/ConductorEscalations.tsx). */
+.cd-escalations {
+  margin: 8px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd-esc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(224, 145, 47, 0.13);
+  border: 1px solid rgba(224, 145, 47, 0.35);
+  font-size: 12.5px;
+}
+.cd-esc-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--text-primary);
+}
+.cd-esc-btns {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.cd-esc-btns button {
+  font: inherit;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+}
+.cd-esc-btns button:last-child {
+  background: transparent;
+  color: var(--text-primary);
+}
