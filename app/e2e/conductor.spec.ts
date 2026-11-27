@@ -217,6 +217,7 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     expect(await asked3).toContain('allow')
     await expect(page.getByTestId('conductor-escalations')).toHaveCount(0)
     // The side panel is per conversation: bring Sessions back on Main for what follows.
+    await page.waitForTimeout(1500) // let the pane settle after the card goes
     if (!(await panel.isVisible().catch(() => false))) {
       await page
         .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
@@ -443,11 +444,13 @@ test('conductor: each session gets its own worktree, and closing one with unmerg
     const refused = await tool('conductor_close_session', { ticket: 101 }).catch((e) => String(e))
     expect(refused).toContain('not in the main branch')
     expect(await tool('conductor_list_sessions')).toContain('#101')
-    // Merged and closed: the commit is on main, and the session is gone from the list.
-    expect(await tool('conductor_close_session', { ticket: 101, how: 'merge' })).toContain(
-      'Closed #101'
-    )
+    // Merged and kept open: the commit lands on main, and the session stays in the list.
+    expect(await tool('conductor_merge_session', { ticket: 101 })).toContain('stays open')
     expect(git(proj, 'log', '--oneline', 'main')).toContain('Fix the header')
+    expect(await tool('conductor_list_sessions')).toContain('#101')
+    expect(await tool('conductor_list_sessions')).not.toContain('1 unmerged')
+    // Closed: nothing is left to ask about.
+    expect(await tool('conductor_close_session', { ticket: 101 })).toContain('Closed #101')
     expect(await tool('conductor_list_sessions')).not.toContain('#101')
     // #102, with nothing to merge, closes straight away; its branch was not touched.
     expect(await tool('conductor_close_session', { ticket: 102 })).toContain('Closed #102')
