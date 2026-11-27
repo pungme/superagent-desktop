@@ -18195,3 +18195,37 @@ button.easy-run-agent {
 .cd-row.closed {
   opacity: 0.6;
 }
+
+.cd-row.here {
+  background: var(--hover);
+}
+.cd-peek-btn {
+  all: unset;
+  cursor: pointer;
+  width: 14px;
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+.cd-peek {
+  margin: 6px 0 2px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-secondary);
+  background: var(--group-card);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: text;
+}
+.cd-tabdot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #e0912f;
+  vertical-align: middle;
+}

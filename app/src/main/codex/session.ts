@@ -76,6 +76,7 @@ export function codexThreadOptions(opts: AgentStartOptions): CodexThreadOptions 
     approvalPolicy,
     developerInstructions:
       buildAppendedPrompt({
+        chatId: opts.chatId,
         browserProject: opts.browserProject,
         workspaceId: opts.workspaceId,
         browser: opts.workspaceId

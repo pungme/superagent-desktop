@@ -2372,6 +2372,7 @@ function registerStoreIpcTail(): void {
         // to read only its own localStorage copy, so a chat the phone created
         // was invisible in the sidebar until the next launch.
         `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd, incognito,
+                ticketNumber, conductorParentId, conductorClosedAt,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending,
                 (SELECT value FROM kv WHERE key = 'chatNow:' || chats.id) AS now
          FROM chats WHERE workspaceId = ? ORDER BY pinned DESC, position ASC, updatedAt ASC`

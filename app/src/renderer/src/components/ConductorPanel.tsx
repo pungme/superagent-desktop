@@ -20,6 +20,16 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   const [state, setState] = useState<ConductorState | null | undefined>(undefined)
   const [showClosed, setShowClosed] = useState(false)
   const selectChat = useStore((s) => s.selectChat)
+  const activeChatId = useStore((s) => s.activeChatId[workspaceId])
+  // The session whose recent conversation is shown under its row, and what it says.
+  const [peeking, setPeeking] = useState<string | null>(null)
+  const [peekText, setPeekText] = useState('')
+  const peek = (chatId: string): void => {
+    if (peeking === chatId) return setPeeking(null)
+    setPeeking(chatId)
+    setPeekText('…')
+    void window.cove.conductorPeek(chatId).then(setPeekText)
+  }
 
   const load = useCallback(() => {
     void window.cove.conductorGet(workspaceId).then(setState)
@@ -58,7 +68,19 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   const open = (chatId: string): void => selectChat(workspaceId, chatId)
 
   const row = (s: ConductorSession): React.JSX.Element => (
-    <div key={s.chatId} className={`cd-row ${s.status}`} data-testid="conductor-session">
+    <div
+      key={s.chatId}
+      className={`cd-row ${s.status} ${s.chatId === activeChatId ? 'here' : ''}`}
+      data-testid="conductor-session"
+    >
+      <button
+        className="cd-peek-btn"
+        title="Show its latest messages"
+        aria-expanded={peeking === s.chatId}
+        onClick={() => peek(s.chatId)}
+      >
+        {peeking === s.chatId ? '▾' : '▸'}
+      </button>
       <button className="cd-open" onClick={() => open(s.chatId)}>
         <span className="cd-top">
           {s.ticket != null && <b className="cd-ticket">{ticketLabel(s.ticket)}</b>}
@@ -75,6 +97,7 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             {s.summary}
           </span>
         )}
+        {peeking === s.chatId && <pre className="cd-peek">{peekText}</pre>}
       </button>
       <span className="cd-actions">
         {s.status === 'closed' ? (

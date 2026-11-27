@@ -63,7 +63,7 @@ import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
 import { registerDeskIpc } from './desk'
-import { startHookServer, registerHookIpc } from './hooks'
+import { startHookServer, registerHookIpc, hookBus } from './hooks'
 import { registerAutomationIpc } from './automation'
 import {
   registerAgentIpc,
@@ -75,8 +75,13 @@ import {
 import { noteUserMessage } from './browser-ask'
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
-import { startCompanionLog, forgetChat, isGenerating as chatIsGenerating } from './companion/log'
-import { registerConductorIpc, setGeneratingProbe } from './conductor-tools'
+import {
+  startCompanionLog,
+  forgetChat,
+  isGenerating as chatIsGenerating,
+  logBus
+} from './companion/log'
+import { registerConductorIpc, setGeneratingProbe, watchConductor } from './conductor-tools'
 import { enableConductor, getConductor } from './conductor-store'
 import { createChat, getDb } from './store'
 import { fromMainWindow, registerRemoteControlIpc, startRemoteControl } from './remote-control'
@@ -412,6 +417,7 @@ app.whenReady().then(async () => {
   registerRoutinesIpc()
   registerConductorIpc()
   setGeneratingProbe(chatIsGenerating)
+  watchConductor(logBus, hookBus)
   registerContactsIpc()
   registerEnvironmentIpc()
   registerOpenRequests()

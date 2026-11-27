@@ -185,6 +185,12 @@ export interface Chat {
   cwd: string | null
   /** 1 for an incognito chat: not on the phone, deleted when it ends. */
   incognito?: number
+  /** Conductor: the session number (#101…) of a chat connected to a project's Main, when it has one. */
+  ticketNumber?: number | null
+  /** The Main chat it is connected to; null when it is not. */
+  conductorParentId?: string | null
+  /** When it was closed from the Conductor; null while active. */
+  conductorClosedAt?: number | null
   /**
    * 1 while the chat is waiting to cut its own branch on its first message.
    * Comes from main's kv — the one copy both the window and the phone write —
@@ -1305,6 +1311,7 @@ export interface CoveApi {
   contactsRemoveField: (workspaceId: string, key: string) => Promise<boolean>
   onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   conductorGet: (workspaceId: string) => Promise<ConductorState | null>
+  conductorPeek: (chatId: string) => Promise<string>
   conductorEnable: (workspaceId: string, adoptChatIds: string[]) => Promise<ConductorState | null>
   conductorSetRouting: (workspaceId: string, mode: 'confirm' | 'auto') => Promise<void>
   conductorConnect: (workspaceId: string, chatId: string) => Promise<number | null>
@@ -2027,6 +2034,7 @@ const cove: CoveApi = {
   contactsRemoveField: (ws, key) => ipcRenderer.invoke('contacts:remove-field', ws, key),
   onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
   conductorGet: (ws) => ipcRenderer.invoke('conductor:get', ws),
+  conductorPeek: (chatId) => ipcRenderer.invoke('conductor:peek', chatId),
   conductorEnable: (ws, adopt) => ipcRenderer.invoke('conductor:enable', ws, adopt),
   conductorSetRouting: (ws, mode) => ipcRenderer.invoke('conductor:set-routing', ws, mode),
   conductorConnect: (ws, chatId) => ipcRenderer.invoke('conductor:connect', ws, chatId),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GhostGlyph } from './GhostGlyph'
 import { branchLabel, cleanUpQuestion, otherBranchesLabel } from '../../../shared/other-branches'
 import { createPortal } from 'react-dom'
@@ -51,6 +51,16 @@ const DORMANT_LABEL = 'No live session — your next message starts one'
  * the useful thing is what you left open. A PDF and a picture are worth
  * distinguishing; anything else is a page, and a globe says that best.
  */
+/** A chat's name in a list: a Conductor session carries its number first ("#101 Fix the header"). */
+function sessionLabel(c: {
+  title: string | null
+  ticketNumber?: number | null
+  conductorParentId?: string | null
+}): string {
+  const title = c.title || 'New chat'
+  return c.ticketNumber != null && c.conductorParentId ? `#${c.ticketNumber} ${title}` : title
+}
+
 function pageBadge(url: string): { icon: React.JSX.Element; title: string } {
   const path = url.split(/[?#]/)[0].toLowerCase()
   const name = decodeURIComponent(path.split('/').pop() || '')
@@ -495,7 +505,7 @@ function ChatRow({
   // session has something running (e.g. a monitor) even while you're in another.
   const bgRunning = useStore((st) => (st.busy[chat.id]?.background ?? 0) > 0)
   const [editing, setEditing] = useState(false)
-  const label = chat.title ?? 'New chat'
+  const label = sessionLabel(chat)
   const [draft, setDraft] = useState(label)
   // The chip shows the branch the chat is actually ON (read from its HEAD), not
   // the folder slug — so it follows a title rename, and it follows the agent if
@@ -701,7 +711,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const pageUrl = useStore((s) => (ws.kind !== 'browser' ? (s.pageUrl[ws.id] ?? '') : ''))
   const pageHere = Boolean(pageUrl)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
-  const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  const allChats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  const shownChatId = useStore((s) => s.activeChatId[ws.id])
+  // A Conductor session that was closed is archived: out of the list (the Sessions tab
+  // keeps it, to reopen), unless it is the one on screen.
+  const chats = useMemo(
+    () =>
+      allChats.some((c) => c.conductorClosedAt != null)
+        ? allChats.filter((c) => c.conductorClosedAt == null || c.id === shownChatId)
+        : allChats,
+    [allChats, shownChatId]
+  )
   /**
    * The branches, straight from git rather than from what the app remembered:
    * the folder you opened first, then every extra checkout. A worktree made by
@@ -1913,7 +1933,7 @@ function ChatsSection(): React.JSX.Element {
                 e.preventDefault()
                 window.cove.chatMenu(c.id, c.workspaceId, c.cwd, chatIsUnread(c))
               }}
-              title={c.title ?? 'New chat'}
+              title={sessionLabel(c)}
             >
               {editing === c.id ? (
                 <input
@@ -1940,7 +1960,7 @@ function ChatsSection(): React.JSX.Element {
                     <span className={`sidebar-chat-dot ${fresh ? 'unread' : ''}`} />
                   )}
                   {c.incognito === 1 && <GhostGlyph size={12} />}
-                  <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
+                  <span className="sidebar-item-name">{sessionLabel(c)}</span>
                   <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
                   {/* Takes the time's place on hover, so the row does not shift. */}
                   <button
@@ -2036,7 +2056,7 @@ function PinnedRow({
   // control), and a real name someone gave it is worth more than the
   // folder name repeating what the icon already says.
   const hasOwnTitle = Boolean(chat.title && chat.title.trim() && chat.title !== 'New chat')
-  const label = isRoot && !hasOwnTitle ? projectName : chat.title || 'New chat'
+  const label = isRoot && !hasOwnTitle ? projectName : sessionLabel(chat)
   // The project name is now the headline (top line); this is whether the
   // chat's own title earns a second, subtitle line below it — skipped for a
   // nameless root chat, where `label` already IS the project name and a

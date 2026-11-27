@@ -379,6 +379,31 @@ once the CLI is new enough; the CLI's background updater had sat two weeks
 behind (2.1.314 → 2.1.325). Running chats keep the version they started with.
 Skipped in a test run (`COVE_USER_DATA`, `COVE_E2E_CLAUDE_BIN`).
 
+## Conductor (experimental, 2.1.3-beta.47)
+
+A project can have one **Main** chat that starts, routes to and closes **worker sessions**
+(`src/main/conductor-store.ts` rows, `conductor-tools.ts` tools and IPC, `shared/conductor.ts`
+pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup:
+`.superagent/cto-mode/plan.md`, `mockup.html`.
+
+- Rows: `workspaces.conductorChatId / conductorNextTicket / conductorRouting`,
+  `chats.conductorParentId / ticketNumber / conductorClosedAt / conductorSummary`. A chat is a
+  session of the project when its `conductorParentId` is the Main; its ticket (#101…, per project)
+  stays through disconnect/connect and close/reopen.
+- Started from the project's right-click menu (`workspace:menu` in index.ts, a native dialog).
+- The Main chat's agent gets `conductor_*` MCP tools only for that chat
+  (`registerConductorTools` checks `conductorOfMain(chatId)`), and a briefing: its job and the
+  live session list, through `setConductorProbe` in prompts.ts for all three agents. **Do not
+  import `companion/log` or `prompts` from conductor-tools directly**: the cycle broke start-up
+  (`logBus` used before it existed). The probes (`setGeneratingProbe`, `watchConductor(logBus,
+  hookBus)`) are handed in from index.ts.
+- `watchConductor` writes a one-line summary when a worker's turn ends and marks "Needs you"
+  while an approval of its is open; the panel and sidebar read them.
+- Routing is a pill in the Sessions tab (Confirm / Auto); the mode is in the Main's briefing.
+- e2e: `conductor.spec.ts` (tools over HTTP; a stand-in `claude` for spawn/send/summary).
+- Not built: curved connector lines, approval cards inline in Main, a worker's chat mounted in the
+  panel (a row opens it normally, and expands to its latest messages).
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and

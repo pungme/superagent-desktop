@@ -1,10 +1,12 @@
 import { execFileSync } from 'child_process'
+import type { EventEmitter } from 'events'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { buildManifest, autoTitle, ticketLabel, type ConductorSession } from '../shared/conductor'
 import {
   closeSession,
   conductorOfMain,
+  conductorOfWorker,
   connectChat,
   findSession,
   listSessions,
@@ -40,6 +42,64 @@ const said = (text: string, isError = false): Result => ({
   ...(isError ? { isError } : {}),
   content: [{ type: 'text', text }]
 })
+
+/** Chats waiting on a yes or no from the person (an approval is open). */
+const needsYou = new Set<string>()
+const approvalChat = new Map<string, string>()
+
+/** The first sentence of a reply, without Markdown, as the one-line summary. */
+export function summaryOf(text: string): string {
+  const plain = text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[`*_>#]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const first = /^.{20,}?[.!?](?=\s|$)/.exec(plain)?.[0] ?? plain
+  return first.length > 200 ? first.slice(0, 197).trimEnd() + '…' : first
+}
+
+/**
+ * Keep the panel's picture current without a word from the workers to Main: a worker that
+ * finishes a turn leaves a one-line summary, and one that is waiting on an approval shows as
+ * "Needs you". The emitters are handed in (index.ts), not imported: see setGeneratingProbe.
+ */
+export function watchConductor(logBus: EventEmitter, hookBus: EventEmitter): void {
+  const lastReply = new Map<string, string>()
+  const touch = (chatId: string): void => {
+    const c = conductorOfWorker(getDb(), chatId)
+    if (c) broadcastToWindows('conductor:changed', { workspaceId: c.workspaceId })
+  }
+  logBus.on('event', (({
+    event
+  }: {
+    event: { chatId: string; data: { kind: string; text?: string } }
+  }) => {
+    const { chatId, data } = event
+    if (data.kind === 'assistant' && data.text) lastReply.set(chatId, data.text)
+    if (data.kind === 'turn_end') {
+      const text = lastReply.get(chatId)
+      lastReply.delete(chatId)
+      try {
+        if (text && conductorOfWorker(getDb(), chatId)) setSummary(getDb(), chatId, summaryOf(text))
+        touch(chatId)
+      } catch {
+        // the store is gone (quitting)
+      }
+    }
+  }) as never)
+  hookBus.on('approval', (({ requestId, sessionId }: { requestId: string; sessionId: string }) => {
+    approvalChat.set(requestId, sessionId)
+    needsYou.add(sessionId)
+    touch(sessionId)
+  }) as never)
+  hookBus.on('approval-end', (({ requestId }: { requestId: string }) => {
+    const chat = approvalChat.get(requestId)
+    approvalChat.delete(requestId)
+    if (!chat) return
+    if (![...approvalChat.values()].includes(chat)) needsYou.delete(chat)
+    touch(chat)
+  }) as never)
+}
 
 /** Commits on a worker's branch that its project's main branch lacks; null when it has no branch. */
 function unmergedCount(cwd: string | null): number | null {
@@ -83,7 +143,14 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
       title: r.title,
       ticket: r.ticket,
       summary: r.summary,
-      status: r.closedAt != null ? 'closed' : isGenerating(r.chatId) ? 'working' : 'idle',
+      status:
+        r.closedAt != null
+          ? 'closed'
+          : needsYou.has(r.chatId)
+            ? 'needs-you'
+            : isGenerating(r.chatId)
+              ? 'working'
+              : 'idle',
       updatedAt: r.updatedAt,
       branch: branchOf(cwd),
       unmerged: unmergedCount(cwd) ?? undefined
@@ -266,8 +333,8 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     'conductor_close_session',
     {
       description:
-        "Close a session. If its branch has commits not in the project's main branch, nothing is closed until you pass `how`: 'merge' (land them, then close), or 'keep' (close, leave the branch as it is). Ask the person which first. Stops its agent if it is working.",
-      inputSchema: { ...sessionRef, how: z.enum(['merge', 'keep']).optional() }
+        "Close a session. If its branch has commits not in the project's main branch, nothing is closed until you pass `how`: 'merge' (land them, then close), 'keep' (close, leave the branch as it is), or 'discard' (throw its changes away: only when the person said so). Ask the person which first. Stops its agent if it is working.",
+      inputSchema: { ...sessionRef, how: z.enum(['merge', 'keep', 'discard']).optional() }
     },
     async ({ ticket, chatId, how }) => {
       const s = find({ ticket, chatId })
@@ -290,6 +357,13 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       if (isGenerating(s.chatId)) {
         const { stopFromDot } = await import('./companion/rpc')
         await stopFromDot(s.chatId)
+      }
+      if (how === 'discard' && chat?.cwd) {
+        const wsRow = getWorkspace(ws)
+        if (wsRow) {
+          const { removeCopy } = await import('./chat-copy')
+          await removeCopy(wsRow.path, chat.cwd)
+        }
       }
       closeSession(getDb(), s.chatId)
       broadcastToWindows('projects:changed', {})
@@ -369,6 +443,7 @@ const changed = (workspaceId: string): void => {
 }
 
 export function registerConductorIpc(): void {
+  ipcMain.handle('conductor:peek', (_e, chatId: string) => digest(String(chatId), 3))
   ipcMain.handle('conductor:get', (_e, ws: string) => stateOf(String(ws)))
   ipcMain.handle('conductor:enable', (_e, ws: string, adopt: unknown) => {
     const workspaceId = String(ws)

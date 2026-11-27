@@ -135,6 +135,7 @@ const PLAN_MODE_PROMPT =
 export function agyBriefing(opts: AgentStartOptions): string {
   return (
     buildAppendedPrompt({
+      chatId: opts.chatId,
       browserProject: opts.browserProject,
       workspaceId: opts.workspaceId,
       browser: opts.workspaceId

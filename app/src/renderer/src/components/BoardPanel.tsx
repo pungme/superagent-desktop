@@ -58,9 +58,13 @@ export function BoardPanel({
   }, [workspaceId])
   // The Sessions tab belongs to a project that has a Conductor, and is offered once it does.
   const [hasConductor, setHasConductor] = useState(false)
+  const [needsYou, setNeedsYou] = useState(0)
   useEffect(() => {
     const look = (): void =>
-      void window.cove.conductorGet(workspaceId).then((c) => setHasConductor(!!c))
+      void window.cove.conductorGet(workspaceId).then((c) => {
+        setHasConductor(!!c)
+        setNeedsYou(c?.sessions.filter((x) => x.status === 'needs-you').length ?? 0)
+      })
     look()
     return window.cove.onConductorChanged((p) => p.workspaceId === workspaceId && look())
   }, [workspaceId])
@@ -191,6 +195,7 @@ export function BoardPanel({
             onClick={() => pickTab('sessions')}
           >
             Sessions
+            {needsYou > 0 && <i className="cd-tabdot" title="A session needs you" />}
           </button>
         )}
       </div>
