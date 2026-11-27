@@ -12,6 +12,7 @@ import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
 import { promptLink } from '../../../shared/prompt-link'
 import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
+import { mergeTranscripts, type Keyed } from '../../../shared/transcript-merge'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
@@ -2718,7 +2719,29 @@ export function EasyChat({
     void transcriptWriter.current
       .save(() => itemsRef.current)
       .then(() => setPersistenceError(''))
-      .catch((error) => setPersistenceError(`Conversation not saved: ${error.message}`))
+      .catch((error: Error) => {
+        // The phone (or another window) added to this conversation while this copy sat here:
+        // put the two together and save that, instead of stopping until it is reopened.
+        if (/changed in another window/.test(String(error.message))) {
+          void window.cove.chatLoadSnapshot(chatId).then(({ json, revision }) => {
+            try {
+              const stored = JSON.parse(json || '[]') as Item[]
+              if (!Array.isArray(stored)) throw new Error('unreadable')
+              const merged = mergeTranscripts(
+                stored as unknown as Keyed[],
+                itemsRef.current as unknown as Keyed[]
+              ) as unknown as Item[]
+              transcriptWriter.current = makeWriter(stored, revision)
+              setItems(merged)
+              setPersistenceError('')
+            } catch {
+              setPersistenceError(`Conversation not saved: ${error.message}`)
+            }
+          })
+          return
+        }
+        setPersistenceError(`Conversation not saved: ${error.message}`)
+      })
   }, [chatId])
 
   useEffect(
