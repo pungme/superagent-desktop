@@ -65,12 +65,22 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
 
   const live = state.sessions.filter((s) => s.status !== 'closed')
   const closed = state.sessions.filter((s) => s.status === 'closed')
-  const open = (chatId: string): void => selectChat(workspaceId, chatId)
+  // Opening a session keeps this panel beside it (the side panel is remembered per conversation),
+  // so going Main → #101 → #102 does not mean opening the Sessions tab again each time.
+  const open = (chatId: string): void => {
+    selectChat(workspaceId, chatId)
+    // Asked for by name, as an agent's app_open_view does: every desk opens it if it is closed.
+    setTimeout(
+      () =>
+        window.dispatchEvent(new CustomEvent('cove:app-pane', { detail: { pane: 'sessions' } })),
+      60
+    )
+  }
 
-  const row = (s: ConductorSession): React.JSX.Element => (
+  const row = (s: ConductorSession, i: number, all: ConductorSession[]): React.JSX.Element => (
     <div
       key={s.chatId}
-      className={`cd-row ${s.status} ${s.chatId === activeChatId ? 'here' : ''}`}
+      className={`cd-row ${s.status} ${s.chatId === activeChatId ? 'here' : ''} ${i === all.length - 1 ? 'last' : ''}`}
       data-testid="conductor-session"
     >
       <button

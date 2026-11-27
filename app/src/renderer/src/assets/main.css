@@ -18260,3 +18260,70 @@ button.easy-run-agent {
 .cd-ask-btns [role='button']:hover {
   text-decoration: underline;
 }
+
+/* Main's connectors: a trunk down the left of the sessions and a curved branch into each. */
+.cd-list {
+  padding-left: 18px;
+}
+.cd-row {
+  position: relative;
+}
+.cd-row::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 0;
+  width: 14px;
+  height: 20px;
+  border-left: 1.5px solid var(--border-strong);
+  border-bottom: 1.5px solid var(--border-strong);
+  border-bottom-left-radius: 10px;
+}
+.cd-row:not(.last)::after {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 20px;
+  bottom: 0;
+  border-left: 1.5px solid var(--border-strong);
+}
+.cd-row.working::before {
+  border-color: #5b8def;
+  animation: cd-pulse 1.6s ease-in-out infinite;
+}
+.cd-row.needs-you::before {
+  border-color: #e0912f;
+  border-left-style: dashed;
+  border-bottom-style: dashed;
+}
+.cd-row.closed::before,
+.cd-row.unlinked::before {
+  border-style: dashed;
+  opacity: 0.5;
+}
+@keyframes cd-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-row.working::before {
+    animation: none;
+  }
+}
+.cd-row.unlinked::after { display: none; }
+.cd-list {
+  gap: 0;
+  padding-top: 10px;
+}
+.cd-list::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  height: 10px;
+  border-left: 1.5px solid var(--border-strong);
+}
+.cd-list {
+  position: relative;
+}
