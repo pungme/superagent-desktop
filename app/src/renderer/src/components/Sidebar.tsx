@@ -26,6 +26,7 @@ import { useStore, normalizeCwd, movedSinceSeen, chatIsUnread, WorkspaceStatus }
 import type { Workspace, Routine, Chat } from '../../../preload'
 import { chatPending, isFolderRoot } from '../lib/folder-root'
 import { when } from '../lib/relative-time'
+import { openConductor } from '../lib/open-conductor'
 import { KindIcon, ProjectIcon } from './ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { UsageFooter } from './UsageFooter'
@@ -51,14 +52,9 @@ const DORMANT_LABEL = 'No live session — your next message starts one'
  * the useful thing is what you left open. A PDF and a picture are worth
  * distinguishing; anything else is a page, and a globe says that best.
  */
-/** A chat's name in a list: a Conductor session carries its number first ("#101 Fix the header"). */
-function sessionLabel(c: {
-  title: string | null
-  ticketNumber?: number | null
-  conductorParentId?: string | null
-}): string {
-  const title = c.title || 'New chat'
-  return c.ticketNumber != null && c.conductorParentId ? `#${c.ticketNumber} ${title}` : title
+/** A chat's name in a list. A Conductor session carries its tracker key in its title when it has one. */
+function sessionLabel(c: { title: string | null }): string {
+  return c.title || 'New chat'
 }
 
 function pageBadge(url: string): { icon: React.JSX.Element; title: string } {
@@ -715,13 +711,16 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const shownChatId = useStore((s) => s.activeChatId[ws.id])
   // A Conductor session that was closed is archived: out of the list (the Sessions tab
   // keeps it, to reopen), unless it is the one on screen.
-  const chats = useMemo(
-    () =>
-      allChats.some((c) => c.conductorClosedAt != null)
-        ? allChats.filter((c) => c.conductorClosedAt == null || c.id === shownChatId)
-        : allChats,
-    [allChats, shownChatId]
-  )
+  // The Conductor's sessions and its Main live under the sidebar's Conductor row, not here: a
+  // project with twenty of them would otherwise bury its own chats. The one on screen stays shown.
+  const chats = useMemo(() => {
+    const mains = new Set(allChats.map((c) => c.conductorParentId).filter(Boolean))
+    return allChats.filter(
+      (c) =>
+        c.id === shownChatId ||
+        (c.conductorClosedAt == null && c.conductorParentId == null && !mains.has(c.id))
+    )
+  }, [allChats, shownChatId])
   /**
    * The branches, straight from git rather than from what the app remembered:
    * the folder you opened first, then every extra checkout. A worktree made by
@@ -2499,6 +2498,94 @@ function useSplitDrag(): {
   }
 }
 
+/**
+ * Under Today and Routines: the Conductors you have started, one row per project. Pick one to open
+ * its Main chat with the Sessions beside it. Nothing shows until a Conductor exists.
+ */
+function ConductorSection(): React.JSX.Element | null {
+  const [rows, setRows] = useState<
+    {
+      workspaceId: string
+      name: string
+      mainChatId: string
+      total: number
+      needsYou: number
+      working: number
+    }[]
+  >([])
+  const [open, setOpen] = useState(true)
+  const activeId = useStore((s) => s.activeWorkspaceId)
+  const activeChat = useStore((s) => s.activeChatId)
+  const tree = useStore((s) => s.tree)
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      window.cove
+        .conductorOverview()
+        .then((r) => alive && setRows(r))
+        .catch(() => undefined)
+    }
+    load()
+    const off = window.cove.onConductorChanged(load)
+    const t = window.setInterval(load, 5000)
+    return () => {
+      alive = false
+      off()
+      window.clearInterval(t)
+    }
+  }, [tree])
+  if (rows.length === 0) return null
+  const needs = rows.reduce((n, r) => n + r.needsYou, 0)
+  return (
+    <div className="sidebar-conductor" data-testid="sidebar-conductor">
+      <button className="sidebar-dash-row" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <svg
+          className="sidebar-dash-icon"
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="3.5" cy="8" r="1.6" />
+          <circle cx="12.5" cy="3.5" r="1.6" />
+          <circle cx="12.5" cy="12.5" r="1.6" />
+          <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
+        </svg>
+        Conductor
+        {needs > 0 && <span className="sidebar-dash-badge">{needs} needs you</span>}
+      </button>
+      {open &&
+        rows.map((r) => {
+          const here = r.workspaceId === activeId && activeChat[r.workspaceId] === r.mainChatId
+          return (
+            <button
+              key={r.workspaceId}
+              className={`sidebar-conductor-row ${here ? 'on' : ''}`}
+              data-testid="sidebar-conductor-row"
+              title={`${r.name}: ${r.total} sessions`}
+              onClick={() => void openConductor(r.workspaceId)}
+            >
+              <span className="sidebar-conductor-name">{r.name}</span>
+              <span
+                className={`sidebar-conductor-count ${r.needsYou > 0 ? 'ask' : r.working > 0 ? 'busy' : ''}`}
+              >
+                {r.needsYou > 0
+                  ? `${r.needsYou} needs you`
+                  : r.working > 0
+                    ? `${r.working} working`
+                    : r.total}
+              </span>
+            </button>
+          )
+        })}
+    </div>
+  )
+}
+
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const needsYouCount = useStore((s) => s.guardrailAsks.length)
@@ -2813,6 +2900,7 @@ export function Sidebar(): React.JSX.Element {
               <span className="sidebar-dash-badge">{failedRoutines} failed</span>
             )}
           </button>
+          <ConductorSection />
           {/* Under Today: the fixed way in first, then what you made. */}
           <SplitsSection />
           <PinnedShortcuts />

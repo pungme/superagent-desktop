@@ -18458,3 +18458,321 @@ button.easy-run-agent {
   left: calc(100% + 2px);
   top: -6px;
 }
+
+/* Conductor: the managed-sessions column, as the mockup has it (cards on a trunk from Main). */
+.cd-listhead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 2px 10px;
+}
+.cd-h2 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: auto;
+}
+.cd-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.18));
+  color: var(--text-secondary);
+  text-align: center;
+  letter-spacing: 0;
+}
+.cd-connect-btn {
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cd-filters {
+  display: inline-flex;
+  gap: 2px;
+}
+.cd-filters button {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.cd-filters button.on {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.18));
+  color: var(--text-primary);
+}
+.cd-connect-pop {
+  margin: 0 0 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+}
+.cd-cards {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 16px;
+}
+/* The trunk from Main, and a curve into each card. */
+.cd-cards::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 14px;
+  bottom: 34px;
+  width: 1px;
+  background: var(--border);
+}
+.cd-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  transition: border-color 0.12s;
+}
+.cd-card::before {
+  content: '';
+  position: absolute;
+  left: -13px;
+  top: 20px;
+  width: 13px;
+  height: 10px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-bottom-left-radius: 9px;
+  transform: translateY(-10px);
+}
+.cd-card:hover {
+  border-color: var(--text-tertiary);
+}
+.cd-card.here {
+  border-color: var(--text-secondary);
+}
+.cd-card.needs-you {
+  border-color: rgba(240, 180, 41, 0.55);
+}
+.cd-card-open {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 12px 14px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.cd-card .cd-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cd-card .cd-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-summary {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cd-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.cd-branch {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.16));
+  color: var(--text-secondary);
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-when {
+  margin-left: auto;
+}
+.cd-card .cd-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 7px;
+  display: flex;
+  gap: 4px;
+  padding-left: 12px;
+  background: var(--bg-panel);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cd-card:hover .cd-actions,
+.cd-card:focus-within .cd-actions {
+  opacity: 1;
+}
+
+/* Sidebar: the Conductors you have started, under Routines. */
+.sidebar-conductor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 26px;
+  padding: 0 10px 0 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+}
+.sidebar-conductor-row:hover {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.14));
+  color: var(--text-primary);
+}
+.sidebar-conductor-row.on {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.2));
+  color: var(--text-primary);
+}
+.sidebar-conductor-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-conductor-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.sidebar-conductor-count.ask {
+  color: #f0b429;
+}
+.sidebar-conductor-count.busy {
+  color: #3ecf8e;
+}
+
+/* Main spawning a session: the node at the top of the trunk pulses, a spark runs down to where
+   the new card will sit, the branch lights up, and the card unfolds out of the trunk. */
+.cd-mainnode {
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.cd-cards.spawning .cd-mainnode {
+  background: #3ecf8e;
+  animation: cd-node 0.9s ease-out 2;
+}
+@keyframes cd-node {
+  0% {
+    box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(62, 207, 142, 0);
+  }
+}
+.cd-spark {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: #3ecf8e;
+  box-shadow:
+    0 0 10px 3px rgba(62, 207, 142, 0.75),
+    0 -14px 12px -2px rgba(62, 207, 142, 0.35);
+  opacity: 0;
+  animation: cd-spark 0.85s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+  pointer-events: none;
+}
+@keyframes cd-spark {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(var(--to) - 10px));
+    opacity: 0;
+  }
+}
+.cd-card.fresh {
+  animation: cd-spawn 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) 0.55s both;
+}
+@keyframes cd-spawn {
+  0% {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.94);
+    border-color: #3ecf8e;
+    box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.55);
+  }
+  60% {
+    opacity: 1;
+    border-color: #3ecf8e;
+    box-shadow: 0 0 0 7px rgba(62, 207, 142, 0.14);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 0 0 0 rgba(62, 207, 142, 0);
+  }
+}
+.cd-card.fresh::before {
+  animation: cd-branch 1.4s ease-out 0.4s both;
+}
+@keyframes cd-branch {
+  0%,
+  60% {
+    border-color: #3ecf8e;
+    filter: drop-shadow(0 0 3px rgba(62, 207, 142, 0.8));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-spark {
+    display: none;
+  }
+  .cd-card.fresh,
+  .cd-card.fresh::before,
+  .cd-cards.spawning .cd-mainnode {
+    animation: none;
+  }
+}

@@ -178,7 +178,9 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await page.getByTestId('tab-sessions').click()
     const panel = page.getByTestId('conductor-panel')
     await expect(panel.getByTestId('conductor-session')).toHaveCount(2)
-    await expect(panel).toContainText('#101')
+    // No invented numbers: a session shows its title (and its tracker key, when it has one).
+    await expect(panel).not.toContainText('#101')
+    await expect(panel).toContainText('Fix the header')
     await expect(panel).toContainText('Pricing page')
     await expect(panel).toContainText('Waiting on the design')
     if (process.env.SHOT) {
@@ -191,15 +193,21 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
       await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
     }
 
-    // The sidebar numbers the sessions too.
-    await expect(page.locator('.sidebar')).toContainText('#101 Fix the header')
+    // The sessions live under the Conductor, not in the project's own list.
+    await expect(page.getByTestId('sidebar-conductor')).toBeVisible()
+    // Under Routines, the Conductors you have started: pick one to open Main with its Sessions.
+    const crow = page.getByTestId('sidebar-conductor-row')
+    await expect(crow).toHaveCount(1)
+    await expect(crow).toContainText('e2e-project')
+    await expect(page.locator('.sidebar')).not.toContainText('Pricing page')
 
-    // Peek: the arrow shows a session's latest messages under its row.
-    await panel.locator('.cd-peek-btn').first().click()
+    // Peek shows a session's latest messages under its card.
+    await panel.getByTestId('conductor-session').first().hover()
+    await panel.getByRole('button', { name: 'Peek' }).first().click()
     await expect(panel.locator('.cd-peek')).toContainText(
       /Nothing in that conversation yet|USER|AGENT/
     )
-    await panel.locator('.cd-peek-btn').first().click()
+    await panel.getByRole('button', { name: 'Peek' }).first().click()
     await expect(panel.locator('.cd-peek')).toHaveCount(0)
 
     // In Main, a session's question is a card above the composer.
@@ -212,7 +220,7 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await expect(page.getByTestId('conductor-escalations')).toContainText('make deploy', {
       timeout: 10_000
     })
-    await expect(page.getByTestId('conductor-escalations')).toContainText('#101')
+    await expect(page.getByTestId('conductor-escalations')).toContainText('Fix the header')
     await page.getByTestId('conductor-escalations').getByRole('button', { name: 'Approve' }).click()
     expect(await asked3).toContain('allow')
     await expect(page.getByTestId('conductor-escalations')).toHaveCount(0)
@@ -243,11 +251,18 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await panel.getByTestId('conductor-session').first().hover()
     await panel.getByRole('button', { name: 'Close', exact: true }).first().click()
     await expect(panel.getByTestId('conductor-session')).toHaveCount(1)
-    // A closed session is archived: not in the sidebar list any more.
-    await expect(page.locator('.sidebar')).not.toContainText('#101 Fix the header')
     await panel.getByText(/Closed \(1\)/).click()
     await panel.getByRole('button', { name: 'Reopen' }).click({ force: true })
     await expect(panel.getByTestId('conductor-session')).toHaveCount(2)
+
+    // Main spawns another: its card unfolds out of the trunk (fresh), a spark runs down to it,
+    // and it settles after a moment.
+    await tool('conductor_spawn_session', { task: 'Look at the footer.', title: 'Footer pass' })
+    await expect(panel.getByTestId('conductor-session')).toHaveCount(3, { timeout: 20_000 })
+    await expect(panel.locator('.cd-card.fresh')).toHaveCount(1)
+    await expect(panel.locator('.cd-spark')).toHaveCount(1)
+    await expect(panel.locator('.cd-card.fresh')).toHaveCount(0, { timeout: 8000 })
+    await expect(panel.locator('.cd-spark')).toHaveCount(0)
   } finally {
     await app.close()
     for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

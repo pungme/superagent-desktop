@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ConductorState } from '../../../preload'
-import { ticketLabel } from '../../../shared/conductor'
+import { titleWithoutKey, trackerKey } from '../../../shared/conductor'
 
 /**
  * Inside a project's Main chat: the sessions that are waiting on you, with what they ask and
@@ -28,7 +28,7 @@ export function ConductorEscalations({
       {asking.map((s) => (
         <div key={s.chatId} className="cd-esc">
           <span className="cd-esc-text">
-            <b>{s.ticket != null ? ticketLabel(s.ticket) : s.title}</b>{' '}
+            <b>{trackerKey(s.title) ?? titleWithoutKey(s.title)}</b>{' '}
             {s.title && s.ticket != null ? `${s.title} ` : ''}
             wants to: {s.approval!.preview}
           </span>

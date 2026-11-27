@@ -52,6 +52,22 @@ export function parseTicketRef(text: string): number | null {
   return m ? Number(m[1]) : null
 }
 
+/**
+ * The tracker's ticket id in a session title ("WD-284 Fix header wrap" -> "WD-284"), when the
+ * person named one or Main knew the ticket. Sessions have an internal number (#101) that Main
+ * uses in its tools; what people see is this key, or just the title when there is none.
+ */
+export function trackerKey(title: string): string | null {
+  const m = /^\s*([A-Z][A-Z0-9]{1,9}-\d{1,6})\b/.exec(title)
+  return m ? m[1] : null
+}
+
+/** The title without its leading tracker key ("WD-284 Fix header wrap" -> "Fix header wrap"). */
+export function titleWithoutKey(title: string): string {
+  const k = trackerKey(title)
+  return k ? title.replace(/^\s*[A-Z][A-Z0-9]{1,9}-\d{1,6}[\s:–-]*/, '') || title : title
+}
+
 /** A short title from the first words of a task: no trailing stop, at most `max` characters. */
 export function autoTitle(task: string, max = 48): string {
   const first = task
@@ -134,8 +150,10 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'Answer questions about status, architecture and plans yourself, from the session list below ' +
     'and from conductor_inspect_session when you need more. Every session has a number (#101…) ' +
     'and a short title you give it: three to six words, a noun phrase for the work ("Pricing page redesign"), ' +
-    'never the whole request, and with the ticket id in front when the person named one from their tracker ' +
-    '("WD-284 Fix header wrap"). Say the number when you mention a session. ' +
+    'never the whole request. When the person names a ticket from their tracker, or you can tell which ticket ' +
+    'the work belongs to from what you know of their tracker, put its id in front ("WD-284 Fix header wrap"); ' +
+    'otherwise give it no number at all. The numbers (#101) are only handles for your tools: tell the person ' +
+    'about a session by its ticket id or its title, never by that number. ' +
     'The session list that follows is as it was when this conversation began: call ' +
     'conductor_list_sessions for the current one before you route a message or answer about status. ' +
     'Sessions work side by side, so keep them from colliding: before you start a session or send ' +

@@ -10,6 +10,7 @@ import { splitRects } from './lib/split'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { ContextMenu } from './components/ContextMenu'
+import { openConductor } from './lib/open-conductor'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { Tour } from './tour/Tour'
@@ -248,16 +249,7 @@ function App(): React.JSX.Element {
       }
       // Takes it off the list; the folder and its files are untouched.
       // Conductor: show the project, then its Sessions tab (main has started or found the Main chat).
-      if (action === 'open-sessions') {
-        s.setActive(id)
-        setTimeout(
-          () =>
-            window.dispatchEvent(
-              new CustomEvent('cove:app-pane', { detail: { pane: 'sessions' } })
-            ),
-          80
-        )
-      }
+      if (action === 'open-sessions') void openConductor(id)
       if (action === 'remove') s.removeWorkspace(id)
       if (action === 'rename')
         window.dispatchEvent(new CustomEvent('cove:rename-project', { detail: { id } }))

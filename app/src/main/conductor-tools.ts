@@ -538,6 +538,38 @@ const changed = (workspaceId: string): void => {
   broadcastToWindows('projects:changed', {})
 }
 
+/** Every project that has a Conductor, with how many of its sessions need you or are working: the
+ *  sidebar's Conductor row. No git, so it is cheap enough to ask every few seconds. */
+export interface ConductorOverview {
+  workspaceId: string
+  name: string
+  mainChatId: string
+  total: number
+  needsYou: number
+  working: number
+}
+export function conductorOverview(): ConductorOverview[] {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT id, name FROM workspaces WHERE conductorChatId IS NOT NULL')
+    .all() as { id: string; name: string }[]
+  const out: ConductorOverview[] = []
+  for (const w of rows) {
+    const info = getConductor(db, w.id)
+    if (!info) continue
+    const live = listSessions(db, w.id, { includeClosed: false })
+    out.push({
+      workspaceId: w.id,
+      name: w.name,
+      mainChatId: info.chatId,
+      total: live.length,
+      needsYou: live.filter((r) => needsYou.has(r.chatId)).length,
+      working: live.filter((r) => !needsYou.has(r.chatId) && isGenerating(r.chatId)).length
+    })
+  }
+  return out
+}
+
 export function registerConductorIpc(): void {
   ipcMain.handle('conductor:peek', (_e, chatId: string) => digest(String(chatId), 3))
   ipcMain.handle(
@@ -553,6 +585,7 @@ export function registerConductorIpc(): void {
     }
   )
   ipcMain.handle('conductor:get', (_e, ws: string) => stateOf(String(ws)))
+  ipcMain.handle('conductor:overview', () => conductorOverview())
   ipcMain.handle('conductor:enable', (_e, ws: string, adopt: unknown) => {
     const workspaceId = String(ws)
     if (!getWorkspace(workspaceId)) return null
