@@ -2,6 +2,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import { join } from 'path'
 import { mkdtempSync, writeFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
+import { execFileSync } from 'child_process'
 
 /**
  * Conductor against a real Claude: in Auto, a clear task written to Main starts a numbered session,
@@ -271,6 +272,115 @@ for (const agent of AGENTS)
         await w
           .screenshot({
             path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}-routing-failed.png`)
+          })
+          .catch(() => undefined)
+        console.log(
+          'STATE',
+          JSON.stringify(
+            await w
+              .evaluate(async () => {
+                const tree = await window.cove.storeTree()
+                const id = tree
+                  .flatMap((g) => g.workspaces)
+                  .find((x) => x.name === 'e2e-project')!.id
+                return (await window.cove.conductorGet(id))?.sessions
+              })
+              .catch(() => null)
+          )
+        )
+      }
+      throw e
+    } finally {
+      await app.close()
+      for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
+    }
+  })
+
+for (const agent of AGENTS)
+  test(`${agent}: work on the same file as a running session is not started in parallel: Main asks`, async () => {
+    test.skip(!LIVE, 'set CLAUDE_LIVE=1 to run against the real agents')
+    test.setTimeout(420_000)
+    const data = mkdtempSync(join(tmpdir(), 'cove-condlive4-data-'))
+    const proj = mkdtempSync(join(tmpdir(), 'cove-condlive4-proj-'))
+    writeFileSync(join(proj, 'README.md'), '# demo\n')
+    for (const args of [
+      ['init', '-q', '-b', 'main'],
+      ['add', '.'],
+      ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init']
+    ])
+      execFileSync('git', ['-C', proj, ...args])
+    const app = await electron.launch({
+      args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+      env: { ...process.env, COVE_USER_DATA: data, COVE_E2E_PROJECT: proj, NODE_ENV: 'production' }
+    })
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      await page.evaluate(() => {
+        localStorage.setItem('cove.onboarded', '1')
+        localStorage.setItem('cove.connectionsOffered', '1')
+      })
+      await page.evaluate((a) => window.cove.kvSet('cove.provider', a), agent)
+      await page.waitForTimeout(500)
+      const ws = await page.evaluate(async () => {
+        const tree = await window.cove.storeTree()
+        const w = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
+        await window.cove.conductorEnable(w.id, [])
+        await window.cove.conductorSetRouting(w.id, 'auto')
+        return w.id
+      })
+      await page.reload()
+      await page.waitForSelector('.sidebar', { timeout: 20_000 })
+      await page.click('.sidebar-item:has-text("e2e-project")')
+      await page
+        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
+        .first()
+        .click()
+      await page.getByTestId('tab-sessions').click()
+      await page.getByTestId('conductor-main').click()
+      const input = page.locator('textarea.easy-input:visible')
+      await expect(input).toBeVisible({ timeout: 20_000 })
+      const state = (): Promise<{ ticket: number | null; chatId: string }[]> =>
+        page.evaluate(
+          async (id) =>
+            ((await window.cove.conductorGet(id))?.sessions ?? []).map((s) => ({
+              ticket: s.ticket,
+              chatId: s.chatId
+            })),
+          ws
+        )
+      const send = async (text: string): Promise<void> => {
+        await input.fill(text)
+        await input.press('Enter')
+      }
+
+      await send('Add a dark mode toggle to the settings page. Start a session for it.')
+      await expect
+        .poll(async () => (await state()).map((s) => s.ticket), {
+          timeout: 180_000,
+          intervals: [3000]
+        })
+        .toEqual([101])
+      await page.waitForTimeout(15_000)
+      // #101 is mid-way through settings.html (uncommitted, as a working session would be).
+      const cwd = await page.evaluate(
+        async (id) => (await window.cove.chatList(id)).find((c) => c.ticketNumber === 101)?.cwd,
+        ws
+      )
+      expect(cwd).toBeTruthy()
+      writeFileSync(join(cwd as string, 'settings.html'), '<h1>Settings</h1>\n')
+      await send('Also restyle the headings in settings.html. Start a session for it right away.')
+      // Main should hold off: no #102, and it says why or asks.
+      await page.waitForTimeout(90_000)
+      expect((await state()).map((s) => s.ticket)).toEqual([101])
+      const said = await page.locator('.easy-chat:visible').first().innerText()
+      expect(said).toMatch(/#101/)
+    } catch (e) {
+      const w = app.windows()[0]
+      if (w) {
+        await w
+          .screenshot({
+            path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}-overlap-failed.png`)
           })
           .catch(() => undefined)
         console.log(
