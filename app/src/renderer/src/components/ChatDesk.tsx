@@ -467,9 +467,10 @@ export function ChatDesk({
     // Opening only: asked to show the board twice, it stays shown.
     const onPane = (e: Event): void => {
       const pane = (e as CustomEvent<{ pane: string }>).detail?.pane
-      if ((pane === 'board' || pane === 'contacts') && !boardOpen) onToggleBoard()
-      if (pane === 'board' || pane === 'contacts') {
-        const tab = pane === 'contacts' ? 'contacts' : 'todo'
+      if ((pane === 'board' || pane === 'contacts' || pane === 'sessions') && !boardOpen)
+        onToggleBoard()
+      if (pane === 'board' || pane === 'contacts' || pane === 'sessions') {
+        const tab = pane === 'contacts' ? 'contacts' : pane === 'sessions' ? 'sessions' : 'todo'
         localStorage.setItem(`deskTab:${ws.id}`, tab)
         window.dispatchEvent(
           new CustomEvent('cove:desk-tab', { detail: { workspaceId: ws.id, tab } })

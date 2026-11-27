@@ -316,6 +316,26 @@ export function initStore(): void {
     db.exec('UPDATE chats SET pinnedAt = updatedAt WHERE pinned = 1')
   }
 
+  // Conductor: a project can keep one Main chat that routes to worker sessions
+  // (docs: .superagent/cto-mode/plan.md). Plain nullable or defaulted columns, added once.
+  const wsCols = db.prepare('PRAGMA table_info(workspaces)').all() as { name: string }[]
+  for (const [col, def] of [
+    ['conductorChatId', 'TEXT'],
+    ['conductorNextTicket', 'INTEGER NOT NULL DEFAULT 101'],
+    ['conductorRouting', "TEXT NOT NULL DEFAULT 'confirm'"]
+  ] as const)
+    if (wsCols.length > 0 && !wsCols.some((c) => c.name === col))
+      db.exec(`ALTER TABLE workspaces ADD COLUMN ${col} ${def}`)
+  const conductorChatCols = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  for (const [col, def] of [
+    ['conductorParentId', 'TEXT'],
+    ['ticketNumber', 'INTEGER'],
+    ['conductorClosedAt', 'INTEGER'],
+    ['conductorSummary', 'TEXT']
+  ] as const)
+    if (conductorChatCols.length > 0 && !conductorChatCols.some((c) => c.name === col))
+      db.exec(`ALTER TABLE chats ADD COLUMN ${col} ${def}`)
+
   // A conversation's transcript lives in a table of its own. In `chats` it sat
   // in the middle of every row, megabytes of it, and reading any column after
   // it (cwd, pinned, pinnedAt — added later, so stored after) walked all of

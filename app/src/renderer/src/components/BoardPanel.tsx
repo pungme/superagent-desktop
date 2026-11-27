@@ -4,6 +4,7 @@ import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useStore } from '../state'
 import { Markdown } from './Markdown'
 import { ContactsPanel } from './ContactsPanel'
+import { ConductorPanel } from './ConductorPanel'
 import { when } from '../lib/relative-time'
 
 type Status = BoardCard['status']
@@ -28,6 +29,8 @@ const STAGES: { key: Status; label: string }[] = [
  * four you have to compare. Same table the board_* tools write, redrawn on
  * board:changed, so a card the agent moves moves here while you watch.
  */
+type Tab = 'todo' | 'contacts' | 'sessions'
+
 export function BoardPanel({
   workspaceId,
   onClose
@@ -36,21 +39,30 @@ export function BoardPanel({
   onClose: () => void
 }): React.JSX.Element {
   const tabKey = `deskTab:${workspaceId}`
-  const [tab, setTab] = useState<'todo' | 'contacts'>(() =>
-    localStorage.getItem(tabKey) === 'contacts' ? 'contacts' : 'todo'
-  )
-  const pickTab = (t: 'todo' | 'contacts'): void => {
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = localStorage.getItem(tabKey)
+    return saved === 'contacts' || saved === 'sessions' ? saved : 'todo'
+  })
+  const pickTab = (t: Tab): void => {
     localStorage.setItem(tabKey, t)
     setTab(t)
   }
   // Asked for by name ("show me the contacts"): ChatDesk opens the panel and says which tab.
   useEffect(() => {
     const on = (e: Event): void => {
-      const d = (e as CustomEvent<{ workspaceId: string; tab: 'todo' | 'contacts' }>).detail
+      const d = (e as CustomEvent<{ workspaceId: string; tab: Tab }>).detail
       if (d?.workspaceId === workspaceId) setTab(d.tab)
     }
     window.addEventListener('cove:desk-tab', on)
     return () => window.removeEventListener('cove:desk-tab', on)
+  }, [workspaceId])
+  // The Sessions tab belongs to a project that has a Conductor, and is offered once it does.
+  const [hasConductor, setHasConductor] = useState(false)
+  useEffect(() => {
+    const look = (): void =>
+      void window.cove.conductorGet(workspaceId).then((c) => setHasConductor(!!c))
+    look()
+    return window.cove.onConductorChanged((p) => p.workspaceId === workspaceId && look())
   }, [workspaceId])
   const [cards, setCards] = useState<BoardCard[]>([])
   const [draft, setDraft] = useState('')
@@ -170,6 +182,17 @@ export function BoardPanel({
         >
           Contacts
         </button>
+        {hasConductor && (
+          <button
+            role="tab"
+            aria-selected={tab === 'sessions'}
+            className={`board-tab ${tab === 'sessions' ? 'on' : ''}`}
+            data-testid="tab-sessions"
+            onClick={() => pickTab('sessions')}
+          >
+            Sessions
+          </button>
+        )}
       </div>
       {tab === 'todo' && (
         <span className="board-sub">
@@ -184,6 +207,13 @@ export function BoardPanel({
       </button>
     </div>
   )
+  if (tab === 'sessions' && hasConductor)
+    return (
+      <div className="board-panel">
+        {head}
+        <ConductorPanel workspaceId={workspaceId} />
+      </div>
+    )
   if (tab === 'contacts')
     return (
       <div className="board-panel">

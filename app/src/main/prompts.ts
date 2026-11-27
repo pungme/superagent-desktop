@@ -415,7 +415,18 @@ const ANTIGRAVITY_TODO_PROMPT =
   'When you take on a multi-step task, say the steps up front in a short list and say which ' +
   'one you are on as you go, so the user can follow your progress in the chat.'
 
+/**
+ * A project's Main (Conductor) chat gets its job and its session list; any other chat gets
+ * nothing. Set by conductor-tools (not imported here: it reaches the agents, which import this).
+ */
+let conductorProbe: (chatId?: string) => string = () => ''
+export function setConductorProbe(fn: (chatId?: string) => string): void {
+  conductorProbe = fn
+}
+
 export interface PromptContext {
+  /** The conversation this briefing is for: a project's Main (Conductor) chat gets its job and the session list. */
+  chatId?: string
   /** Browser-first workspace: steer the agent to drive the visible browser. */
   browserProject?: boolean
   workspaceId?: string
@@ -437,6 +448,7 @@ export interface PromptContext {
  */
 export function buildAppendedPrompt(ctx: PromptContext): string {
   return [
+    conductorProbe(ctx.chatId),
     ctx.provider === 'codex'
       ? CODEX_TODO_PROMPT
       : ctx.provider === 'antigravity'

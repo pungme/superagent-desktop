@@ -1,4 +1,5 @@
 import { registerAppTools } from './app-tools'
+import { registerConductorTools } from './conductor-tools'
 import {
   addContact,
   ensureField,
@@ -162,6 +163,8 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       sessionId: chatId ?? paneId,
       chatId
     })
+  // Only a project's Main chat gets these (conductor-tools.ts); for every other chat it adds nothing.
+  if (!paneId.endsWith('::routine')) registerConductorTools(server, { chatId })
   /**
    * The desktop chat is not a project — it is the computer's own agent, and the
    * things it drives are the desktop's, not a workspace's.

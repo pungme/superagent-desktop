@@ -75,7 +75,10 @@ import {
 import { noteUserMessage } from './browser-ask'
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
-import { startCompanionLog, forgetChat } from './companion/log'
+import { startCompanionLog, forgetChat, isGenerating as chatIsGenerating } from './companion/log'
+import { registerConductorIpc, setGeneratingProbe } from './conductor-tools'
+import { enableConductor, getConductor } from './conductor-store'
+import { createChat, getDb } from './store'
 import { fromMainWindow, registerRemoteControlIpc, startRemoteControl } from './remote-control'
 import {
   startCompanion,
@@ -407,6 +410,8 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerFloatChatIpc()
   registerRoutinesIpc()
+  registerConductorIpc()
+  setGeneratingProbe(chatIsGenerating)
   registerContactsIpc()
   registerEnvironmentIpc()
   registerOpenRequests()
@@ -770,8 +775,59 @@ app.whenReady().then(async () => {
         win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
       // One entry: New Chat isolates itself on a repo now (a chat is a checkout),
       // so the separate worktree item is gone.
+      const conductor = getConductor(getDb(), ws.id)
       const template: Electron.MenuItemConstructorOptions[] = [
         { label: 'New Chat', click: () => send('new-chat') },
+        conductor
+          ? {
+              label: 'Open Conductor',
+              click: () => {
+                askToOpen(ws.id, conductor.chatId)
+                send('open-sessions')
+              }
+            }
+          : {
+              label: 'Start Conductor…',
+              click: async () => {
+                // One Main chat for the project that starts and routes to worker sessions.
+                const unlinkedCount = (
+                  getDb()
+                    .prepare(
+                      'SELECT COUNT(*) AS n FROM chats WHERE workspaceId = ? AND incognito = 0'
+                    )
+                    .get(ws.id) as { n: number }
+                ).n
+                const { response } = await dialog.showMessageBox(win, {
+                  type: 'question',
+                  buttons:
+                    unlinkedCount > 0
+                      ? ['Start clean', `Connect the ${unlinkedCount} existing chats`, 'Cancel']
+                      : ['Start', 'Cancel'],
+                  defaultId: 0,
+                  cancelId: unlinkedCount > 0 ? 2 : 1,
+                  message: 'Start a Conductor for this project?',
+                  detail:
+                    'It adds one Main chat. You write to Main; it starts a session for each piece of work, sends your follow-ups to the right one, and asks when it is not sure. Nothing in your existing chats changes.'
+                })
+                const cancel = unlinkedCount > 0 ? 2 : 1
+                if (response === cancel) return
+                const adopt =
+                  unlinkedCount > 0 && response === 1
+                    ? (
+                        getDb()
+                          .prepare('SELECT id FROM chats WHERE workspaceId = ? AND incognito = 0')
+                          .all(ws.id) as { id: string }[]
+                      ).map((r) => r.id)
+                    : []
+                const made = enableConductor(getDb(), ws.id, {
+                  adoptChatIds: adopt,
+                  makeMain: () => createChat(ws.id)
+                })
+                win.webContents.send('projects:changed', {})
+                askToOpen(ws.id, made.chatId)
+                send('open-sessions')
+              }
+            },
         { label: 'Rename…', click: () => send('rename') }
       ]
       // This row IS the conversation that works in the folder — it has no row of

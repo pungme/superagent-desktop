@@ -18037,3 +18037,161 @@ button.easy-run-agent {
   color: var(--accent-fg);
   cursor: pointer;
 }
+
+/* Conductor: a project's sessions (components/ConductorPanel.tsx). */
+.cd {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px 14px;
+  gap: 10px;
+  overflow: hidden;
+}
+.cd-hint {
+  margin: 8px 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.cd-start,
+.cd-main {
+  all: unset;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+.cd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cd-routing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.cd-routing select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 6px;
+}
+.cd-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cd-h {
+  all: unset;
+  margin: 12px 4px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.cd-fold {
+  cursor: pointer;
+}
+.cd-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 9px;
+  border-bottom: 1px solid var(--content-hairline);
+}
+.cd-row:hover {
+  background: var(--hover);
+}
+.cd-open {
+  all: unset;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cd-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cd-ticket {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.cd-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cd-state {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.cd-state i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8b8f99;
+}
+.cd-state.working i {
+  background: #5b8def;
+}
+.cd-state.needs-you i {
+  background: #e0912f;
+}
+.cd-sub {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cd-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+}
+.cd-row:hover .cd-actions {
+  opacity: 1;
+}
+.cd-actions button {
+  all: unset;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.cd-actions button:hover {
+  color: var(--text-primary);
+}
+.cd-row.closed {
+  opacity: 0.6;
+}

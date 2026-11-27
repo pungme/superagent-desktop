@@ -1,4 +1,5 @@
 const transcriptFlushers = new Set<() => Promise<void>>()
+import type { ConductorSession } from '../shared/conductor'
 import type { Contact, FieldDef } from '../shared/contacts'
 import type { CliInfo } from '../shared/cli-update'
 import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
@@ -304,6 +305,13 @@ export interface CalendarEvent {
   color: string | null
   createdAt: number
   updatedAt: number
+}
+
+export interface ConductorState {
+  chatId: string
+  routing: 'confirm' | 'auto'
+  sessions: ConductorSession[]
+  unlinked: { chatId: string; title: string }[]
 }
 
 export interface CoveApi {
@@ -1296,6 +1304,14 @@ export interface CoveApi {
   contactsFields: (workspaceId: string) => Promise<FieldDef[]>
   contactsRemoveField: (workspaceId: string, key: string) => Promise<boolean>
   onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
+  conductorGet: (workspaceId: string) => Promise<ConductorState | null>
+  conductorEnable: (workspaceId: string, adoptChatIds: string[]) => Promise<ConductorState | null>
+  conductorSetRouting: (workspaceId: string, mode: 'confirm' | 'auto') => Promise<void>
+  conductorConnect: (workspaceId: string, chatId: string) => Promise<number | null>
+  conductorDisconnect: (workspaceId: string, chatId: string) => Promise<void>
+  conductorClose: (workspaceId: string, chatId: string) => Promise<void>
+  conductorReopen: (workspaceId: string, chatId: string) => Promise<void>
+  onConductorChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   routinesRuns: (routineId?: string) => Promise<RoutineRun[]>
   routinesUpdate: (
     id: string,
@@ -2010,6 +2026,15 @@ const cove: CoveApi = {
   contactsFields: (ws) => ipcRenderer.invoke('contacts:fields', ws),
   contactsRemoveField: (ws, key) => ipcRenderer.invoke('contacts:remove-field', ws, key),
   onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
+  conductorGet: (ws) => ipcRenderer.invoke('conductor:get', ws),
+  conductorEnable: (ws, adopt) => ipcRenderer.invoke('conductor:enable', ws, adopt),
+  conductorSetRouting: (ws, mode) => ipcRenderer.invoke('conductor:set-routing', ws, mode),
+  conductorConnect: (ws, chatId) => ipcRenderer.invoke('conductor:connect', ws, chatId),
+  conductorDisconnect: (ws, chatId) => ipcRenderer.invoke('conductor:disconnect', ws, chatId),
+  conductorClose: (ws, chatId) => ipcRenderer.invoke('conductor:close', ws, chatId),
+  conductorReopen: (ws, chatId) => ipcRenderer.invoke('conductor:reopen', ws, chatId),
+  onConductorChanged: (cb) =>
+    subscribe('conductor:changed', (p) => cb(p as { workspaceId: string })),
   routinesRuns: (routineId) => ipcRenderer.invoke('routines:runs', routineId),
   routinesUpdate: (id, patch) => ipcRenderer.invoke('routines:update', id, patch),
   onRoutinesChanged: (cb) => subscribe('routines:changed', () => cb()),

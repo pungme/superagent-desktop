@@ -92,6 +92,7 @@ export function buildAgentArgs(
   args.push(
     '--append-system-prompt',
     buildAppendedPrompt({
+      chatId: opts.chatId,
       browserProject: opts.browserProject,
       workspaceId: opts.workspaceId,
       browser: opts.workspaceId

@@ -253,6 +253,17 @@ function App(): React.JSX.Element {
         await s.newChat(id)
       }
       // Takes it off the list; the folder and its files are untouched.
+      // Conductor: show the project, then its Sessions tab (main has started or found the Main chat).
+      if (action === 'open-sessions') {
+        s.setActive(id)
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent('cove:app-pane', { detail: { pane: 'sessions' } })
+            ),
+          80
+        )
+      }
       if (action === 'remove') s.removeWorkspace(id)
       if (action === 'rename')
         window.dispatchEvent(new CustomEvent('cove:rename-project', { detail: { id } }))
