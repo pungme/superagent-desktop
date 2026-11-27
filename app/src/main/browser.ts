@@ -34,12 +34,13 @@ import { getRecentHistory } from './store'
 // Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
 // the bug has never reproduced on demand, so leave breadcrumbs where it happens.
 // One line per event in userData/pane-debug.log, rotated once at ~512 KB.
-let paneLogRotated = false
+let paneLogWrites = 0
 export function paneLog(event: string, id: string, detail = ''): void {
   try {
     const file = join(app.getPath('userData'), 'pane-debug.log')
-    if (!paneLogRotated) {
-      paneLogRotated = true
+    // Looked at on the first line and every 500 lines after, not once per run: a run of days
+    // that logs heavily (an error loop) grew the file without limit.
+    if (paneLogWrites++ % 500 === 0) {
       try {
         if (statSync(file).size > 512 * 1024) renameSync(file, file + '.old')
       } catch {

@@ -845,6 +845,16 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
   if (ended) {
     sessions.delete(id)
     forgetStuckSamples(id)
+    // The process's own exit was swallowed while `killed` was set, so nothing told the rest of
+    // the app that this session ended: a phone chat could stay "generating", its queued sends
+    // waiting for a stop that never came.
+    agentBus.emit('exit', {
+      id,
+      chatId: session.chatId,
+      workspaceId: session.workspaceId,
+      code: null,
+      deliberate: true
+    })
   }
   return ended
 }
