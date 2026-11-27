@@ -70,6 +70,8 @@ for (const agent of AGENTS)
           { timeout: 180_000, intervals: [3000] }
         )
         .toEqual([101])
+      // The Sessions tab shows it at once (Main's own tool told the window).
+      await expect(page.getByTestId('conductor-session')).toHaveCount(1, { timeout: 3000 })
       await page.screenshot({
         path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}.png`)
       })
@@ -89,6 +91,16 @@ for (const agent of AGENTS)
         ws
       )
       expect(after).toEqual([101])
+    } catch (e) {
+      // What Main said, for the report.
+      const page = app.windows()[0]
+      if (page)
+        await page
+          .screenshot({
+            path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}-failed.png`)
+          })
+          .catch(() => undefined)
+      throw e
     } finally {
       await app.close()
       for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

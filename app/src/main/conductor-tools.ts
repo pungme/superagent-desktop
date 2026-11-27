@@ -230,6 +230,11 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
   // Read again at each call: the routing mode and the numbering change while this runs.
   const now = (): ConductorInfo => conductorOfMain(getDb(), ctx.chatId!) ?? info
   const ws = info.workspaceId
+  // The Sessions tab and the sidebar both follow a change made by Main's own tools.
+  const refresh = (): void => {
+    broadcastToWindows('conductor:changed', { workspaceId: ws })
+    broadcastToWindows('projects:changed', {})
+  }
 
   const sessionRef = {
     ticket: z.number().int().optional().describe('The session number, like 101 for #101'),
@@ -286,7 +291,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       markPendingBranch(chatId)
       setChatTitle(chatId, (title ?? '').trim() || autoTitle(task))
       const ticket = connectChat(getDb(), c.workspaceId, chatId)
-      broadcastToWindows('projects:changed', {})
+      refresh()
       const { askFromDot } = await import('./companion/rpc')
       const sent = await askFromDot(chatId, task)
       if (!sent.ok)
@@ -344,7 +349,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     async ({ chatId }) => {
       const t = connectChat(getDb(), ws, chatId)
       if (t == null) return said('That chat is not in this project, or cannot be connected.', true)
-      broadcastToWindows('projects:changed', {})
+      refresh()
       return said(`Connected as ${ticketLabel(t)}.`)
     }
   )
@@ -386,7 +391,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
         }
       }
       closeSession(getDb(), s.chatId)
-      broadcastToWindows('projects:changed', {})
+      refresh()
       return said(`Closed ${s.ticket != null ? ticketLabel(s.ticket) : s.title}.`)
     }
   )
@@ -401,7 +406,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       const s = find({ ticket, chatId })
       if (!s) return notFound()
       reopenSession(getDb(), s.chatId)
-      broadcastToWindows('projects:changed', {})
+      refresh()
       return said(`Reopened ${s.ticket != null ? ticketLabel(s.ticket) : s.title}.`)
     }
   )
