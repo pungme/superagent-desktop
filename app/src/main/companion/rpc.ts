@@ -1,4 +1,5 @@
 import { frameWanted, mirrorShotWidth } from '../../shared/mirror-shot'
+import { conductorMarks } from '../conductor-store'
 import { listCalendarEvents, openCards } from '../store'
 import { handCard, todayAsk as todayAsk_ } from '../today'
 import { duplicateChat } from '../chat-duplicate'
@@ -8,6 +9,7 @@ import { z } from 'zod'
 import {
   getTree,
   listAllChats,
+  getDb,
   getChat,
   getChatProvider,
   getWorkspace,
@@ -1353,9 +1355,11 @@ export function listTree(): WireGroup[] {
 
 export function listChats(): WireChat[] {
   // An incognito chat is the Mac's only: the phone is never told it exists.
+  const marks = conductorMarks(getDb())
   return listAllChats()
     .filter((c) => c.incognito !== 1)
     .map((c) => ({
+      ...marks.get(c.id),
       id: c.id,
       workspaceId: c.workspaceId,
       title: c.title,

@@ -219,3 +219,29 @@ export function findSession(
     ref.chatId ? s.chatId === ref.chatId : ref.ticket != null && s.ticket === ref.ticket
   )
 }
+
+/** Which chats are a Main or a numbered session, for clients that only see the chat list (the phone). */
+export function conductorMarks(
+  db: Db
+): Map<string, { conductor: 'main' | 'session'; ticket?: number; closed?: boolean }> {
+  const out = new Map<
+    string,
+    { conductor: 'main' | 'session'; ticket?: number; closed?: boolean }
+  >()
+  const mains = db
+    .prepare('SELECT conductorChatId AS id FROM workspaces WHERE conductorChatId IS NOT NULL')
+    .all() as { id: string }[]
+  for (const m of mains) out.set(m.id, { conductor: 'main' })
+  const rows = db
+    .prepare(
+      'SELECT id, ticketNumber, conductorClosedAt FROM chats WHERE conductorParentId IS NOT NULL'
+    )
+    .all() as { id: string; ticketNumber: number | null; conductorClosedAt: number | null }[]
+  for (const r of rows)
+    out.set(r.id, {
+      conductor: 'session',
+      ...(r.ticketNumber != null ? { ticket: r.ticketNumber } : {}),
+      ...(r.conductorClosedAt != null ? { closed: true } : {})
+    })
+  return out
+}

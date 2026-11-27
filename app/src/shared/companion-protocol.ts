@@ -213,6 +213,14 @@ export interface WireChat {
   provider?: 'claude' | 'codex' | 'antigravity'
   /** The /loop running in this conversation, if any. Absent from older Macs. */
   loop?: WireLoop | null
+  /**
+   * Conductor: this chat is a project's Main ('main') or one of its numbered worker sessions
+   * ('session', with `ticket`; `closed` once it was closed). Absent from older Macs and for
+   * ordinary chats.
+   */
+  conductor?: 'main' | 'session'
+  ticket?: number
+  closed?: boolean
 }
 
 /** A /loop repeating a prompt in a conversation until it's stopped (see main/loops.ts). */

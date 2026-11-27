@@ -46,6 +46,7 @@ import {
 import { startMcpServer } from './mcp'
 import {
   getChat,
+  listAllChats,
   getTree,
   DESKTOP_WORKSPACE_ID,
   moveChatToWorkspace,
@@ -129,6 +130,7 @@ import {
   attachSimOwners
 } from './simulator'
 import { buildMenu } from './menu'
+import { setBusyChatsProbe, resumeInterrupted } from './update-resume'
 import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startHealthWatch, healthLog } from './health'
@@ -159,7 +161,7 @@ import {
   setShotCurtain
 } from './computer-use'
 import { setComputerUseProbe } from './prompts'
-import { stopFromDot } from './companion/rpc'
+import { stopFromDot, handleRpc } from './companion/rpc'
 
 // superagent:// links, before ready: macOS hands the link that launched the app
 // over during launch (prompt-links.ts).
@@ -977,6 +979,24 @@ app.whenReady().then(async () => {
 
   // Check GitHub Releases for a newer version and update quietly (packaged only).
   startAutoUpdate()
+
+  // After an update that restarted the app mid-turn, tell those chats to carry on.
+  setBusyChatsProbe(() =>
+    listAllChats()
+      .filter((c) => chatIsGenerating(c.id))
+      .map((c) => c.id)
+  )
+  setTimeout(() => {
+    resumeInterrupted(
+      (chatId, text) =>
+        handleRpc('chat.send', {
+          chatId,
+          text,
+          localId: `resume-${chatId}-${Date.now()}`
+        } as never),
+      (chatId) => !!getChat(chatId)
+    ).catch(() => undefined)
+  }, 8000)
 
   app.on('did-become-active', () => {
     if (process.env.COVE_E2E_QUIET === '1' || process.env.COVE_NO_FOCUS) return

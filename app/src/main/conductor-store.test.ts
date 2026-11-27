@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import {
   closeSession,
+  conductorMarks,
   conductorOfMain,
   conductorOfWorker,
   connectChat,
@@ -115,5 +116,20 @@ describe('conductor rows', () => {
     expect(findSession(db, 'w1', { ticket: 101 })?.summary).toBe('Waiting for review')
     expect(findSession(db, 'w1', { chatId: x })?.ticket).toBe(101)
     expect(findSession(db, 'w1', { ticket: 999 })).toBeUndefined()
+  })
+
+  it('marks the Main and each session for clients that only see the chat list', () => {
+    const c = enableConductor(db, 'w1', { makeMain: () => addChat('w1') })
+    const x = addChat('w1', 'X')
+    const y = addChat('w1', 'Y')
+    const plain = addChat('w1', 'Plain')
+    connectChat(db, 'w1', x)
+    connectChat(db, 'w1', y)
+    closeSession(db, y, 5)
+    const m = conductorMarks(db)
+    expect(m.get(c.chatId)).toEqual({ conductor: 'main' })
+    expect(m.get(x)).toEqual({ conductor: 'session', ticket: 101 })
+    expect(m.get(y)).toEqual({ conductor: 'session', ticket: 102, closed: true })
+    expect(m.has(plain)).toBe(false)
   })
 })

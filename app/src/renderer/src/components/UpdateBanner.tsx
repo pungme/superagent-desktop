@@ -206,7 +206,9 @@ export function UpdateBanner(): React.JSX.Element | null {
               {parts.join(' and ')}
             </span>
             <span className="update-confirm-sub">
-              Restarting stops {workingChats + backgroundTasks === 1 ? 'it' : 'them'}.
+              {workingChats > 0
+                ? 'Restart now and each working chat is told to carry on once Superagent is back.'
+                : `Restarting stops ${backgroundTasks === 1 ? 'it' : 'them'}.`}
             </span>
           </div>
         </div>
@@ -280,7 +282,7 @@ export function UpdateBanner(): React.JSX.Element | null {
               waiting for it to finish is the one to reach for, and comes last,
               where macOS puts the default. */}
           <button className="update-banner-secondary update-banner-warn-text" onClick={install}>
-            Restart anyway
+            Restart now
           </button>
           <button
             className="update-banner-action"

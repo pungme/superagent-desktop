@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { appendFileSync } from 'fs'
 import { join } from 'path'
 import { kvGet, kvSet } from './store'
+import { recordInterrupted } from './update-resume'
 
 /**
  * Opt-in beta updates. Off by default: a stable install only ever sees GitHub
@@ -169,6 +170,13 @@ export function startAutoUpdate(): void {
   // last window does with the dot on and an update waiting (index.ts).
   const install = (): void => {
     logLine('info', `install requested (downloaded=${updateDownloaded})`)
+    // Chats that are mid-turn are written down now; the new version tells each to carry on.
+    try {
+      const woken = recordInterrupted()
+      if (woken.length) logLine('info', `restart: ${woken.length} working chat(s) will be resumed`)
+    } catch (err) {
+      logLine('warn', `restart: could not note working chats: ${String(err)}`)
+    }
     setImmediate(async () => {
       // The windows are about to be destroyed, which no save survives: let
       // every conversation land first (a few seconds at most), then tell the
