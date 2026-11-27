@@ -435,6 +435,8 @@ export type RpcMethod =
   | 'chat.draft'
   | 'chat.pin'
   | 'chat.duplicate'
+  | 'conductor.get'
+  | 'conductor.routing'
   | 'today.get'
   | 'today.hand'
   | 'today.ask'

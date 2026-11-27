@@ -520,6 +520,19 @@ function stateOf(workspaceId: string): ConductorState | null {
   }
 }
 
+/** For clients that are not this window (the phone): the same picture the Sessions tab shows. */
+export function conductorStateFor(workspaceId: string): ConductorState | null {
+  return stateOf(workspaceId)
+}
+
+/** Confirm or Auto, from the phone. */
+export function setConductorRouting(workspaceId: string, mode: 'auto' | 'confirm'): boolean {
+  if (!getConductor(getDb(), workspaceId)) return false
+  setRouting(getDb(), workspaceId, mode)
+  changed(workspaceId)
+  return true
+}
+
 const changed = (workspaceId: string): void => {
   broadcastToWindows('conductor:changed', { workspaceId })
   broadcastToWindows('projects:changed', {})

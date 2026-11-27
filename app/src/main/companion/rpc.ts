@@ -204,6 +204,11 @@ const skillsList = z.object({
   provider: z.enum(['claude', 'codex', 'antigravity']).optional(),
   workspaceId: z.string().min(1).optional()
 })
+const conductorGet = z.object({ workspaceId: z.string().min(1) })
+const conductorRouting = z.object({
+  workspaceId: z.string().min(1),
+  routing: z.enum(['auto', 'confirm'])
+})
 const todayGet = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 const todayHand = z.object({ cardId: z.string().min(1) })
 const todayAsk = z.object({ text: z.string().min(1).max(200_000) })
@@ -488,6 +493,24 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return done ? { ok: true } : fail('gone', 'that approval is no longer waiting')
       }
       // Today on the phone: the day's events and every project's open to-dos.
+      // The Conductor's sessions for a project: what the Sessions tab shows on the Mac.
+      case 'conductor.get': {
+        const p = conductorGet.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorStateFor } = await import('../conductor-tools')
+        const state = conductorStateFor(p.data.workspaceId)
+        return state
+          ? { ok: true, result: state }
+          : fail('not-found', 'no Conductor in this project')
+      }
+      case 'conductor.routing': {
+        const p = conductorRouting.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { setConductorRouting } = await import('../conductor-tools')
+        return setConductorRouting(p.data.workspaceId, p.data.routing)
+          ? { ok: true, result: {} }
+          : fail('not-found', 'no Conductor in this project')
+      }
       case 'today.get': {
         const p = todayGet.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
