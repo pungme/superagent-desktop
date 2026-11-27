@@ -108,8 +108,10 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'Answer questions about status, architecture and plans yourself, from the session list below ' +
     'and from conductor_inspect_session when you need more. Every session has a number (#101…) ' +
     'and a short title you give it; say the number when you mention one. ' +
+    'The session list that follows is as it was when this conversation began: call ' +
+    'conductor_list_sessions for the current one before you route a message or answer about status. ' +
     'Before closing a session with unmerged commits, offer: merge into main and close, close and ' +
-    'keep the branch, or discard and close. ' +
+    'keep the branch, or discard and close (only if the person asks for that). ' +
     how
   )
 }

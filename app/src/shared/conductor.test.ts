@@ -59,6 +59,10 @@ describe('conductor helpers', () => {
     expect(text).toContain('Chats not connected to Main: Scratch.')
   })
 
+  it('tells the Conductor its list can be out of date', () => {
+    expect(conductorPrompt('confirm')).toContain('call conductor_list_sessions for the current one')
+  })
+
   it('says which routing mode applies', () => {
     expect(conductorPrompt('confirm')).toContain('Routing is Confirm')
     expect(conductorPrompt('auto')).toContain('Routing is Auto')
