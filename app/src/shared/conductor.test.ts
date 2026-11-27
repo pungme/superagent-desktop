@@ -59,6 +59,11 @@ describe('conductor helpers', () => {
     expect(text).toContain('Chats not connected to Main: Scratch.')
   })
 
+  it('tells the Conductor how to title a session', () => {
+    expect(conductorPrompt('auto')).toContain('three to six words')
+    expect(conductorPrompt('auto')).toContain('WD-284')
+  })
+
   it('tells the Conductor its list can be out of date', () => {
     expect(conductorPrompt('confirm')).toContain('call conductor_list_sessions for the current one')
   })

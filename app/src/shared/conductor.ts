@@ -109,7 +109,9 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'and send follow-ups to it with conductor_send_to_session, so this conversation stays light. ' +
     'Answer questions about status, architecture and plans yourself, from the session list below ' +
     'and from conductor_inspect_session when you need more. Every session has a number (#101…) ' +
-    'and a short title you give it; say the number when you mention one. ' +
+    'and a short title you give it: three to six words, a noun phrase for the work ("Pricing page redesign"), ' +
+    'never the whole request, and with the ticket id in front when the person named one from their tracker ' +
+    '("WD-284 Fix header wrap"). Say the number when you mention a session. ' +
     'The session list that follows is as it was when this conversation began: call ' +
     'conductor_list_sessions for the current one before you route a message or answer about status. ' +
     'Before closing a session with unmerged commits, offer: merge into main and close, close and ' +

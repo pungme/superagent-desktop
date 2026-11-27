@@ -123,11 +123,58 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     const other = await tool('conductor_list_sessions', {}, made.a).catch((e) => String(e))
     expect(other).not.toContain('#101')
 
+    // A session asks to run something: the Sessions tab shows what, and Approve answers it.
+    const asked = tool(
+      'permission_prompt',
+      { tool_name: 'Bash', input: { command: 'rm -rf build' } },
+      made.a
+    )
+    await expect.poll(() => tool('conductor_list_sessions')).toContain('Needs you')
+    await page.reload()
+    await page.waitForSelector('.sidebar', { timeout: 20_000 })
+    await page.click('.sidebar-item:has-text("e2e-project")')
+    if (
+      !(await page
+        .getByTestId('tab-sessions')
+        .isVisible()
+        .catch(() => false))
+    )
+      await page
+        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
+        .first()
+        .click()
+    await page.getByTestId('tab-sessions').click()
+    await expect(page.getByTestId('conductor-approval')).toContainText('rm -rf build')
+    await expect(page.getByTestId('tab-sessions').locator('.cd-tabdot')).toBeVisible()
+    await page.getByTestId('conductor-approve').click()
+    expect(await asked).toContain('allow')
+    await expect(page.getByTestId('conductor-approval')).toHaveCount(0)
+    // And one denied from the same place.
+    const refused2 = tool(
+      'permission_prompt',
+      { tool_name: 'Bash', input: { command: 'git push' } },
+      made.a
+    )
+    await expect(page.getByTestId('conductor-approval')).toContainText('git push', {
+      timeout: 10_000
+    })
+    await page.getByTestId('conductor-approval').getByText('Deny').click()
+    expect(await refused2).toContain('deny')
+
     // The Sessions tab.
     await page.reload()
     await page.waitForSelector('.sidebar', { timeout: 20_000 })
     await page.click('.sidebar-item:has-text("e2e-project")')
-    await page.locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible').first().click()
+    if (
+      !(await page
+        .getByTestId('tab-sessions')
+        .isVisible()
+        .catch(() => false))
+    )
+      await page
+        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
+        .first()
+        .click()
     await page.getByTestId('tab-sessions').click()
     const panel = page.getByTestId('conductor-panel')
     await expect(panel.getByTestId('conductor-session')).toHaveCount(2)
@@ -146,6 +193,37 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
 
     // The sidebar numbers the sessions too.
     await expect(page.locator('.sidebar')).toContainText('#101 Fix the header')
+
+    // Peek: the arrow shows a session's latest messages under its row.
+    await panel.locator('.cd-peek-btn').first().click()
+    await expect(panel.locator('.cd-peek')).toContainText(
+      /Nothing in that conversation yet|USER|AGENT/
+    )
+    await panel.locator('.cd-peek-btn').first().click()
+    await expect(panel.locator('.cd-peek')).toHaveCount(0)
+
+    // In Main, a session's question is a card above the composer.
+    await panel.getByTestId('conductor-main').click()
+    const asked3 = tool(
+      'permission_prompt',
+      { tool_name: 'Bash', input: { command: 'make deploy' } },
+      made.a
+    )
+    await expect(page.getByTestId('conductor-escalations')).toContainText('make deploy', {
+      timeout: 10_000
+    })
+    await expect(page.getByTestId('conductor-escalations')).toContainText('#101')
+    await page.getByTestId('conductor-escalations').getByRole('button', { name: 'Approve' }).click()
+    expect(await asked3).toContain('allow')
+    await expect(page.getByTestId('conductor-escalations')).toHaveCount(0)
+    // The side panel is per conversation: bring Sessions back on Main for what follows.
+    if (!(await panel.isVisible().catch(() => false))) {
+      await page
+        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
+        .first()
+        .click()
+      await page.getByTestId('tab-sessions').click()
+    }
 
     // Routing, from the panel and as the Main chat sees it.
     await panel.getByTestId('conductor-routing').selectOption('auto')

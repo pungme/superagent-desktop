@@ -274,14 +274,18 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     'conductor_spawn_session',
     {
       description:
-        'Start a worker session in this project on its own branch and give it its first message. It gets the next number (#101…) and a short title (yours, or made from the task). Use it for work: editing, building, investigating. Returns the number and chat id.',
+        'Start a worker session in this project on its own branch and give it its first message. It gets the next number (#101…) and the title you give it: 3 to 6 words naming the work, with a tracker id in front if the person gave one ("WD-284 Fix header wrap"); without one it is cut from the task. Use it for work: editing, building, investigating. Returns the number and chat id.',
       inputSchema: {
         task: z
           .string()
           .min(1)
           .max(8000)
           .describe('The first message the worker receives: the whole brief'),
-        title: z.string().max(80).optional()
+        title: z
+          .string()
+          .max(80)
+          .optional()
+          .describe('3 to 6 words naming the work, e.g. "Pricing page redesign"')
       }
     },
     async ({ task, title }) => {
