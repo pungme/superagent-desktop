@@ -923,6 +923,12 @@ export interface CoveApi {
   /** Clears HTTP/code caches and service workers; never cookies or site data. */
   clearBrowserCaches: () => Promise<boolean>
   onMenu: (cb: (action: string) => void) => () => void
+  /** The app's own right-click menu: main sends what to draw, the pick goes back as an id. */
+  onCtxMenu: (
+    cb: (m: { token: number; items: unknown[]; x: number; y: number }) => void
+  ) => () => void
+  pickCtxMenu: (token: number, id: number) => void
+  closeCtxMenu: () => void
 
   /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
   mailStatus: () => Promise<MailConnectionStatus>
@@ -1810,6 +1816,12 @@ const cove: CoveApi = {
   clearProjectIconOverride: (workspaceId) =>
     ipcRenderer.invoke('project:clear-icon-override', workspaceId),
   clearBrowserCaches: () => ipcRenderer.invoke('app:clear-browser-caches'),
+  onCtxMenu: (cb) =>
+    subscribe('ctxmenu:show', (m) =>
+      cb(m as { token: number; items: unknown[]; x: number; y: number })
+    ),
+  pickCtxMenu: (token, id) => ipcRenderer.send('ctxmenu:pick', token, id),
+  closeCtxMenu: () => ipcRenderer.send('ctxmenu:close'),
   onMenu: (cb) => {
     const actions = [
       'menu:settings',

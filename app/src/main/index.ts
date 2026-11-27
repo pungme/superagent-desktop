@@ -1,5 +1,6 @@
 // Before everything: what the released app will not be started with.
 import { registerContactsIpc } from './contacts'
+import { popupMenu, registerCtxMenuIpc } from './ctx-menu'
 import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
@@ -15,7 +16,6 @@ import {
   app,
   shell,
   BrowserWindow,
-  Menu,
   clipboard,
   nativeTheme,
   ipcMain,
@@ -426,6 +426,7 @@ app.whenReady().then(async () => {
   setGeneratingProbe(chatIsGenerating)
   watchConductor(logBus, hookBus)
   registerContactsIpc()
+  registerCtxMenuIpc()
   registerEnvironmentIpc()
   registerOpenRequests()
   registerDot()
@@ -747,7 +748,7 @@ app.whenReady().then(async () => {
           click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
         }
       )
-      Menu.buildFromTemplate(template).popup({ window: win })
+      popupMenu(win, template)
     }
   )
 
@@ -772,7 +773,7 @@ app.whenReady().then(async () => {
         { label: 'Reveal in Finder', click: () => shell.showItemInFolder(p.wtPath) },
         { label: 'Copy Path', click: () => clipboard.writeText(p.wtPath) }
       ]
-      Menu.buildFromTemplate(template).popup({ window: win })
+      popupMenu(win, template)
     }
   )
 
@@ -885,7 +886,7 @@ app.whenReady().then(async () => {
         // this is the one place a project comes off the list now.
         { label: 'Remove from Superagent', click: () => send('remove') }
       )
-      Menu.buildFromTemplate(template).popup({ window: win })
+      popupMenu(win, template)
     }
   )
 
@@ -917,20 +918,20 @@ app.whenReady().then(async () => {
         { type: 'separator' },
         { label: del, click: () => send('delete') }
       )
-      Menu.buildFromTemplate(template).popup({ window: win })
+      popupMenu(win, template)
     }
   )
 
   // Right-click on a file-tree row: the little things a real file browser owes you.
   ipcMain.on('files:menu', (e, absPath: string) => {
-    const menu = Menu.buildFromTemplate([
-      { label: 'Reveal in Finder', click: () => shell.showItemInFolder(absPath) },
-      { label: 'Copy Path', click: () => clipboard.writeText(absPath) },
-      { type: 'separator' },
-      { label: 'Open with Default App', click: () => void shell.openPath(absPath) }
-    ])
     const win = BrowserWindow.fromWebContents(e.sender)
-    if (win) menu.popup({ window: win })
+    if (win)
+      popupMenu(win, [
+        { label: 'Reveal in Finder', click: () => shell.showItemInFolder(absPath) },
+        { label: 'Copy Path', click: () => clipboard.writeText(absPath) },
+        { type: 'separator' },
+        { label: 'Open with Default App', click: () => void shell.openPath(absPath) }
+      ])
   })
 
   ipcMain.handle('dialog:pickFolder', async () => {

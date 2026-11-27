@@ -9,6 +9,7 @@ import { SplitLayer } from './components/SplitLayer'
 import { splitRects } from './lib/split'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
+import { ContextMenu } from './components/ContextMenu'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { Tour } from './tour/Tour'
@@ -869,6 +870,7 @@ function App(): React.JSX.Element {
       </main>
       <PreviewToast />
       <UpdateBanner />
+      <ContextMenu />
       <IntroSplash />
       {intro}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

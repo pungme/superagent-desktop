@@ -410,6 +410,18 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
 - Not built: a worker's chat mounted inside the panel (a row opens it normally and expands to its
   latest messages).
 
+## Our own right-click menus
+
+The sidebar's right-click menus (project, chat, branch, file) are drawn by the app, not macOS
+(`src/main/ctx-menu.ts`, `components/ContextMenu.tsx`). Main still builds the same
+`MenuItemConstructorOptions` template with its `click` handlers and calls `popupMenu(win, template)`;
+the window gets a plain description (`ctxmenu:show`), draws it at the right-click point (taken from
+the window's own `contextmenu` event, not the screen pointer), and the pick comes back as an id
+(`ctxmenu:pick`) that runs the item's own `click`. Arrows, Return and Esc work; a click away closes it;
+it holds native views (browser pane) back with the overlay lock. The browser pane's page menus
+(`browser.ts`) stay native: a native view sits above all HTML, so a drawn menu could not show there.
+e2e: `context-menu.spec.ts`.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and
