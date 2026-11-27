@@ -1,4 +1,4 @@
-# Superagent 2.1.3-beta.56
+# Superagent 2.1.3-beta.57
 
 **Update without waiting.** "Restart now" no longer means losing the work in flight: the chats that were mid-turn are written down, and when the new version is up each one is told to carry on. You don't have to wait for the agents to finish, or type "continue" yourself.
 
