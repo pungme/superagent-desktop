@@ -401,6 +401,32 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
   )
 
   server.registerTool(
+    'conductor_merge_session',
+    {
+      description:
+        "Merge a session's commits into the project's main branch and keep the session open. Only after the person agreed. Refuses while the session is working.",
+      inputSchema: sessionRef
+    },
+    async ({ ticket, chatId }) => {
+      const s = find({ ticket, chatId })
+      if (!s) return notFound()
+      const label = s.ticket != null ? ticketLabel(s.ticket) : s.title
+      if (isGenerating(s.chatId))
+        return said(`${label} is still working. Merge when it is done.`, true)
+      const chat = getChat(s.chatId)
+      if (!chat?.cwd || !unmergedCount(chat.cwd)) return said(`${label} has nothing to merge.`)
+      const wsRow = getWorkspace(ws)
+      if (!wsRow) return said('That project is gone.', true)
+      const { mergeCopy } = await import('./chat-copy')
+      const r = await mergeCopy(wsRow.path, chat.cwd, s.title || 'Conductor session')
+      if (!r.ok && r.reason !== 'nothing')
+        return said(`Could not merge ${label} (${r.reason}).`, true)
+      refresh()
+      return said(`Merged ${label} into the main branch. The session stays open.`)
+    }
+  )
+
+  server.registerTool(
     'conductor_reopen_session',
     {
       description: 'Bring a closed session back among the active ones.',
@@ -516,5 +542,46 @@ export function registerConductorIpc(): void {
   ipcMain.handle('conductor:reopen', (_e, ws: string, chatId: string) => {
     reopenSession(getDb(), String(chatId))
     changed(String(ws))
+  })
+}
+
+/**
+ * "Start Conductor…" from a project's right-click menu: ask, then turn it on (and connect the
+ * project's existing chats if that was chosen). `ask` shows the question and returns the index of
+ * the button pressed, so a test can answer it. Returns the Conductor, or null when cancelled.
+ */
+export async function startConductorDialog(
+  workspaceId: string,
+  ask: (options: {
+    type: 'question'
+    buttons: string[]
+    defaultId: number
+    cancelId: number
+    message: string
+    detail: string
+  }) => Promise<number>
+): Promise<ConductorInfo | null> {
+  const db = getDb()
+  const existing = (
+    db
+      .prepare('SELECT id FROM chats WHERE workspaceId = ? AND incognito = 0 ORDER BY position')
+      .all(workspaceId) as { id: string }[]
+  ).map((r) => r.id)
+  const some = existing.length > 0
+  const response = await ask({
+    type: 'question',
+    buttons: some
+      ? ['Start clean', `Connect the ${existing.length} existing chats`, 'Cancel']
+      : ['Start', 'Cancel'],
+    defaultId: 0,
+    cancelId: some ? 2 : 1,
+    message: 'Start a Conductor for this project?',
+    detail:
+      'It adds one Main chat. You write to Main; it starts a session for each piece of work, sends your follow-ups to the right one, and asks when it is not sure. Nothing in your existing chats changes.'
+  })
+  if (response === (some ? 2 : 1)) return null
+  return enableConductor(db, workspaceId, {
+    adoptChatIds: some && response === 1 ? existing : [],
+    makeMain: () => createChat(workspaceId)
   })
 }

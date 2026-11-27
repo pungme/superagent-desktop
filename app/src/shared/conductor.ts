@@ -116,6 +116,11 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'conductor_list_sessions for the current one before you route a message or answer about status. ' +
     'Before closing a session with unmerged commits, offer: merge into main and close, close and ' +
     'keep the branch, or discard and close (only if the person asks for that). ' +
+    'When a session finishes work the person has seen or approved (its list entry shows unmerged ' +
+    'commits and it is idle), offer to merge it into main: conductor_merge_session lands the commits ' +
+    'and keeps the session open, conductor_close_session with how "merge" lands and closes. Merge only ' +
+    'after the person says yes (or said earlier to merge when done); never merge a session that is ' +
+    'still working or waiting on the person. ' +
     how
   )
 }

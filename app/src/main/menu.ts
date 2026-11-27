@@ -137,6 +137,13 @@ export function buildMenu(): void {
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () => send('menu:reload-page-hard')
         },
+        // The sidebar folds with ⌘\ wherever focus is (a page or the simulator holds the keys,
+        // so the key alone was heard only by the chat), and the item says so in the menu.
+        {
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => send('menu:toggle-sidebar')
+        },
         {
           label: 'Toggle Preview',
           accelerator: 'CmdOrCtrl+B',

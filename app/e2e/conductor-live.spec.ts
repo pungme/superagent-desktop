@@ -177,3 +177,120 @@ for (const agent of AGENTS)
       for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
     }
   })
+
+for (const agent of AGENTS)
+  test(`${agent}: a follow-up goes to the session it belongs to, a different task starts a new one`, async () => {
+    test.skip(!LIVE, 'set CLAUDE_LIVE=1 to run against the real agents')
+    test.setTimeout(420_000)
+    const data = mkdtempSync(join(tmpdir(), 'cove-condlive3-data-'))
+    const proj = mkdtempSync(join(tmpdir(), 'cove-condlive3-proj-'))
+    writeFileSync(join(proj, 'README.md'), '# demo\n')
+    const app = await electron.launch({
+      args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+      env: { ...process.env, COVE_USER_DATA: data, COVE_E2E_PROJECT: proj, NODE_ENV: 'production' }
+    })
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      await page.evaluate(() => {
+        localStorage.setItem('cove.onboarded', '1')
+        localStorage.setItem('cove.connectionsOffered', '1')
+      })
+      await page.evaluate((a) => window.cove.kvSet('cove.provider', a), agent)
+      await page.waitForTimeout(500)
+      const ws = await page.evaluate(async () => {
+        const tree = await window.cove.storeTree()
+        const w = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
+        await window.cove.conductorEnable(w.id, [])
+        await window.cove.conductorSetRouting(w.id, 'auto')
+        return w.id
+      })
+      await page.reload()
+      await page.waitForSelector('.sidebar', { timeout: 20_000 })
+      await page.click('.sidebar-item:has-text("e2e-project")')
+      await page
+        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
+        .first()
+        .click()
+      await page.getByTestId('tab-sessions').click()
+      await page.getByTestId('conductor-main').click()
+      const input = page.locator('textarea.easy-input:visible')
+      await expect(input).toBeVisible({ timeout: 20_000 })
+      const state = (): Promise<{ ticket: number | null; chatId: string }[]> =>
+        page.evaluate(
+          async (id) =>
+            ((await window.cove.conductorGet(id))?.sessions ?? []).map((s) => ({
+              ticket: s.ticket,
+              chatId: s.chatId
+            })),
+          ws
+        )
+      const send = async (text: string): Promise<void> => {
+        await input.fill(text)
+        await input.press('Enter')
+      }
+
+      await send('Add a dark mode toggle to the settings page. Start a session for it.')
+      await expect
+        .poll(async () => (await state()).map((s) => s.ticket), {
+          timeout: 180_000,
+          intervals: [3000]
+        })
+        .toEqual([101])
+      const first = (await state())[0].chatId
+      // Let Main finish its turn before the next message.
+      await page.waitForTimeout(15_000)
+
+      // A follow-up about the same work: it goes to #101, no new session.
+      await send('Also make the dark mode toggle remember the choice after a restart.')
+      await expect
+        .poll(
+          () =>
+            // The worker has been spoken to twice: its brief, and the follow-up (in Main's own words).
+            page.evaluate(
+              async (id) => ((await window.cove.conductorPeek(id)).match(/USER:/g) ?? []).length,
+              first
+            ),
+          { timeout: 180_000, intervals: [3000] }
+        )
+        .toBeGreaterThanOrEqual(2)
+      expect((await state()).map((s) => s.ticket)).toEqual([101])
+      await page.waitForTimeout(15_000)
+
+      // Something else entirely: a second session.
+      await send('Separately, translate the pricing page into German. Start a session for that.')
+      await expect
+        .poll(async () => (await state()).map((s) => s.ticket), {
+          timeout: 180_000,
+          intervals: [3000]
+        })
+        .toEqual([101, 102])
+    } catch (e) {
+      const w = app.windows()[0]
+      if (w) {
+        await w
+          .screenshot({
+            path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}-routing-failed.png`)
+          })
+          .catch(() => undefined)
+        console.log(
+          'STATE',
+          JSON.stringify(
+            await w
+              .evaluate(async () => {
+                const tree = await window.cove.storeTree()
+                const id = tree
+                  .flatMap((g) => g.workspaces)
+                  .find((x) => x.name === 'e2e-project')!.id
+                return (await window.cove.conductorGet(id))?.sessions
+              })
+              .catch(() => null)
+          )
+        )
+      }
+      throw e
+    } finally {
+      await app.close()
+      for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
+    }
+  })

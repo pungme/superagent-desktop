@@ -81,9 +81,14 @@ import {
   isGenerating as chatIsGenerating,
   logBus
 } from './companion/log'
-import { registerConductorIpc, setGeneratingProbe, watchConductor } from './conductor-tools'
-import { enableConductor, getConductor } from './conductor-store'
-import { createChat, getDb } from './store'
+import {
+  registerConductorIpc,
+  setGeneratingProbe,
+  startConductorDialog,
+  watchConductor
+} from './conductor-tools'
+import { getConductor } from './conductor-store'
+import { getDb } from './store'
 import { fromMainWindow, registerRemoteControlIpc, startRemoteControl } from './remote-control'
 import {
   startCompanion,
@@ -795,40 +800,11 @@ app.whenReady().then(async () => {
           : {
               label: 'Start Conductor…',
               click: async () => {
-                // One Main chat for the project that starts and routes to worker sessions.
-                const unlinkedCount = (
-                  getDb()
-                    .prepare(
-                      'SELECT COUNT(*) AS n FROM chats WHERE workspaceId = ? AND incognito = 0'
-                    )
-                    .get(ws.id) as { n: number }
-                ).n
-                const { response } = await dialog.showMessageBox(win, {
-                  type: 'question',
-                  buttons:
-                    unlinkedCount > 0
-                      ? ['Start clean', `Connect the ${unlinkedCount} existing chats`, 'Cancel']
-                      : ['Start', 'Cancel'],
-                  defaultId: 0,
-                  cancelId: unlinkedCount > 0 ? 2 : 1,
-                  message: 'Start a Conductor for this project?',
-                  detail:
-                    'It adds one Main chat. You write to Main; it starts a session for each piece of work, sends your follow-ups to the right one, and asks when it is not sure. Nothing in your existing chats changes.'
+                const made = await startConductorDialog(ws.id, async (options) => {
+                  const { response } = await dialog.showMessageBox(win, options)
+                  return response
                 })
-                const cancel = unlinkedCount > 0 ? 2 : 1
-                if (response === cancel) return
-                const adopt =
-                  unlinkedCount > 0 && response === 1
-                    ? (
-                        getDb()
-                          .prepare('SELECT id FROM chats WHERE workspaceId = ? AND incognito = 0')
-                          .all(ws.id) as { id: string }[]
-                      ).map((r) => r.id)
-                    : []
-                const made = enableConductor(getDb(), ws.id, {
-                  adoptChatIds: adopt,
-                  makeMain: () => createChat(ws.id)
-                })
+                if (!made) return
                 win.webContents.send('projects:changed', {})
                 askToOpen(ws.id, made.chatId)
                 send('open-sessions')

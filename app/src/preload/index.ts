@@ -1823,6 +1823,7 @@ const cove: CoveApi = {
       'menu:reload-page',
       'menu:reload-page-hard',
       'menu:toggle-preview',
+      'menu:toggle-sidebar',
       'menu:browser-first',
       'menu:close-tab'
     ]

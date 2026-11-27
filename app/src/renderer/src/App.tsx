@@ -138,16 +138,9 @@ function App(): React.JSX.Element {
 
   // ⌘\ from anywhere, plus the buttons in the sidebar footer and the titlebar.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
-        e.preventDefault()
-        toggleSidebar()
-      }
-    }
-    window.addEventListener('keydown', onKey)
+    // ⌘\ is the View menu's Toggle Sidebar (main/menu.ts), which works whichever view has focus.
     window.addEventListener('cove:toggle-sidebar', toggleSidebar)
     return () => {
-      window.removeEventListener('keydown', onKey)
       window.removeEventListener('cove:toggle-sidebar', toggleSidebar)
     }
   }, [toggleSidebar])
@@ -660,6 +653,8 @@ function App(): React.JSX.Element {
     return window.cove.onMenu((action) => {
       if (action === 'settings') setSettingsOpen(true)
       else if (action === 'command-palette') setPaletteOpen((v) => !v)
+      else if (action === 'toggle-sidebar')
+        window.dispatchEvent(new CustomEvent('cove:toggle-sidebar'))
       else if (action === 'new-group') addGroup()
       else if (action === 'new-chat') window.dispatchEvent(new CustomEvent('cove:new-chat'))
       else if (action === 'new-incognito-chat')

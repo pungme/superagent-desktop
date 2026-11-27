@@ -403,7 +403,9 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
 - e2e: `conductor.spec.ts` (tools over HTTP; a stand-in `claude` for spawn/send/summary).
 - Sessions that need you also show as Approve / Deny cards inside the Main chat
   (`ConductorEscalations.tsx`). The Sessions tab stays open as you move between sessions.
-- `conductor-live.spec.ts` (`CLAUDE_LIVE=1`): a real agent as Main, in Auto, starts #101 for a clear task.
+- `conductor-live.spec.ts`: a real agent as Main (`CONDUCTOR_AGENTS=claude,codex,antigravity`, `CLAUDE_LIVE=1`): Auto starts a titled session, Confirm asks first, a follow-up routes to the existing session.
+- Starting: the project's right-click menu calls `startConductorDialog` (unit-tested in `conductor-start.test.ts`). Merging: `conductor_merge_session` (keeps it open) or `conductor_close_session how:'merge'`; the prompt tells Main to offer it, never to merge without a yes.
+- ⌘\ toggles the sidebar through the View menu item (menu accelerators work while a native view has focus; a renderer keydown does not).
 - Not built: a worker's chat mounted inside the panel (a row opens it normally and expands to its
   latest messages).
 
