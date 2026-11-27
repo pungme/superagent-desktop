@@ -1355,7 +1355,13 @@ export function listTree(): WireGroup[] {
 
 export function listChats(): WireChat[] {
   // An incognito chat is the Mac's only: the phone is never told it exists.
-  const marks = conductorMarks(getDb())
+  // A list must never fail for a missing mark: no marks, then every chat is an ordinary one.
+  let marks: ReturnType<typeof conductorMarks>
+  try {
+    marks = conductorMarks(getDb())
+  } catch {
+    marks = new Map()
+  }
   return listAllChats()
     .filter((c) => c.incognito !== 1)
     .map((c) => ({
