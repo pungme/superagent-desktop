@@ -62,6 +62,22 @@ test('Main starts a session for a clear task, and answers a question itself', as
       )
       .toEqual([101])
     await page.screenshot({ path: join(process.env.SHOT ?? tmpdir(), 'conductor-live.png') })
+
+    // A question about where things stand is answered in Main, without a second session.
+    await page.waitForTimeout(5000)
+    await input.fill('Which sessions are running right now? Just answer, do not start anything.')
+    await input.press('Enter')
+    await expect(page.locator('.easy-messages, .easy-chat').first()).toContainText(
+      /#101|dark mode/i,
+      {
+        timeout: 180_000
+      }
+    )
+    const after = await page.evaluate(
+      async (id) => (await window.cove.conductorGet(id))?.sessions.map((s) => s.ticket),
+      ws
+    )
+    expect(after).toEqual([101])
   } finally {
     await app.close()
     for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

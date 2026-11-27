@@ -129,6 +129,10 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
       await page.evaluate(() => document.querySelector('.intro')?.remove())
       await page.waitForTimeout(300)
       await page.screenshot({ path: join(process.env.SHOT, 'conductor-panel.png') })
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+      await page.waitForTimeout(300)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-panel-dark.png') })
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
     }
 
     // The sidebar numbers the sessions too.

@@ -18374,3 +18374,4 @@ button.easy-run-agent {
   background: transparent;
   color: var(--text-primary);
 }
+.cd-row:not(.last)::after { bottom: -1px; }
