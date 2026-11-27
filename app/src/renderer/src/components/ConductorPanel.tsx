@@ -97,6 +97,34 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             {s.summary}
           </span>
         )}
+        {s.approval && (
+          <span className="cd-ask" data-testid="conductor-approval">
+            <span className="cd-ask-text">Wants to: {s.approval.preview}</span>
+            <span className="cd-ask-btns">
+              <span
+                role="button"
+                tabIndex={0}
+                data-testid="conductor-approve"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void window.cove.conductorAnswer(workspaceId, s.approval!.requestId, true)
+                }}
+              >
+                Approve
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void window.cove.conductorAnswer(workspaceId, s.approval!.requestId, false)
+                }}
+              >
+                Deny
+              </span>
+            </span>
+          </span>
+        )}
         {peeking === s.chatId && <pre className="cd-peek">{peekText}</pre>}
       </button>
       <span className="cd-actions">

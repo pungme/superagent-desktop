@@ -1312,6 +1312,7 @@ export interface CoveApi {
   onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   conductorGet: (workspaceId: string) => Promise<ConductorState | null>
   conductorPeek: (chatId: string) => Promise<string>
+  conductorAnswer: (workspaceId: string, requestId: string, approve: boolean) => Promise<boolean>
   conductorEnable: (workspaceId: string, adoptChatIds: string[]) => Promise<ConductorState | null>
   conductorSetRouting: (workspaceId: string, mode: 'confirm' | 'auto') => Promise<void>
   conductorConnect: (workspaceId: string, chatId: string) => Promise<number | null>
@@ -2035,6 +2036,8 @@ const cove: CoveApi = {
   onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
   conductorGet: (ws) => ipcRenderer.invoke('conductor:get', ws),
   conductorPeek: (chatId) => ipcRenderer.invoke('conductor:peek', chatId),
+  conductorAnswer: (ws, requestId, approve) =>
+    ipcRenderer.invoke('conductor:answer', ws, requestId, approve),
   conductorEnable: (ws, adopt) => ipcRenderer.invoke('conductor:enable', ws, adopt),
   conductorSetRouting: (ws, mode) => ipcRenderer.invoke('conductor:set-routing', ws, mode),
   conductorConnect: (ws, chatId) => ipcRenderer.invoke('conductor:connect', ws, chatId),

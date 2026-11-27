@@ -18229,3 +18229,34 @@ button.easy-run-agent {
   background: #e0912f;
   vertical-align: middle;
 }
+
+.cd-ask {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(224, 145, 47, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
+}
+.cd-ask-text {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  max-height: 64px;
+  overflow: hidden;
+}
+.cd-ask-btns {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cd-ask-btns [role='button'] {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.cd-ask-btns [role='button']:hover {
+  text-decoration: underline;
+}

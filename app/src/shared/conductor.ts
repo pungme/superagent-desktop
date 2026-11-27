@@ -16,6 +16,8 @@ export interface ConductorSession {
   status: 'working' | 'needs-you' | 'idle' | 'closed'
   /** Last used (ms). */
   updatedAt: number
+  /** What it is waiting to be allowed to do (an open approval), when status is needs-you. */
+  approval?: { requestId: string; preview: string }
   branch?: string
   /** Commits on its branch not yet in the project's main branch. */
   unmerged?: number

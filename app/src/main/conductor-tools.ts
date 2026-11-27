@@ -46,6 +46,8 @@ const said = (text: string, isError = false): Result => ({
 /** Chats waiting on a yes or no from the person (an approval is open). */
 const needsYou = new Set<string>()
 const approvalChat = new Map<string, string>()
+/** Each open approval of a session: what it asks. The latest of a chat is the one shown. */
+const approvalInfo = new Map<string, { chatId: string; preview: string }>()
 
 /** The first sentence of a reply, without Markdown, as the one-line summary. */
 export function summaryOf(text: string): string {
@@ -87,18 +89,35 @@ export function watchConductor(logBus: EventEmitter, hookBus: EventEmitter): voi
       }
     }
   }) as never)
-  hookBus.on('approval', (({ requestId, sessionId }: { requestId: string; sessionId: string }) => {
+  hookBus.on('approval', (({
+    requestId,
+    sessionId,
+    preview
+  }: {
+    requestId: string
+    sessionId: string
+    preview?: string
+  }) => {
     approvalChat.set(requestId, sessionId)
+    approvalInfo.set(requestId, { chatId: sessionId, preview: String(preview ?? '').slice(0, 400) })
     needsYou.add(sessionId)
     touch(sessionId)
   }) as never)
   hookBus.on('approval-end', (({ requestId }: { requestId: string }) => {
     const chat = approvalChat.get(requestId)
     approvalChat.delete(requestId)
+    approvalInfo.delete(requestId)
     if (!chat) return
     if (![...approvalChat.values()].includes(chat)) needsYou.delete(chat)
     touch(chat)
   }) as never)
+}
+
+function openApproval(chatId: string): { requestId: string; preview: string } | undefined {
+  let found: { requestId: string; preview: string } | undefined
+  for (const [requestId, a] of approvalInfo)
+    if (a.chatId === chatId) found = { requestId, preview: a.preview }
+  return found
 }
 
 /** Commits on a worker's branch that its project's main branch lacks; null when it has no branch. */
@@ -143,6 +162,7 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
       title: r.title,
       ticket: r.ticket,
       summary: r.summary,
+      approval: openApproval(r.chatId),
       status:
         r.closedAt != null
           ? 'closed'
@@ -444,6 +464,18 @@ const changed = (workspaceId: string): void => {
 
 export function registerConductorIpc(): void {
   ipcMain.handle('conductor:peek', (_e, chatId: string) => digest(String(chatId), 3))
+  ipcMain.handle(
+    'conductor:answer',
+    async (_e, ws: string, requestId: string, approve: unknown) => {
+      // Only an approval that belongs to a session of this project's Conductor.
+      const a = approvalInfo.get(String(requestId))
+      if (!a || !conductorOfWorker(getDb(), a.chatId)) return false
+      const { resolveGate } = await import('./hooks')
+      const ok = resolveGate(String(requestId), approve === true, false, 'desktop')
+      changed(String(ws))
+      return ok
+    }
+  )
   ipcMain.handle('conductor:get', (_e, ws: string) => stateOf(String(ws)))
   ipcMain.handle('conductor:enable', (_e, ws: string, adopt: unknown) => {
     const workspaceId = String(ws)
