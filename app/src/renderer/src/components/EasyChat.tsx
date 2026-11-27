@@ -12,7 +12,7 @@ import { groupModelOptions, modelPillLabel } from '../../../shared/model-groups'
 import { promptLink } from '../../../shared/prompt-link'
 import { chatNow, liveLine, type LiveEntry } from '../../../shared/chat-now'
 import { AUTO_MAX_ROUNDS, AUTO_PROMPT, autoNext, saidDone } from '../../../shared/auto-mode'
-import { mergeTranscripts, type Keyed } from '../../../shared/transcript-merge'
+import { itemKeys, mergeTranscripts, type Keyed } from '../../../shared/transcript-merge'
 import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
@@ -2658,8 +2658,12 @@ export function EasyChat({
   const hydratedRef = useRef(false)
   const transcriptWriter = useRef<TranscriptWriter<Item> | null>(null)
   const [persistenceError, setPersistenceError] = useState('')
-  const makeWriter = (saved: Item[], revision: number): TranscriptWriter<Item> =>
-    new TranscriptWriter(
+  // The keys of what this window last read or saved: what the Mac holds beyond them was added
+  // by someone else (see mergeTranscripts).
+  const baseKeysRef = useRef<Set<string>>(new Set())
+  const makeWriter = (saved: Item[], revision: number): TranscriptWriter<Item> => {
+    baseKeysRef.current = itemKeys(saved as unknown as Keyed[])
+    return new TranscriptWriter(
       saved,
       revision,
       (it) =>
@@ -2670,6 +2674,7 @@ export function EasyChat({
         ),
       (patch) => window.cove.chatSavePatch(chatId, patch)
     )
+  }
   useEffect(() => {
     let alive = true
     // Saving stays blocked until this chat's own transcript has landed, so an
@@ -2714,44 +2719,47 @@ export function EasyChat({
     }
   }, [chatId])
 
-  const saveTranscript = useCallback((): void => {
-    if (!chatId || !hydratedRef.current || !transcriptWriter.current) return
-    void transcriptWriter.current
-      .save(() => itemsRef.current)
-      .then(() => setPersistenceError(''))
-      .catch((error: Error) => {
-        // The phone (or another window) added to this conversation while this copy sat here:
-        // put the two together and save that, instead of stopping until it is reopened.
-        if (/changed in another window/.test(String(error.message))) {
-          void window.cove.chatLoadSnapshot(chatId).then(({ json, revision }) => {
-            try {
-              const stored = JSON.parse(json || '[]') as Item[]
-              if (!Array.isArray(stored)) throw new Error('unreadable')
-              const merged = mergeTranscripts(
-                stored as unknown as Keyed[],
-                itemsRef.current as unknown as Keyed[]
-              ) as unknown as Item[]
-              transcriptWriter.current = makeWriter(stored, revision)
-              setItems(merged)
-              setPersistenceError('')
-            } catch {
-              setPersistenceError(`Conversation not saved: ${error.message}`)
-            }
-          })
-          return
-        }
-        setPersistenceError(`Conversation not saved: ${error.message}`)
-      })
-  }, [chatId])
-
-  useEffect(
-    () =>
-      window.cove.registerTranscriptFlusher(async () => {
-        if (hydratedRef.current && transcriptWriter.current)
-          await transcriptWriter.current.save(() => itemsRef.current)
-      }),
+  /**
+   * Put what the Mac now holds (the phone drove this conversation while the window sat on an
+   * older copy) together with this window's copy, and make that the window's copy.
+   */
+  const adoptStored = useCallback(
+    async (): Promise<void> => {
+      const { json, revision } = await window.cove.chatLoadSnapshot(chatId)
+      const stored = JSON.parse(json || '[]') as Item[]
+      if (!Array.isArray(stored)) throw new Error('Saved transcript is unreadable')
+      const merged = mergeTranscripts(
+        stored as unknown as Keyed[],
+        itemsRef.current as unknown as Keyed[],
+        baseKeysRef.current
+      ) as unknown as Item[]
+      transcriptWriter.current = makeWriter(stored, revision)
+      itemsRef.current = merged
+      setItems(merged)
+    },
     [chatId]
   )
+
+  /** Save; when the Mac changed under this copy, merge and save again, once. Throws if it cannot. */
+  const saveNow = useCallback(async (): Promise<void> => {
+    if (!chatId || !hydratedRef.current || !transcriptWriter.current) return
+    try {
+      await transcriptWriter.current.save(() => itemsRef.current)
+    } catch (error) {
+      if (!/changed in another window/.test(String((error as Error).message))) throw error
+      await adoptStored()
+      await transcriptWriter.current.save(() => itemsRef.current)
+    }
+  }, [chatId, adoptStored])
+
+  const saveTranscript = useCallback((): void => {
+    void saveNow().then(
+      () => setPersistenceError(''),
+      (error: Error) => setPersistenceError(`Conversation not saved: ${error.message}`)
+    )
+  }, [saveNow])
+
+  useEffect(() => window.cove.registerTranscriptFlusher(() => saveNow()), [saveNow])
 
   /**
    * The phone can drive this chat while this window sits here with an older
@@ -2762,19 +2770,12 @@ export function EasyChat({
   useEffect(() => {
     return window.cove.onChatAppended?.(({ chatId: id }) => {
       if (id !== chatId || !hydratedRef.current || turnInFlightRef.current) return
-      void window.cove.chatLoadSnapshot(chatId).then(({ json, revision }) => {
-        if (!json) return
-        try {
-          const saved = JSON.parse(json) as Item[]
-          if (!saved.length) return
-          transcriptWriter.current = makeWriter(saved, revision)
-          setItems(saved)
-        } catch {
-          // Ignore a corrupt blob — keep what's on screen.
-        }
+      // Merged, not replaced: an edit made in the last moment, not yet saved, stays.
+      void adoptStored().catch(() => {
+        // Keep what is on screen; the next save reports it if the Mac is unreachable.
       })
     })
-  }, [chatId])
+  }, [chatId, adoptStored])
 
   useEffect(() => {
     // Idle edits (sending, editing, clearing) settle quickly.
@@ -4387,22 +4388,17 @@ export function EasyChat({
       if (agentIdRef.current)
         window.cove.agentStop(agentIdRef.current, 'chat view restarting or closing')
     }
-    // model, permissionMode and provider are dependencies on purpose: changing
-    // any of them must restart the agent or the picker silently does nothing to
-    // the conversation you are in. Model and mode resume the same session, so
-    // context is kept; a provider change cannot — the other agent's thread is
-    // not resumable — so the recap carries the conversation across instead.
-  }, [
-    cwd,
-    workspaceId,
-    chatId,
-    registerAgent,
-    resetKey,
-    browserProject,
-    model,
-    permissionMode,
-    provider
-  ])
+    // model and provider are dependencies on purpose: changing either must restart the
+    // agent or the picker silently does nothing to the conversation you are in. Model
+    // resumes the same session, so context is kept; a provider change cannot — the other
+    // agent's thread is not resumable — so the recap carries the conversation across.
+    //
+    // The permission mode is NOT one. It is a global setting, so it used to restart the
+    // agent of EVERY open chat whenever it was changed in any one of them (or in Settings),
+    // killing their background monitors and turns in progress. The chat where it is picked
+    // restarts itself (pickMode → applyRespawn); the rest keep the mode they started with
+    // until they next start.
+  }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject, model, provider])
 
   const wake = useCallback((): void => {
     if (!suspendedRef.current) return

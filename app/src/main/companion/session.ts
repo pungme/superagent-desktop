@@ -6,6 +6,7 @@ import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
 import { machineId } from './identity'
 import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } from './devices'
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
+import { lastChatEventSeq } from '../store'
 import { eventsAfter, logDiverged, tailStart } from './log'
 import { draftOf, saveDraft } from '../drafts'
 import { savePhoneDiagnostic } from './phone-diagnostics'
@@ -62,6 +63,9 @@ interface Replay {
  * tells us who it is by which key opens it — the pending pairing's, or a paired
  * device's. From then on everything is sealed both ways.
  */
+/** The most events a reconnecting phone is sent to catch up on; behind by more, it starts from the end. */
+const CATCH_UP_MAX = 600
+
 export class ClientConn {
   deviceId: string | null = null
   private keys: DeviceKeys | null = null
@@ -312,6 +316,16 @@ export class ClientConn {
         if (logDiverged(frame.chatId, after, frame.afterTs)) {
           this.send({ t: 'reset', chatId: frame.chatId })
           after = 0
+        }
+        // A phone that is far behind (it cached the last few hundred events, and the chat has
+        // since grown by thousands) was sent every one of them, page after page, and rebuilt
+        // its screen from each: the long freezes after a reconnect. Past this many it starts
+        // from the end instead, as a phone holding nothing does; the phone begins its copy there.
+        const tailWanted = typeof frame.tail === 'number' && frame.tail > 0 ? frame.tail : 400
+        if (after > 0 && lastChatEventSeq(frame.chatId) - after > CATCH_UP_MAX) {
+          this.send({ t: 'reset', chatId: frame.chatId })
+          after = 0
+          after = tailStart(frame.chatId, tailWanted)
         }
         if (after === 0 && typeof frame.tail === 'number' && frame.tail > 0)
           after = tailStart(frame.chatId, frame.tail)

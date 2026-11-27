@@ -1,4 +1,5 @@
 import { agentBus, listSessions, stopAgent } from '../agent'
+import { isGenerating } from './log'
 import { liveTaskIds, type LiveTask } from '../../shared/bg-tasks'
 
 /**
@@ -57,7 +58,10 @@ export function startReaper(): void {
       if (
         s.owned ||
         (liveBackground.get(s.id) ?? 0) > 0 ||
-        (backgroundAgents.get(s.id)?.size ?? 0) > 0
+        (backgroundAgents.get(s.id)?.size ?? 0) > 0 ||
+        // A turn in progress is not idle however quiet it is: a long deploy or build prints
+        // nothing for many minutes, and the session was stopped under it.
+        (s.chatId ? isGenerating(s.chatId) : false)
       )
         continue
       const last = lastActivity.get(s.id) ?? now

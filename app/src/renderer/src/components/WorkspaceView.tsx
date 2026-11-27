@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useStore } from '../state'
 import { useMountedChats } from '../hooks/useMountedChats'
+import { ErrorBoundary } from './ErrorBoundary'
 import { ChatDesk, type DeskTile } from './ChatDesk'
 import type { Workspace } from '../../../preload'
 
@@ -72,27 +73,29 @@ export function WorkspaceView({
         if (tiles) {
           const t = tileOf.get(c.id)
           return (
-            <ChatDesk
-              key={c.id}
-              ws={ws}
-              chatId={c.id}
-              visible={visible && !!t}
-              focused={visible && !!t?.focused}
-              hidden={!t}
-              tile={t}
-              plain={plain}
-            />
+            <ErrorBoundary key={c.id} scope="chat">
+              <ChatDesk
+                ws={ws}
+                chatId={c.id}
+                visible={visible && !!t}
+                focused={visible && !!t?.focused}
+                hidden={!t}
+                tile={t}
+                plain={plain}
+              />
+            </ErrorBoundary>
           )
         }
         return (
-          <ChatDesk
-            key={c.id}
-            ws={ws}
-            chatId={c.id}
-            visible={visible && c.id === activeChatId}
-            hidden={c.id !== activeChatId}
-            plain={plain}
-          />
+          <ErrorBoundary key={c.id} scope="chat">
+            <ChatDesk
+              ws={ws}
+              chatId={c.id}
+              visible={visible && c.id === activeChatId}
+              hidden={c.id !== activeChatId}
+              plain={plain}
+            />
+          </ErrorBoundary>
         )
       })}
       {/* No conversation on screen yet (none chosen, none loaded, or a project

@@ -267,23 +267,22 @@ function createWindow(): BrowserWindow {
   appWindow = mainWindow
   mainWindow.on('restore', sight(true))
   mainWindow.on('show', sight(true))
+  let reloads: number[] = []
   mainWindow.webContents.on('render-process-gone', (_e, d) => {
     healthLog(`CRASH main window renderer gone: reason=${d.reason} exit=${d.exitCode}`)
+    // A crashed or killed page left a white window until the app was quit. Load it again (the
+    // conversations are saved), unless it keeps crashing: three in a minute is left alone.
+    if (d.reason === 'clean-exit' || mainWindow.isDestroyed()) return
+    const now = Date.now()
+    reloads = reloads.filter((t) => now - t < 60_000)
+    if (reloads.length >= 3) return
+    reloads.push(now)
+    setTimeout(() => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.reload()
+    }, 500)
   })
   mainWindow.on('unresponsive', () => healthLog('HANG main window unresponsive'))
   mainWindow.on('responsive', () => healthLog('main window responsive again'))
-  app.on('activate', () => {
-    paneLog('app-activate', 'window')
-    // A Dock click is the user asking for this app BY NAME. The focus bounce
-    // cannot see intent — every focus during agent work looks stolen to it —
-    // so clicking the icon mid-agent-run got the user bounced straight back to
-    // wherever they came from: window flashes, gone, "the app closes when I
-    // click it". macOS distinguishes for us: 'activate' fires for a Dock click
-    // or re-launch, not for a page load raising the window, so this is the one
-    // place intent is legible. Same hatch the notification clicks use.
-    allowUserFocus()
-  })
-
   mainWindow.on('ready-to-show', () => {
     // Tooling relaunches (screenshot/verification loops) must never steal focus
     // from whatever the user is doing — a maximized window shoving itself
@@ -368,7 +367,25 @@ app.whenReady().then(async () => {
   })
 
   registerBrowserIpc()
-  await registerStoreIpc()
+  try {
+    await registerStoreIpc()
+  } catch (error) {
+    // The data file would not open (damaged, locked, or a migration failed). Without this the
+    // app sat in the Dock with no window and no word why.
+    healthLog(`CRASH the store would not open: ${(error as Error)?.stack ?? error}`)
+    const choice = dialog.showMessageBoxSync({
+      type: 'error',
+      message: 'Superagent could not open its data',
+      detail:
+        `${(error as Error)?.message ?? error}\n\nNothing was changed. Quit and open it again; if this ` +
+        'keeps happening, show the data folder and send the file cove.db with this message.',
+      buttons: ['Quit', 'Show the data folder'],
+      defaultId: 0
+    })
+    if (choice === 1) shell.showItemInFolder(app.getPath('userData'))
+    app.exit(1)
+    return
+  }
   registerDesktopIpc()
   registerChatBrowserTabsIpc()
   registerDeskIpc()
@@ -945,6 +962,11 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
+    paneLog('app-activate', 'window')
+    // A Dock click is the user asking for this app BY NAME: not a focus to bounce back (the
+    // focus guard cannot see intent). This listener used to be added again by every
+    // createWindow() as well, and never removed.
+    allowUserFocus()
     // The dot is a window too, and is not the app's window: with only it left,
     // a Dock click still has to bring the app back.
     if (!appWindow || appWindow.isDestroyed()) createWindow()

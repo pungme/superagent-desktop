@@ -20,24 +20,38 @@ export function itemKey(item: Keyed): string | null {
   return typeof id === 'string' && id ? `${item.kind}:${id}` : null
 }
 
-export function mergeTranscripts<T extends Keyed>(stored: T[], local: T[]): T[] {
-  const mine = new Map<string, T>()
-  for (const it of local) {
+export function itemKeys<T extends Keyed>(items: readonly T[]): Set<string> {
+  const out = new Set<string>()
+  for (const it of items) {
     const k = itemKey(it)
-    if (k) mine.set(k, it)
-  }
-  const seen = new Set<string>()
-  const out: T[] = []
-  for (const it of stored) {
-    const k = itemKey(it)
-    if (k) seen.add(k)
-    out.push((k && mine.get(k)) || it)
-  }
-  for (const it of local) {
-    const k = itemKey(it)
-    // An item with no identity cannot be matched: keep it only if the stored copy lacks it entirely.
-    if (k ? !seen.has(k) : !stored.some((s) => JSON.stringify(s) === JSON.stringify(it)))
-      out.push(it)
+    if (k) out.add(k)
   }
   return out
+}
+
+/**
+ * `local` is the window's copy (its own edits and deletions are the truth for what it
+ * held); `stored` is what the Mac has now; `base` is the keys of what the window last
+ * read or saved. What the other writer added is whatever `stored` has that the window
+ * neither held nor already has, and it goes on the end. Items the window removed stay
+ * removed, and a conversation emptied elsewhere is not brought back.
+ */
+export function mergeTranscripts<T extends Keyed>(
+  stored: readonly T[],
+  local: readonly T[],
+  base: ReadonlySet<string>
+): T[] {
+  const mine = itemKeys(local)
+  if (stored.length === 0 && base.size > 0) {
+    // Cleared by someone else: keep only what the window made since.
+    return local.filter((it) => {
+      const k = itemKey(it)
+      return !k || !base.has(k)
+    })
+  }
+  const added = stored.filter((it) => {
+    const k = itemKey(it)
+    return !!k && !base.has(k) && !mine.has(k)
+  })
+  return [...local, ...added]
 }

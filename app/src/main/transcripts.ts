@@ -16,25 +16,42 @@ export function initTranscripts(root: string): void {
   setup.exec(TRANSCRIPT_SCHEMA)
   setup.close()
   reader = new Database(path, { readonly: true })
-  worker = new Worker(join(__dirname, 'transcript-worker.js'), {
-    workerData: { path, legacyPath: join(root, 'cove.db') }
-  })
-  worker.on('message', ({ seq, result, error }) => {
-    const call = pending.get(seq)
-    pending.delete(seq)
-    if (error) call?.reject(new Error(error))
-    else call?.resolve(result)
-  })
-  const fail = (error: Error): void => {
-    for (const p of pending.values()) p.reject(error)
-    pending.clear()
-    worker = undefined
+  // The worker that writes every conversation. If it stops (an error inside it, the system
+  // killing it), saving used to stay off until Superagent was restarted: every save, every
+  // phone append and every chat load failed with "Transcript storage is unavailable". It is
+  // started again, after a pause that grows with each failure in a row.
+  let failures = 0
+  let respawn: ReturnType<typeof setTimeout> | undefined
+  const startWorker = (): void => {
+    const w = new Worker(join(__dirname, 'transcript-worker.js'), {
+      workerData: { path, legacyPath: join(root, 'cove.db') }
+    })
+    worker = w
+    w.on('message', ({ seq, result, error }) => {
+      failures = 0
+      const call = pending.get(seq)
+      pending.delete(seq)
+      if (error) call?.reject(new Error(error))
+      else call?.resolve(result)
+    })
+    const fail = (error: Error): void => {
+      for (const p of pending.values()) p.reject(error)
+      pending.clear()
+      if (worker === w) worker = undefined
+      if (respawn) return
+      const wait = Math.min(30_000, 1_000 * 2 ** failures++)
+      healthLog(`transcript worker stopped (${error.message}); starting it again in ${wait} ms`)
+      respawn = setTimeout(() => {
+        respawn = undefined
+        startWorker()
+      }, wait)
+      respawn.unref?.()
+    }
+    w.on('error', fail)
+    w.on('exit', () => fail(new Error('Transcript worker stopped.')))
+    w.unref()
   }
-  worker.on('error', fail)
-  worker.on('exit', () =>
-    fail(new Error('Transcript worker stopped. Restart Superagent to resume saving.'))
-  )
-  worker.unref()
+  startWorker()
   const renderers = new Set<number>()
   const flushes = new Map<number, { resolve: () => void; reject: (error: Error) => void }>()
   ipcMain.on('transcripts:ready', (event) => {
