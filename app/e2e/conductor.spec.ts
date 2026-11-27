@@ -9,6 +9,7 @@ import {
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
 /**
@@ -110,6 +111,14 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     ).toContain('Noted')
     expect(await tool('conductor_list_sessions')).toContain('Waiting on the design')
     expect(await tool('conductor_inspect_session', { ticket: 101 })).toContain('#101')
+    // Each session drives a browser of its own, as any chat does.
+    writeFileSync(join(proj, 'a.html'), '<title>Session A</title><h1>Page of A</h1>')
+    writeFileSync(join(proj, 'b.html'), '<title>Session B</title><h1>Page of B</h1>')
+    await tool('browser_navigate', { url: `file://${join(proj, 'a.html')}` }, made.a)
+    await tool('browser_navigate', { url: `file://${join(proj, 'b.html')}` }, made.b)
+    await expect.poll(() => tool('browser_read_page', {}, made.a)).toContain('Page of A')
+    await expect.poll(() => tool('browser_read_page', {}, made.b)).toContain('Page of B')
+    expect(await tool('browser_read_page', {}, made.a)).not.toContain('Page of B')
     // Any other chat of the project has no Conductor tools.
     const other = await tool('conductor_list_sessions', {}, made.a).catch((e) => String(e))
     expect(other).not.toContain('#101')
@@ -261,6 +270,109 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     expect(await tool('conductor_spawn_session', { task: 'Look at the pricing page.' })).toContain(
       '#102'
     )
+  } finally {
+    await app.close()
+    for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })
+  }
+})
+
+test('conductor: each session gets its own worktree, and closing one with unmerged commits asks first', async () => {
+  test.setTimeout(120_000)
+  const data = mkdtempSync(join(tmpdir(), 'cove-conductor3-data-'))
+  const proj = mkdtempSync(join(tmpdir(), 'cove-conductor3-proj-'))
+  const fake = mkdtempSync(join(tmpdir(), 'cove-conductor3-cli-'))
+  const home = mkdtempSync(join(tmpdir(), 'cove-conductor3-home-'))
+  const log = join(fake, 'messages.log')
+  mkdirSync(join(home, '.claude'), { recursive: true })
+  writeFileSync(join(home, '.claude', 'settings.json'), '{}')
+  writeFileSync(join(home, '.claude.json'), '{}')
+  // A real git repository with one commit on main.
+  const git = (cwd: string, ...a: string[]): string =>
+    execFileSync('git', ['-C', cwd, ...a], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home }
+    })
+  git(proj, 'init', '-q', '-b', 'main')
+  git(proj, 'config', 'user.email', 'e2e@example.com')
+  git(proj, 'config', 'user.name', 'e2e')
+  writeFileSync(join(proj, 'README.md'), '# e2e\n')
+  git(proj, 'add', '.')
+  git(proj, 'commit', '-qm', 'first')
+  writeFileSync(join(fake, 'claude'), FAKE)
+  chmodSync(join(fake, 'claude'), 0o755)
+  const urlFile = join(data, 'mcp-url.txt')
+  const app = await electron.launch({
+    args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+    env: {
+      ...process.env,
+      COVE_USER_DATA: data,
+      COVE_E2E_PROJECT: proj,
+      COVE_E2E_MCP_URL_FILE: urlFile,
+      COVE_E2E_CLAUDE_BIN: join(fake, 'claude'),
+      FAKE_LOG: log,
+      HOME: home,
+      NODE_ENV: 'production'
+    }
+  })
+  try {
+    const page: Page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(() => {
+      localStorage.setItem('cove.onboarded', '1')
+      localStorage.setItem('cove.connectionsOffered', '1')
+    })
+    await page.reload()
+    await page.waitForSelector('.sidebar', { timeout: 20_000 })
+    await expect.poll(() => existsSync(urlFile)).toBe(true)
+    mcpUrl = readFileSync(urlFile, 'utf8')
+    const made = await page.evaluate(async () => {
+      const tree = await window.cove.storeTree()
+      const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+      return { wsId: ws.id, state: await window.cove.conductorEnable(ws.id, []) }
+    })
+    wsId = made.wsId
+    mainId = made.state!.chatId
+
+    // Two tasks, two sessions, each in a worktree of its own on its own branch.
+    await tool('conductor_spawn_session', {
+      task: 'Fix the header so it never wraps.',
+      title: 'Fix the header'
+    })
+    await tool('conductor_spawn_session', { task: 'Redo the pricing page.', title: 'Pricing page' })
+    const cwds = async (): Promise<(string | null)[]> =>
+      page.evaluate(async (ws) => {
+        const chats = await window.cove.chatList(ws)
+        return chats.filter((c) => c.ticketNumber != null).map((c) => c.cwd)
+      }, wsId)
+    await expect
+      .poll(async () => (await cwds()).filter(Boolean).length, { timeout: 20_000 })
+      .toBe(2)
+    const [a, b] = (await cwds()) as string[]
+    expect(a).not.toBe(b)
+    expect(a).not.toBe(proj)
+    const branchA = git(a, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
+    const branchB = git(b, 'rev-parse', '--abbrev-ref', 'HEAD').trim()
+    expect(branchA).not.toBe('main')
+    expect(branchA).not.toBe(branchB)
+    // The list says which branch each session is on.
+    await expect.poll(() => tool('conductor_list_sessions')).toContain(branchA)
+
+    // #101 commits on its branch: closing it asks how, until told.
+    writeFileSync(join(a, 'header.txt'), 'fixed\n')
+    git(a, 'add', '.')
+    git(a, 'commit', '-qm', 'Fix the header')
+    expect(await tool('conductor_list_sessions')).toContain('1 unmerged')
+    const refused = await tool('conductor_close_session', { ticket: 101 }).catch((e) => String(e))
+    expect(refused).toContain('not in the main branch')
+    expect(await tool('conductor_list_sessions')).toContain('#101')
+    // Merged and closed: the commit is on main, and the session is gone from the list.
+    expect(await tool('conductor_close_session', { ticket: 101, how: 'merge' })).toContain(
+      'Closed #101'
+    )
+    expect(git(proj, 'log', '--oneline', 'main')).toContain('Fix the header')
+    expect(await tool('conductor_list_sessions')).not.toContain('#101')
+    // #102, with nothing to merge, closes straight away; its branch was not touched.
+    expect(await tool('conductor_close_session', { ticket: 102 })).toContain('Closed #102')
   } finally {
     await app.close()
     for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })
