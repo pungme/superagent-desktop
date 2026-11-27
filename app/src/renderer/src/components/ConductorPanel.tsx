@@ -19,6 +19,7 @@ const STATUS_LABEL: Record<ConductorSession['status'], string> = {
 export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const [state, setState] = useState<ConductorState | null | undefined>(undefined)
   const [showClosed, setShowClosed] = useState(false)
+  const [allUnlinked, setAllUnlinked] = useState(false)
   const selectChat = useStore((s) => s.selectChat)
   const activeChatId = useStore((s) => s.activeChatId[workspaceId])
   // The session whose recent conversation is shown under its row, and what it says.
@@ -185,6 +186,11 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
           </select>
         </label>
       </div>
+      <p className="cd-mode" data-testid="conductor-mode-hint">
+        {state.routing === 'auto'
+          ? 'Auto: a clear task starts a session at once; Main asks only when a message could belong to two.'
+          : 'Confirm: Main talks a new task over and asks before it starts a session.'}
+      </p>
       <div className="cd-list">
         {live.length === 0 && (
           <p className="cd-hint">No sessions yet. Tell Main what you want done.</p>
@@ -193,7 +199,7 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
         {state.unlinked.length > 0 && (
           <>
             <div className="cd-h">Not connected to Main</div>
-            {state.unlinked.map((c) => (
+            {(allUnlinked ? state.unlinked : state.unlinked.slice(0, 6)).map((c) => (
               <div key={c.chatId} className="cd-row unlinked">
                 <button className="cd-open" onClick={() => open(c.chatId)}>
                   <span className="cd-title">{c.title || 'Untitled'}</span>
@@ -209,6 +215,11 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
               </div>
             ))}
           </>
+        )}
+        {!allUnlinked && state.unlinked.length > 6 && (
+          <button className="cd-h cd-fold" onClick={() => setAllUnlinked(true)}>
+            ▸ Show all {state.unlinked.length}
+          </button>
         )}
         {closed.length > 0 && (
           <>

@@ -18375,3 +18375,10 @@ button.easy-run-agent {
   color: var(--text-primary);
 }
 .cd-row:not(.last)::after { bottom: -1px; }
+
+.cd-mode {
+  margin: -2px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
