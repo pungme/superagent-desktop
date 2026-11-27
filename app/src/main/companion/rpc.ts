@@ -51,7 +51,7 @@ import {
   takeQueuedSends,
   agentSaidInChat
 } from '../store'
-import { modeBelongsTo, startModel, toProvider } from '../../shared/agent-provider'
+import { modeBelongsTo, modelBelongsTo, startModel, toProvider } from '../../shared/agent-provider'
 import { accountForChat, listAccounts, pickChatAccount, refreshUsage } from '../accounts'
 import { createHash } from 'crypto'
 import { homedir, tmpdir } from 'os'
@@ -1429,10 +1429,21 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   let session = findSessionByChat(p.chatId)
   // A different model or mode than the running agent's: restart it on the
   // same session, exactly as the desktop does when its pickers change.
-  if (session && !session.owned && (p.model !== undefined || p.permissionMode !== undefined)) {
+  //
+  // Only a model or mode that belongs to THIS chat's agent counts. The phone keeps the
+  // model it last picked, from whichever agent that was, and sent it on every message:
+  // a Gemini model on a Claude chat never took effect (the session starts without it),
+  // so the next message differed again and the session was stopped and restarted each
+  // time, killing whatever the agent had running in the background (its monitors:
+  // "didn't finish before the previous session ended", 2026-11-27).
+  const sessionProvider = getChatProvider(chat.id)
+  const askedModel =
+    p.model !== undefined && modelBelongsTo(p.model, sessionProvider) ? p.model : undefined
+  const askedMode = modeBelongsTo(p.permissionMode, sessionProvider) ? p.permissionMode : undefined
+  if (session && !session.owned && (askedModel !== undefined || askedMode !== undefined)) {
     const cur = getSessionOpts(session.id)
-    const wantModel = p.model ?? cur?.model ?? ''
-    const wantMode = p.permissionMode ?? cur?.permissionMode ?? 'bypassPermissions'
+    const wantModel = askedModel ?? cur?.model ?? ''
+    const wantMode = askedMode ?? cur?.permissionMode ?? 'bypassPermissions'
     if (
       (cur?.model ?? '') !== wantModel ||
       (cur?.permissionMode ?? 'bypassPermissions') !== wantMode

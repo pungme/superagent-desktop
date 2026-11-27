@@ -37,6 +37,7 @@ const h = vi.hoisted(() => {
     >(),
     events: new Map<string, { seq: number; kind: string; data: string; ts: number }[]>(),
     items: new Map<string, unknown[]>(),
+    stopped: [] as string[],
     sessions: new Map<
       string,
       { id: string; chatId?: string; workspaceId?: string; owned: boolean }
@@ -278,7 +279,10 @@ vi.mock('../agent', () => ({
     return true
   },
   hardInterruptAgent: async () => true,
-  stopAgent: (id: string) => h.sessions.delete(id),
+  stopAgent: (id: string) => {
+    h.stopped.push(id)
+    return h.sessions.delete(id)
+  },
   getSessionOpts: () => ({})
 }))
 
@@ -837,6 +841,31 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     const second = await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'r2')
     expect(second).toMatchObject({ id: 'r2', ok: true })
     expect(h.sent.length).toBe(delivered)
+  })
+
+  it("another agent's model on a message does not restart the running session", async () => {
+    // The phone sends the model it last picked, whichever agent that was. A Gemini model on a
+    // Claude chat never took effect, so every message looked like "another model" and the
+    // session was stopped and restarted each time, killing the agent's background monitors.
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    // A first message starts the session; the second names the other agent's model.
+    phone.send({ t: 'req', id: 'm0', method: 'chat.send', params: { chatId: 'c1', text: 'start' } })
+    await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'm0')
+    const before = [...h.sessions.keys()]
+    expect(before.length).toBe(1)
+    phone.send({
+      t: 'req',
+      id: 'm1',
+      method: 'chat.send',
+      params: { chatId: 'c1', text: 'monitor it', localId: 'L-model', model: 'gemini-4-neon-high' }
+    })
+    await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'm1')
+    expect(h.stopped).toEqual([])
+    expect([...h.sessions.keys()]).toEqual(before)
+    phone.ws.close()
   })
 
   it('a reply quoting a long answer from the agent is sent, with the quote cut short', async () => {
