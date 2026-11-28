@@ -399,12 +399,12 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
   hookBus)`) are handed in from index.ts.
 - `watchConductor` writes a one-line summary when a worker's turn ends and marks "Needs you"
   while an approval of its is open; the panel and sidebar read them.
-- Routing is a pill in the Sessions tab (Confirm / Auto); the mode is in the Main's briefing.
+- Routing (Confirm / Auto) is a pill in Main's composer (`RoutingPill`); the mode is in the Main's briefing.
 - e2e: `conductor.spec.ts` (tools over HTTP; a stand-in `claude` for spawn/send/summary).
 - Sessions that need you also show as Approve / Deny cards inside the Main chat
-  (`ConductorEscalations.tsx`). The Sessions tab stays open as you move between sessions.
+  (`ConductorEscalations.tsx`), with Inspect opening that session beside Main.
 - `conductor-live.spec.ts`: a real agent as Main (`CONDUCTOR_AGENTS=claude,codex,antigravity`, `CLAUDE_LIVE=1`): Auto starts a titled session, Confirm asks first, a follow-up routes to the existing session.
-- Starting: the project's right-click menu calls `startConductorDialog` (unit-tested in `conductor-start.test.ts`). Merging: `conductor_merge_session` (keeps it open) or `conductor_close_session how:'merge'`; the prompt tells Main to offer it, never to merge without a yes.
+- Merging: `conductor_merge_session` (keeps it open) or `conductor_close_session how:'merge'`; the prompt tells Main to offer it, never to merge without a yes.
 - Overlap: `sessionsOf` adds each session's changed files (`changedFiles`: diff against main plus uncommitted); `overlaps()` in shared/conductor.ts feeds an "Overlap:" line in the list, and the prompt tells Main to ask rather than start a parallel session on the same files.
 - The Conductor view: when Main is the chat on screen, ChatDesk lays out Main on the left and `ConductorPanel` (session cards with SVG wires from Main's edge, filters, Connect, the inspector `SessionInspector.tsx`) on the right (`conductorView`; the toolbar's Conductor button hides it). The sidebar's Conductor section under Routines (`ConductorSection`, `conductor:overview`) opens it via `lib/open-conductor.ts`. Sessions and Main are not in the project's chat list. People see tracker keys (`trackerKey`), never the internal #101.
 - Main's memory: `conductor_memory` table (`remember`/`recall`/`forget`/`memoryIndex` in conductor-store), tools `conductor_remember/recall/forget`, and Superagent's own record of each session (`recordSession`: task, branch, files, latest) on spawn and every finished turn. Every message to Main gets `conductorTurnPrefix` (state, git, to-dos, memory index, entries matching the message) through `setTurnPrefixProbe` in agent.ts: for the agent only, never the transcript.
