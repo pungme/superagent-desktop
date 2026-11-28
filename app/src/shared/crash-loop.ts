@@ -9,6 +9,8 @@
 export interface SpringBoardCrash {
   udid: string
   at: number
+  /** Which system process crashed (SpringBoard, PosterBoard, backboardd). */
+  process: string
 }
 
 /**
@@ -36,7 +38,9 @@ export function parseSpringBoardCrash(text: string): SpringBoardCrash | null {
     // "2026-11-19 17:59:33.7987 +0100" -> an ISO date JS can read.
     const iso = (j.captureTime ?? '').replace(' ', 'T').replace(/ ([+-])(\d\d)(\d\d)$/, '$1$2:$3')
     const at = Date.parse(iso)
-    return Number.isNaN(at) ? null : { udid: m[1].toUpperCase(), at }
+    return Number.isNaN(at)
+      ? null
+      : { udid: m[1].toUpperCase(), at, process: j.procName ?? 'A system process' }
   } catch {
     return null
   }
@@ -50,6 +54,38 @@ export const LOOP_COOLDOWN_MS = 10 * 60_000
 export const LOOP_ACTIVE_MS = 20_000
 /** After a loop, the pop-ups come back once there has been no crash this long. */
 export const LOOP_QUIET_MS = 3 * 60_000
+
+/**
+ * What to do about each looping device. A first loop: restart it (the usual cure). One that loops
+ * again soon after a restart: the restart did not help, so it is shut down and left down (and the
+ * person told), because a device that crashes for ever only fills the screen with pop-ups and
+ * burns the Mac. Nothing here knows who owns the device: this is the app's guardrail, not an agent's.
+ */
+export function loopActions(
+  crashes: SpringBoardCrash[],
+  now: number,
+  restartedAt: ReadonlyMap<string, number>,
+  stoppedAt: ReadonlyMap<string, number> = new Map()
+): { restart: string[]; stop: string[] } {
+  const byDevice = new Map<string, number[]>()
+  for (const c of crashes) {
+    if (now - c.at > LOOP_WINDOW_MS) continue
+    byDevice.set(c.udid, [...(byDevice.get(c.udid) ?? []), c.at])
+  }
+  const restart: string[] = []
+  const stop: string[] = []
+  for (const [udid, times] of byDevice) {
+    if (times.length < LOOP_MIN_CRASHES) continue
+    if (now - Math.max(...times) > LOOP_ACTIVE_MS) continue
+    const stopped = stoppedAt.get(udid)
+    if (stopped !== undefined && now - stopped < LOOP_COOLDOWN_MS) continue
+    const last = restartedAt.get(udid)
+    if (last === undefined || now - last >= LOOP_COOLDOWN_MS) restart.push(udid)
+    // Restarted a moment ago and looping again, with crashes since that restart.
+    else if (Math.max(...times) > last) stop.push(udid)
+  }
+  return { restart, stop }
+}
 
 /** Devices to restart now. */
 export function loopingDevices(

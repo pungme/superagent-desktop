@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   LOOP_REPORT,
+  loopActions,
   loopingDevices,
   parseSpringBoardCrash,
   type SpringBoardCrash
@@ -9,7 +10,8 @@ import {
 const NOW = Date.parse('2026-11-19T17:00:00Z')
 const crash = (udid: string, agoSec: number): SpringBoardCrash => ({
   udid,
-  at: NOW - agoSec * 1000
+  at: NOW - agoSec * 1000,
+  process: 'PosterBoard'
 })
 const report = (over: object): string =>
   `{"app_name":"SpringBoard"}\n${JSON.stringify({
@@ -79,5 +81,27 @@ describe('loopingDevices', () => {
     const cs = [5, 12, 20].map((s) => crash('A', s))
     expect(loopingDevices(cs, NOW, new Map([['A', NOW - 5 * 60_000]]))).toEqual([])
     expect(loopingDevices(cs, NOW, new Map([['A', NOW - 11 * 60_000]]))).toEqual(['A'])
+  })
+})
+
+describe('loopActions: restart once, then shut it down', () => {
+  const none = new Map<string, number>()
+  const cs = [4, 9, 15].map((s) => crash('A', s))
+  it('restarts a device that loops for the first time', () => {
+    expect(loopActions(cs, NOW, none)).toEqual({ restart: ['A'], stop: [] })
+  })
+  it('shuts it down when it loops again after a restart, whoever owns it', () => {
+    const restarted = new Map([['A', NOW - 2 * 60_000]])
+    expect(loopActions(cs, NOW, restarted)).toEqual({ restart: [], stop: ['A'] })
+  })
+  it('leaves it down: no second stop, and nothing when it is quiet', () => {
+    const restarted = new Map([['A', NOW - 2 * 60_000]])
+    const stopped = new Map([['A', NOW - 30_000]])
+    expect(loopActions(cs, NOW, restarted, stopped)).toEqual({ restart: [], stop: [] })
+    expect(loopActions([], NOW, restarted)).toEqual({ restart: [], stop: [] })
+  })
+  it('does not stop a device whose crashes all came before its restart', () => {
+    const restarted = new Map([['A', NOW - 1_000]])
+    expect(loopActions(cs, NOW, restarted)).toEqual({ restart: [], stop: [] })
   })
 })

@@ -901,10 +901,26 @@ function SimulatorCleanup(): React.JSX.Element | null {
     void load()
   }, [load])
   const [hidden, setHidden] = useState<boolean | null>(null)
+  const [guard, setGuard] = useState<boolean | null>(null)
   useEffect(() => {
     void window.cove.simCrashDialogsHidden?.().then(setHidden)
+    void window.cove.simCrashGuard?.().then(setGuard)
   }, [])
   if (st === undefined) return null
+  const guardRow = (
+    <Row
+      title="Stop simulators that crash in a loop"
+      desc="A simulator whose system keeps crashing (SpringBoard, PosterBoard) is restarted once. If it crashes again right after, Superagent shuts it down and tells you, so it cannot fill the screen with pop-ups or burn the Mac. On by default; it applies to every simulator, whichever chat is using it."
+    >
+      <Toggle
+        checked={guard !== false}
+        onChange={(v) => {
+          setGuard(v)
+          void window.cove.simSetCrashGuard(v).then(setGuard)
+        }}
+      />
+    </Row>
+  )
   const popups = (
     <Row
       title="Hide “quit unexpectedly” pop-ups"
@@ -923,6 +939,7 @@ function SimulatorCleanup(): React.JSX.Element | null {
     return (
       <>
         <GroupLabel>Simulators</GroupLabel>
+        {guardRow}
         {popups}
       </>
     )
@@ -973,6 +990,7 @@ function SimulatorCleanup(): React.JSX.Element | null {
           }}
         />
       </Row>
+      {guardRow}
       {popups}
       <div className="settings-sim-list">
         {rows.map((r) => (

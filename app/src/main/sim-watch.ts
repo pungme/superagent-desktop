@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, Notification } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { existsSync, readFileSync, readdirSync, statSync, watch } from 'fs'
@@ -11,7 +11,7 @@ import {
   LOOP_QUIET_MS,
   LOOP_REPORT,
   LOOP_WINDOW_MS,
-  loopingDevices,
+  loopActions,
   parseSpringBoardCrash,
   type SpringBoardCrash
 } from '../shared/crash-loop'
@@ -28,6 +28,10 @@ const run = promisify(execFile)
 const REPORTS = join(homedir(), 'Library', 'Logs', 'DiagnosticReports')
 let crashes: SpringBoardCrash[] = []
 const restartedAt = new Map<string, number>()
+const stoppedAt = new Map<string, number>()
+/** The guardrail is on unless the person turned it off in Settings. */
+const GUARD_KEY = 'sim.crashGuard'
+const guardOn = (): boolean => kvGet(GUARD_KEY) !== '0'
 const seen = new Set<string>()
 
 /**
@@ -62,6 +66,33 @@ async function popupsOffForLoop(): Promise<void> {
   quietTimer.unref()
 }
 
+async function deviceName(udid: string): Promise<string> {
+  try {
+    const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', '-j'], { timeout: 20_000 })
+    const all = JSON.parse(stdout).devices as Record<string, { udid: string; name: string }[]>
+    for (const list of Object.values(all)) {
+      const d = list.find((x) => x.udid.toUpperCase() === udid.toUpperCase())
+      if (d) return d.name
+    }
+  } catch {
+    // the id will do
+  }
+  return udid.slice(0, 8)
+}
+
+/** Restarted and still crashing: shut it down, leave it down, and say so. */
+async function stopLooping(udid: string, process: string): Promise<void> {
+  stoppedAt.set(udid, Date.now())
+  const name = await deviceName(udid)
+  healthLog(`simulator ${udid.slice(0, 8)} (${name}): still crashing after a restart, shut down`)
+  await run('xcrun', ['simctl', 'shutdown', udid], { timeout: 60_000 }).catch(() => {})
+  if (Notification.isSupported())
+    new Notification({
+      title: `Superagent stopped the “${name}” simulator`,
+      body: `${process} kept crashing, even after a restart. The simulator is shut down so it stops filling the screen with pop-ups. Boot it again when you need it.`
+    }).show()
+}
+
 async function restart(udid: string): Promise<void> {
   restartedAt.set(udid, Date.now())
   healthLog(`simulator ${udid.slice(0, 8)}: SpringBoard crashing in a loop, restarting it`)
@@ -86,7 +117,10 @@ function take(file: string): void {
   crashes = [...crashes.filter((x) => now - x.at < LOOP_WINDOW_MS), c]
   // Any SpringBoard crash after the first two starts a loop's quiet: no new pop-ups.
   if (crashes.filter((x) => x.udid === c.udid).length >= 2) void popupsOffForLoop()
-  for (const udid of loopingDevices(crashes, now, restartedAt)) void restart(udid)
+  if (!guardOn()) return
+  const { restart: toRestart, stop } = loopActions(crashes, now, restartedAt, stoppedAt)
+  for (const udid of toRestart) void restart(udid)
+  for (const udid of stop) void stopLooping(udid, c.process)
 }
 
 let watcher: ReturnType<typeof watch> | null = null
@@ -119,6 +153,11 @@ async function dialogsHidden(): Promise<boolean> {
 }
 
 export function registerSimWatchIpc(): void {
+  ipcMain.handle('sim:crash-guard', () => guardOn())
+  ipcMain.handle('sim:crash-guard-set', (_e, on: unknown) => {
+    kvSet(GUARD_KEY, on ? '1' : '0')
+    return guardOn()
+  })
   ipcMain.handle('sim:crash-dialogs', () => dialogsHidden())
   ipcMain.handle('sim:crash-dialogs-set', async (_e, hide: unknown) => {
     // A choice made by hand replaces the loop's temporary one.
