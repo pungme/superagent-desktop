@@ -293,6 +293,7 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
       </p>
       {inspecting && state.sessions.some((x) => x.chatId === inspecting) ? (
         <SessionInspector
+          workspaceId={workspaceId}
           session={state.sessions.find((x) => x.chatId === inspecting)!}
           onBack={() => setInspecting(null)}
           onOpenChat={() => open(inspecting)}

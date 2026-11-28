@@ -409,8 +409,7 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
 - The Conductor view: when Main is the chat on screen, ChatDesk lays out Main on the left and `ConductorPanel` (session cards with SVG wires from Main's edge, filters, Connect, the inspector `SessionInspector.tsx`) on the right (`conductorView`; the toolbar's Conductor button hides it). The sidebar's Conductor section under Routines (`ConductorSection`, `conductor:overview`) opens it via `lib/open-conductor.ts`. Sessions and Main are not in the project's chat list. People see tracker keys (`trackerKey`), never the internal #101.
 - Main's memory: `conductor_memory` table (`remember`/`recall`/`forget`/`memoryIndex` in conductor-store), tools `conductor_remember/recall/forget`, and Superagent's own record of each session (`recordSession`: task, branch, files, latest) on spawn and every finished turn. Every message to Main gets `conductorTurnPrefix` (state, git, to-dos, memory index, entries matching the message) through `setTurnPrefixProbe` in agent.ts: for the agent only, never the transcript.
 - ⌘\ toggles the sidebar through the View menu item (menu accelerators work while a native view has focus; a renderer keydown does not).
-- Not built: a worker's chat mounted inside the panel (a row opens it normally and expands to its
-  latest messages).
+- A card opens `SessionInspector` (its latest messages, a box that writes to it via `conductor:send`); "Live beside Main" puts the session's own chat in a split beside Main (`openBeside`), so its real mounted EasyChat is on screen without remounting anything. The routing pill (Confirm / Auto) is in Main's composer (`RoutingPill` in EasyChat); Main's routing calls show as receipts with Move ▾ (`MoveMenu`, portaled above the message list).
 
 ## Our own right-click menus
 

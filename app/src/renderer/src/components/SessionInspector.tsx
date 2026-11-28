@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { titleWithoutKey, trackerKey, type ConductorSession } from '../../../shared/conductor'
+import { useStore } from '../state'
 
 type Msg = { role: 'user' | 'agent' | 'tool'; text: string; failed?: boolean }
 
@@ -15,12 +16,14 @@ const STATUS: Record<ConductorSession['status'], string> = {
  * box to write to it directly, without leaving Main. "Open chat" goes to the whole conversation.
  */
 export function SessionInspector({
+  workspaceId,
   session,
   onBack,
   onOpenChat,
   onClose,
   onDetach
 }: {
+  workspaceId: string
   session: ConductorSession
   onBack: () => void
   onOpenChat: () => void
@@ -72,6 +75,15 @@ export function SessionInspector({
           ‹ Sessions
         </button>
         <span className="cd-insp-acts">
+          <button
+            data-testid="conductor-inspector-live"
+            title="The session's own chat, live, beside Main"
+            onClick={() => {
+              if (!useStore.getState().openBeside(workspaceId, session.chatId)) onOpenChat()
+            }}
+          >
+            Live beside Main
+          </button>
           <button onClick={onOpenChat}>Open chat</button>
           {session.status !== 'closed' && (
             <>

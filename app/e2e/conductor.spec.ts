@@ -398,6 +398,26 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     await expect
       .poll(() => readFileSync(log, 'utf8'), { timeout: 20_000 })
       .toContain('Leave my last request')
+    // The inspector: a card opens the session's conversation inside the view, and a message
+    // goes to it directly.
+    const panel2 = page.getByTestId('conductor-panel')
+    await panel2
+      .getByTestId('conductor-session')
+      .filter({ hasText: 'Fix the header' })
+      .locator('.cd-card-open')
+      .click()
+    const insp = page.getByTestId('conductor-inspector')
+    await expect(insp).toContainText('Fix the header so it never wraps on a phone.', {
+      timeout: 10_000
+    })
+    await insp.getByTestId('conductor-inspector-input').fill('And the logo size, please.')
+    await insp.getByRole('button', { name: 'Send' }).click()
+    await expect
+      .poll(() => readFileSync(log, 'utf8'), { timeout: 20_000 })
+      .toContain('And the logo size, please.')
+    // Its own live chat, beside Main: two conversations on screen.
+    await insp.getByTestId('conductor-inspector-live').click()
+    await expect(page.locator('textarea.easy-input:visible')).toHaveCount(2, { timeout: 10_000 })
     expect(await tool('conductor_forget', { key: 'campaign table' })).toContain('Forgot')
     expect(await tool('conductor_recall', { query: 'deleted' })).toContain('Nothing saved')
   } finally {
