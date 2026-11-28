@@ -15,6 +15,7 @@ Superagent is not a browser-automation framework or a headless cloud sandbox. It
 
 ## Core capabilities
 
+- Conductor: one Main chat per project that starts a worker session for each piece of work (each on its own git branch and worktree), routes follow-ups to the right session, asks when unsure, flags sessions that touch the same files, and merges on request. Main keeps a saved memory of decisions, data structures and what every session did, so it answers from stored facts across restarts
 - A real browser the agent drives directly (not a description of a hidden headless session) — the same window and logged-in session the developer sees. The agent keeps its own tab, and can switch the pane to a real 390×844 mobile viewport, desktop, or both side by side to check mobile layouts
 - A real iOS Simulator, streamed live, that the agent can tap, swipe, type into, build, and screenshot
 - A phone companion app that follows the conversation from anywhere and lets the developer answer the agent's questions remotely, end-to-end encrypted. It mirrors the Mac's sidebar and model list, and switches between paired Macs

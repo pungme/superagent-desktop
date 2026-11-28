@@ -3323,6 +3323,26 @@
     }
     .art .a-wave { transform-origin: 50% 50%; }
     .keycaps { padding-top: 32px; }
+    /* Conductor scene: Main on the left, sessions wired in on the right */
+    .g-cdcol { position: relative; flex: 1; min-width: 0; border-left: 1px solid rgba(0, 0, 0, 0.06); background: #fafafb; }
+    .g-cdh { position: absolute; left: 70px; top: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8e8e93; }
+    .g-cdh span { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 6px; border-radius: 9px; background: #ececf0; color: #6e6e73; text-align: center; letter-spacing: 0; }
+    .gfx-stage .g-cdw.g-art { position: absolute; left: 0; top: 0; width: 70px; height: 600px; overflow: visible; }
+    .g-cdw path { fill: none; stroke: #c7c7cc; stroke-width: 2.2; stroke-linecap: round; }
+    .g-cdw path.on { stroke: #34c759; }
+    .g-cdw circle { fill: #34c759; }
+    .g-cdc { position: absolute; left: 70px; right: 22px; height: 104px; padding: 14px 16px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 14px; background: #fff; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05); }
+    .g-cdc.done { border-color: rgba(52, 199, 89, 0.45); }
+    .g-cdc .h { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #1d1d1f; }
+    .g-cdc .h b { font-size: 12px; padding: 2px 7px; border-radius: 6px; background: #f2f2f4; color: #3a3a3c; }
+    .g-cdc .h .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .g-cds { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #34c759; }
+    .g-cdc .br { display: flex; align-items: center; gap: 6px; margin-top: 12px; font: 500 11.5px ui-monospace, Menlo, monospace; color: #8e8e93; }
+    .gfx-stage .g-cdc .br svg { width: 12px; height: 12px; }
+    .g-rc { align-self: flex-start; margin: 2px 0 8px; padding: 8px 12px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 10px; background: #fff; font-size: 13px; color: #1d1d1f; }
+    .g-rc b { color: #2fb47a; margin-right: 6px; }
+    .g-mem { align-self: flex-start; margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #f2f2f4; font-size: 12px; color: #6e6e73; }
+    .g-mem b { color: #1d1d1f; }
   </style>
 </head>
 <body>
@@ -3331,6 +3351,7 @@
   <nav class="nav" aria-label="Main">
     <div class="nav-inner">
       <a class="brand" href="#top"><img src="logo.png" alt="" width="24" height="24" />Superagent<span class="jp" lang="ja">スーパーエージェント</span></a>
+      <a class="hide-sm" href="#conductor">Conductor</a>
       <a class="hide-sm" href="#pricing">Pricing</a>
       <a class="hide-sm" href="docs/">Docs</a>
       <a class="hide-sm" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
@@ -3345,7 +3366,7 @@
         <p class="eyebrow">Superagent</p>
         <h1>A home for your agent.</h1>
         <p class="hero-jp" lang="ja">エージェントの帰る場所。</p>
-        <p class="intro">A real browser, an iOS Simulator, and an iPhone app. All in one Mac window.</p>
+        <p class="intro">One chat that runs all your agents, a real browser, an iOS Simulator, and an iPhone app. All in one Mac window.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
           <a class="pill alt" href="https://apps.apple.com/de/app/superagent-companion-app/id6806598776?l=en-GB" target="_blank" rel="noopener"><svg class="ph" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="2" width="10.5" height="20" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10.5" y1="18.6" x2="13.5" y2="18.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Get the iPhone app</a>
@@ -3371,6 +3392,20 @@
           <a class="link" href="https://apps.apple.com/de/app/superagent-companion-app/id6806598776?l=en-GB" target="_blank" rel="noopener">Get the iPhone app</a>
           <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
         </div>
+      </div>
+    </section>
+
+    <section id="conductor" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Conductor<span class="jp" lang="ja">指揮者</span></p>
+          <h2>One chat runs the whole project.</h2>
+          <p class="intro">Keep writing to Main. It starts a session for each piece of work, each on its own branch, sends your follow-ups to the right one, asks when it is not sure, and merges when you say so.</p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="conductor" role="img" aria-label="Animated drawing of the Conductor: you ask Main to fix the header and add a dark mode; Main starts two sessions, each wired to it, one finishes and Main saves what it did to its memory" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Main remembers: decisions, data structures and what every session did are saved, so it answers from facts after a restart, not from a model's recollection. Works from the iPhone too.</p>
       </div>
     </section>
 
@@ -4205,6 +4240,24 @@
       };
 
       // The simulator: an iPhone boots beside the chat and the agent taps through the app
+      // Conductor: Main starts sessions, wires them in, and keeps track
+      const CDC = (k, key, title, y, branch) => `<div class="g-cdc g-hide"${K(k)} style="top:${y}px"><div class="h">${key ? `<b>${key}</b>` : ""}<span class="t">${title}</span><span class="g-cds"${K(k + "-s")}>${SPIN}Working</span></div>${ln("86%", "", "margin-top:10px")}${ln("58%", "", "margin-top:6px")}<div class="br">${ic.branch}<span>${branch}</span></div></div>`;
+      scenes.conductor = {
+        w: 960, h: 600, end: 9600,
+        html: () => side(seg(false) + row("Today", { icon: ic.cal }) + row("Routines", { icon: ic.clock }) + row("Conductor", { icon: ic.branch }) + row("wepush", { on: true, k: "pw" }) + Hd("Projects") + row("landing-page") + row("mobile-app") + row("notes-app")) +
+          tile("t", F, bar("wepush", "Main", chip(`<i class="live"></i>Conductor`)) + `<div class="g-body"><div class="g-chatc" style="flex:0 0 352px"><div class="g-stream">${U("Fix the header wrap on phones (WD-284), and add a dark mode.", "u1")}${A("Two separate pieces of work, so two sessions.", "a1")}<div class="g-rc g-hide"${K("r1")}><b>✦ New</b>WD-284 Fix header wrap</div><div class="g-rc g-hide"${K("r2")}><b>✦ New</b>Dark mode</div>${A("WD-284 is done: the header stays on one line down to 320 points.", "a2")}<div class="g-mem g-hide"${K("m")}><b>Saved</b> · header uses CSS grid, see Header.tsx</div></div>${COMP("in")}</div><div class="g-cdcol"><div class="g-cdh">Sessions<span${K("cnt")}>0</span></div><svg class="g-art g-cdw" viewBox="0 0 70 600"><path${K("w1")} class="g-hide" d="M0 120C36 120 34 92 70 92" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/><path${K("w2")} class="g-hide" d="M0 120C36 120 34 216 70 216" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/><circle cx="0" cy="120" r="4"/></svg>${CDC("c1", "WD-284", "Fix header wrap", 40, "wd-284-fix-header-wrap")}${CDC("c2", "", "Dark mode", 164, "dark-mode")}</div></div>`),
+        steps: () => [
+          type(400, "in", "Fix the header wrap on phones (WD-284), and add a dark mode."),
+          send(3300, "in", "u1"),
+          stream(3700, 600, "a1"),
+          show(4400, "r1"), draw(4500, 500, "w1"), show(4800, "c1"), html(4800, "cnt", "1"), cls(4800, "w1", "on"),
+          show(5300, "r2"), draw(5400, 500, "w2"), show(5700, "c2"), html(5700, "cnt", "2"), cls(5700, "w2", "on"),
+          html(7200, "c1-s", `<span class="g-ok">${ic.check}</span>Done`), cls(7200, "c1", "done"), cls(7200, "w1", "on", false),
+          stream(7600, 700, "a2"),
+          show(8500, "m"),
+        ],
+      };
+
       scenes.simulator = {
         w: 960, h: 600, end: 6800, p0: [470, 640],
         html: () => side(projects("mobile-app")) +
