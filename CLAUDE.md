@@ -390,7 +390,7 @@ pure helpers, `components/ConductorPanel.tsx` the Sessions tab). Plan and mockup
   `chats.conductorParentId / ticketNumber / conductorClosedAt / conductorSummary`. A chat is a
   session of the project when its `conductorParentId` is the Main; its ticket (#101…, per project)
   stays through disconnect/connect and close/reopen.
-- Started from the project's right-click menu (`workspace:menu` in index.ts, a native dialog).
+- Started from the project's right-click menu (`workspace:menu` in index.ts sends `start-conductor`; the renderer's `StartConductorModal` asks Start clean / Connect the N existing chats, then opens the Conductor view). `startConductorDialog` in conductor-tools is the old native-dialog path, kept for its unit test.
 - The Main chat's agent gets `conductor_*` MCP tools only for that chat
   (`registerConductorTools` checks `conductorOfMain(chatId)`), and a briefing: its job and the
   live session list, through `setConductorProbe` in prompts.ts for all three agents. **Do not

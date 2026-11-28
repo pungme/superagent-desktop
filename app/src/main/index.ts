@@ -87,7 +87,6 @@ import {
   registerConductorIpc,
   conductorTurnPrefix,
   setGeneratingProbe,
-  startConductorDialog,
   watchConductor
 } from './conductor-tools'
 import { getConductor } from './conductor-store'
@@ -806,16 +805,8 @@ app.whenReady().then(async () => {
             }
           : {
               label: 'Start Conductor…',
-              click: async () => {
-                const made = await startConductorDialog(ws.id, async (options) => {
-                  const { response } = await dialog.showMessageBox(win, options)
-                  return response
-                })
-                if (!made) return
-                win.webContents.send('projects:changed', {})
-                askToOpen(ws.id, made.chatId)
-                send('open-sessions')
-              }
+              // The app's own one-step modal (StartConductorModal), not a system alert.
+              click: () => send('start-conductor')
             },
         { label: 'Rename…', click: () => send('rename') }
       ]

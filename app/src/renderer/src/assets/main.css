@@ -18950,3 +18950,90 @@ button.easy-run-agent {
   font-size: 11.5px;
   color: var(--text-tertiary);
 }
+
+/* Start a Conductor (components/StartConductorModal.tsx). */
+.sc-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.32);
+  animation: sc-fade 0.15s ease-out;
+}
+@keyframes sc-fade {
+  from {
+    opacity: 0;
+  }
+}
+.sc-modal {
+  width: min(460px, calc(100vw - 48px));
+  padding: 26px 26px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  animation: pane-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.sc-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(62, 207, 142, 0.14);
+  color: #2fb47a;
+}
+.sc-modal h2 {
+  margin: 14px 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.sc-sub {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.sc-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sc-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.sc-choice:hover:not(:disabled) {
+  border-color: #3ecf8e;
+  background: rgba(62, 207, 142, 0.06);
+}
+.sc-choice b {
+  font-size: 14px;
+}
+.sc-choice span {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.sc-cancel {
+  display: block;
+  margin: 12px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 13px;
+}

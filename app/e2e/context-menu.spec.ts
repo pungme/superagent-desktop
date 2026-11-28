@@ -67,6 +67,17 @@ test('the sidebar right-click is our own menu: Escape, a pick and a click away a
     await expect(page.getByTestId('ctx-menu')).toContainText('Unpin chat')
     await page.locator('main').click({ position: { x: 300, y: 300 } })
     await expect(page.getByTestId('ctx-menu')).toHaveCount(0)
+
+    // The project's menu starts a Conductor in the app's own modal, then opens the Conductor view.
+    await page.locator('.sidebar-item:has-text("e2e-project")').first().click({ button: 'right' })
+    await page.getByTestId('ctx-menu').getByRole('menuitem', { name: 'Start Conductor…' }).click()
+    const modal = page.getByTestId('start-conductor')
+    await expect(modal).toBeVisible()
+    await expect(modal.getByTestId('start-adopt')).toContainText('Connect the 2 existing chats')
+    await modal.getByTestId('start-clean').click()
+    await expect(modal).toHaveCount(0)
+    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('sidebar-conductor-row')).toContainText('e2e-project')
   } finally {
     await app.close()
     for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

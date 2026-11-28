@@ -11,6 +11,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { ContextMenu } from './components/ContextMenu'
 import { openConductor } from './lib/open-conductor'
+import { StartConductorModal } from './components/StartConductorModal'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { Tour } from './tour/Tour'
@@ -86,6 +87,8 @@ function SidebarResizer({ onCollapse }: { onCollapse: () => void }): React.JSX.E
 }
 
 function App(): React.JSX.Element {
+  // The project a Conductor is being started for (the right-click menu's Start Conductor…).
+  const [startConductorFor, setStartConductorFor] = useState<string | null>(null)
   const tree = useStore((s) => s.tree)
   const activeId = useStore((s) => s.activeWorkspaceId)
   const startHookListener = useStore((s) => s.startHookListener)
@@ -250,6 +253,7 @@ function App(): React.JSX.Element {
       // Takes it off the list; the folder and its files are untouched.
       // Conductor: show the project, then its Sessions tab (main has started or found the Main chat).
       if (action === 'open-sessions') void openConductor(id)
+      if (action === 'start-conductor') setStartConductorFor(id)
       if (action === 'remove') s.removeWorkspace(id)
       if (action === 'rename')
         window.dispatchEvent(new CustomEvent('cove:rename-project', { detail: { id } }))
@@ -863,6 +867,12 @@ function App(): React.JSX.Element {
       <PreviewToast />
       <UpdateBanner />
       <ContextMenu />
+      {startConductorFor && (
+        <StartConductorModal
+          workspaceId={startConductorFor}
+          onClose={() => setStartConductorFor(null)}
+        />
+      )}
       <IntroSplash />
       {intro}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
