@@ -19275,3 +19275,20 @@ button.easy-run-agent {
   color: inherit;
   opacity: 0.72;
 }
+/* The Conductor section: its own block with a header, set apart from the lists around it. */
+.sidebar-conductor {
+  margin: 8px 0 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-conductor-head {
+  padding-bottom: 2px;
+}
+.sidebar-conductor-mark {
+  flex: none;
+  margin-right: 5px;
+  color: #2fb47a;
+}
+.sidebar-conductor-row {
+  padding-left: 22px;
+}

@@ -2538,30 +2538,41 @@ function ConductorSection(): React.JSX.Element | null {
   const needs = rows.reduce((n, r) => n + r.needsYou, 0)
   return (
     <div className="sidebar-conductor" data-testid="sidebar-conductor">
-      <button className="sidebar-dash-row" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <svg
-          className="sidebar-dash-icon"
-          viewBox="0 0 16 16"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {/* A section of its own, headed like Chats and Projects: Conductors are not projects. */}
+      <div className="sidebar-group-head tabs-head sidebar-conductor-head">
+        <button
+          className="sidebar-chats-toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? 'Hide the Conductors' : 'Show the Conductors'}
         >
-          <circle cx="3.5" cy="8" r="1.6" />
-          <circle cx="12.5" cy="3.5" r="1.6" />
-          <circle cx="12.5" cy="12.5" r="1.6" />
-          <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
-        </svg>
-        Conductor
-        {needs > 0 ? (
-          <span className="sidebar-dash-badge">{needs} needs you</span>
-        ) : (
-          <span className="sidebar-conductor-total">{rows.reduce((n, r) => n + r.total, 0)}</span>
-        )}
-      </button>
+          <svg
+            className="sidebar-conductor-mark"
+            viewBox="0 0 16 16"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="3.5" cy="8" r="1.6" />
+            <circle cx="12.5" cy="3.5" r="1.6" />
+            <circle cx="12.5" cy="12.5" r="1.6" />
+            <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
+          </svg>
+          <span className="sidebar-group-title">Conductor</span>
+          <span
+            className="sidebar-chats-caret"
+            style={{ transform: open ? 'none' : 'rotate(-90deg)' }}
+          >
+            <Chevron size={11} />
+          </span>
+          {needs > 0 && <span className="sidebar-dash-badge">{needs} needs you</span>}
+        </button>
+      </div>
       {open &&
         rows.map((r) => {
           const here = r.workspaceId === activeId && activeChat[r.workspaceId] === r.mainChatId
@@ -2581,7 +2592,7 @@ function ConductorSection(): React.JSX.Element | null {
                   ? `${r.needsYou} needs you`
                   : r.working > 0
                     ? `${r.working} working`
-                    : r.total}
+                    : `${r.total} ${r.total === 1 ? 'session' : 'sessions'}`}
               </span>
             </button>
           )
