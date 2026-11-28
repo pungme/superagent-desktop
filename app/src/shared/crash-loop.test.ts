@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { loopingDevices, parseSpringBoardCrash, type SpringBoardCrash } from './crash-loop'
+import {
+  LOOP_REPORT,
+  loopingDevices,
+  parseSpringBoardCrash,
+  type SpringBoardCrash
+} from './crash-loop'
 
 const NOW = Date.parse('2026-11-19T17:00:00Z')
 const crash = (udid: string, agoSec: number): SpringBoardCrash => ({
@@ -20,8 +25,17 @@ describe('parseSpringBoardCrash', () => {
     expect(c.udid).toBe('71476563-1E9D-41C5-8A97-C81EABB49276')
     expect(c.at).toBe(Date.parse('2026-11-19T16:59:33.798Z'))
   })
-  it('ignores other processes, other coalitions and junk', () => {
-    expect(parseSpringBoardCrash(report({ procName: 'backboardd' }))).toBeNull()
+  it('reads the other system processes that loop: PosterBoard and backboardd', () => {
+    expect(parseSpringBoardCrash(report({ procName: 'PosterBoard' }))?.udid).toBe(
+      '71476563-1E9D-41C5-8A97-C81EABB49276'
+    )
+    expect(parseSpringBoardCrash(report({ procName: 'backboardd' }))).not.toBeNull()
+    expect(LOOP_REPORT.test('PosterBoard-2026-11-28-142821.ips')).toBe(true)
+    expect(LOOP_REPORT.test('SpringBoard-2026-11-22-140226.ips')).toBe(true)
+    expect(LOOP_REPORT.test('MyApp-2026-11-28-142821.ips')).toBe(false)
+  })
+  it('ignores an app of its own, other coalitions and junk', () => {
+    expect(parseSpringBoardCrash(report({ procName: 'MyApp' }))).toBeNull()
     expect(parseSpringBoardCrash(report({ coalitionName: 'com.apple.Safari' }))).toBeNull()
     expect(parseSpringBoardCrash('nope')).toBeNull()
     expect(parseSpringBoardCrash('{}\n{broken')).toBeNull()

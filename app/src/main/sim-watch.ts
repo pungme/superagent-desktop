@@ -9,6 +9,7 @@ import { kvDel, kvGet, kvSet } from './store'
 import { healthLog } from './health'
 import {
   LOOP_QUIET_MS,
+  LOOP_REPORT,
   LOOP_WINDOW_MS,
   loopingDevices,
   parseSpringBoardCrash,
@@ -71,7 +72,7 @@ async function restart(udid: string): Promise<void> {
 }
 
 function take(file: string): void {
-  if (!/^SpringBoard-.*\.ips$/.test(file) || seen.has(file)) return
+  if (!LOOP_REPORT.test(file) || seen.has(file)) return
   seen.add(file)
   let text: string
   try {

@@ -138,6 +138,13 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await page.waitForSelector('.sidebar', { timeout: 20_000 })
     await page.getByTestId('sidebar-conductor-row').first().click()
     await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
+    // The window's sidebar is macOS vibrancy, which a page capture cannot see (it comes out black
+    // or white): give captures a solid stand-in so they look like the app.
+    if (process.env.SHOT)
+      await page.addStyleTag({
+        content:
+          'html[data-theme="dark"] .sidebar{background:#26272e!important}html:not([data-theme="dark"]) .sidebar{background:#f1f1f4!important}'
+      })
     await expect(page.getByTestId('conductor-approval')).toContainText('rm -rf build')
     await page.getByTestId('conductor-approve').click()
     expect(await asked).toContain('allow')
@@ -160,6 +167,13 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await page.waitForSelector('.sidebar', { timeout: 20_000 })
     await page.getByTestId('sidebar-conductor-row').first().click()
     await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
+    // The window's sidebar is macOS vibrancy, which a page capture cannot see (it comes out black
+    // or white): give captures a solid stand-in so they look like the app.
+    if (process.env.SHOT)
+      await page.addStyleTag({
+        content:
+          'html[data-theme="dark"] .sidebar{background:#26272e!important}html:not([data-theme="dark"]) .sidebar{background:#f1f1f4!important}'
+      })
     const panel = page.getByTestId('conductor-panel')
     await expect(panel.getByTestId('conductor-session')).toHaveCount(2)
     // No invented numbers: a session shows its title (and its tracker key, when it has one).
@@ -385,6 +399,13 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     // Every message to Main carries the Conductor state, with the memory index in it.
     await page.getByTestId('sidebar-conductor-row').first().click()
     await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
+    // The window's sidebar is macOS vibrancy, which a page capture cannot see (it comes out black
+    // or white): give captures a solid stand-in so they look like the app.
+    if (process.env.SHOT)
+      await page.addStyleTag({
+        content:
+          'html[data-theme="dark"] .sidebar{background:#26272e!important}html:not([data-theme="dark"]) .sidebar{background:#f1f1f4!important}'
+      })
     const input = page.locator('textarea.easy-input:visible').first()
     await input.fill('What is in the campaign table?')
     await input.press('Enter')

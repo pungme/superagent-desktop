@@ -11,7 +11,16 @@ export interface SpringBoardCrash {
   at: number
 }
 
-/** The device and time out of a SpringBoard-*.ips report (a header line, then JSON). */
+/**
+ * The simulator's own system processes whose crash loops take the device down with them, each
+ * with a "quit unexpectedly" pop-up: SpringBoard (macOS 27 beta), then PosterBoard (the lock
+ * screen and wallpaper: 18 crashes in two minutes seen on 2026-11-28) and backboardd. An app's
+ * own crash is not here: restarting the device for that would only lose the app's state.
+ */
+export const LOOPING_PROCESSES = ['SpringBoard', 'PosterBoard', 'backboardd'] as const
+export const LOOP_REPORT = /^(SpringBoard|PosterBoard|backboardd)-.*\.ips$/
+
+/** The device and time out of a crash report of one of those (a header line, then JSON). */
 export function parseSpringBoardCrash(text: string): SpringBoardCrash | null {
   const nl = text.indexOf('\n')
   if (nl < 0) return null
@@ -21,7 +30,7 @@ export function parseSpringBoardCrash(text: string): SpringBoardCrash | null {
       coalitionName?: string
       captureTime?: string
     }
-    if (j.procName !== 'SpringBoard') return null
+    if (!(LOOPING_PROCESSES as readonly string[]).includes(j.procName ?? '')) return null
     const m = /SimDevice\.([0-9A-Fa-f-]{36})$/.exec(j.coalitionName ?? '')
     if (!m) return null
     // "2026-11-19 17:59:33.7987 +0100" -> an ISO date JS can read.

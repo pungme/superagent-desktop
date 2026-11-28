@@ -75,6 +75,10 @@ for (const agent of AGENTS)
       expect(title).toMatch(/WD-284/)
       // The Sessions tab shows it at once (Main's own tool told the window).
       await expect(page.getByTestId('conductor-session')).toHaveCount(1, { timeout: 3000 })
+      // Main's chat shows what it did as a receipt (✦ New session), not a raw tool step.
+      await expect(page.locator('.easy-receipt.new:visible').first()).toBeVisible({
+        timeout: 15_000
+      })
       await page.screenshot({
         path: join(process.env.SHOT ?? tmpdir(), `conductor-live-${agent}.png`)
       })
