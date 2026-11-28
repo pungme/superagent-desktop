@@ -41,6 +41,9 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   // The curves from Main's edge to each card: where each card's middle sits in the column.
   const [wires, setWires] = useState<{ id: string; y: number; status: string }[]>([])
   const [hover, setHover] = useState<string | null>(null)
+  // Where the trunk leaves Main: the middle of what is on screen, so with many sessions the
+  // curves fan out from the middle of the column, as in the mockup.
+  const [originY, setOriginY] = useState<number | null>(null)
   const selectChat = useStore((s) => s.selectChat)
   const activeChatId = useStore((s) => s.activeChatId[workspaceId])
   // The session whose recent conversation is shown under its row, and what it says.
@@ -147,6 +150,30 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     return () => ro.disconnect()
   }, [cardKey])
 
+  useEffect(() => {
+    const box = cardsRef.current
+    const list = box?.parentElement
+    if (!box || !list) return
+    let raf = 0
+    const place = (): void => {
+      raf = 0
+      const mid = list.scrollTop + list.clientHeight * 0.42 - box.offsetTop
+      setOriginY((cur) => (cur !== null && Math.abs(cur - mid) < 6 ? cur : Math.round(mid)))
+    }
+    const on = (): void => {
+      if (!raf) raf = requestAnimationFrame(place)
+    }
+    place()
+    list.addEventListener('scroll', on, { passive: true })
+    const ro = new ResizeObserver(on)
+    ro.observe(list)
+    return () => {
+      list.removeEventListener('scroll', on)
+      ro.disconnect()
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [cardKey])
+
   if (state === undefined) return <div className="cd" />
   if (state === null)
     return (
@@ -216,7 +243,9 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             {look(s).word}
           </span>
         </span>
-        {s.summary && !s.approval && <span className="cd-summary">{s.summary}</span>}
+        {(s.summary || s.preview) && !s.approval && (
+          <span className="cd-summary">{s.summary || s.preview}</span>
+        )}
         {s.approval && (
           <span className="cd-ask" data-testid="conductor-approval">
             <span className="cd-ask-text">Wants to: {s.approval.preview}</span>
@@ -429,8 +458,10 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             <svg className="cd-wires" aria-hidden="true">
               {wires.map((w) => {
                 // From Main's edge, at the first card's height, curving into each card.
-                const oy = wires[0]?.y ?? 20
-                const x1 = 34
+                const lo = wires[0]?.y ?? 20
+                const hi = wires[wires.length - 1]?.y ?? lo
+                const oy = Math.min(hi, Math.max(lo, originY ?? lo))
+                const x1 = 84
                 return (
                   <path
                     key={w.id}
@@ -440,7 +471,17 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
                 )
               })}
             </svg>
-            <span className="cd-mainnode" title="Main" style={{ top: (wires[0]?.y ?? 20) - 4 }} />
+            <span
+              className="cd-mainnode"
+              title="Main"
+              style={{
+                top:
+                  Math.min(
+                    wires[wires.length - 1]?.y ?? 20,
+                    Math.max(wires[0]?.y ?? 20, originY ?? wires[0]?.y ?? 20)
+                  ) - 4
+              }}
+            />
             {spark.map((k) => (
               <i
                 key={k.key}

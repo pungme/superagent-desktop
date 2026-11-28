@@ -21,6 +21,7 @@ import {
   getChat,
   getDb,
   getWorkspace,
+  lastChatPreview,
   listChatEvents,
   tailChatEvents,
   openCards,
@@ -174,6 +175,8 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
       title: r.title,
       ticket: r.ticket,
       summary: r.summary,
+      // Sessions from before summaries were kept still say something: their last message.
+      preview: r.summary ? undefined : (lastChatPreview(r.chatId) ?? undefined),
       approval: openApproval(r.chatId),
       status:
         r.closedAt != null

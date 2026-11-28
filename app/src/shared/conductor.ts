@@ -13,6 +13,8 @@ export interface ConductorSession {
   ticket: number | null
   /** One or two lines on where it stands, written when the worker finishes or pauses. */
   summary: string
+  /** The last thing said in the session, when it has no summary yet (shown in its place). */
+  preview?: string
   status: 'working' | 'needs-you' | 'idle' | 'closed'
   /** Last used (ms). */
   updatedAt: number

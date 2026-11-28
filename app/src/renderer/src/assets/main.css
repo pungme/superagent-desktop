@@ -18518,7 +18518,7 @@ button.easy-run-agent {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-left: 34px;
+  padding-left: 84px;
 }
 /* The trunk from Main, and a curve into each card. */
 .cd-cards::before {
@@ -18814,7 +18814,7 @@ button.easy-run-agent {
   position: absolute;
   left: 0;
   top: 0;
-  width: 36px;
+  width: 86px;
   height: 100%;
   overflow: visible;
   pointer-events: none;
@@ -19281,16 +19281,27 @@ button.easy-run-agent {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
+/* Same geometry as the Today and Routines rows above it (6px margin, 10px padding, a 14px icon and
+   an 8px gap): the header's icon sits under theirs, its title and every project's name under
+   their labels. */
 .sidebar-conductor-head {
-  padding-bottom: 2px;
+  margin: 0 6px;
+  padding: 4px 10px 2px;
+}
+.sidebar-conductor-head .sidebar-chats-toggle {
+  gap: 8px;
 }
 .sidebar-conductor-mark {
   flex: none;
-  margin-right: 5px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
   color: #2fb47a;
 }
 .sidebar-conductor-row {
-  padding-left: 22px;
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  padding: 0 10px 0 32px;
 }
 .easy-ctx-compact.queued {
   border-color: #f0b429;
@@ -19340,4 +19351,54 @@ button.easy-run-agent {
 .storage-compact-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* The Conductor view as the mockup: Main is a block floating on the left, its sessions on the right,
+   and the wires leave Main's right edge across an open gutter into each card. */
+.split-main.conductor {
+  gap: 0;
+  padding: 12px 14px 14px;
+  background: var(--bg-sidebar, transparent);
+}
+.split-main.conductor .split-divider {
+  display: none;
+}
+.split-main.conductor .split-side-chat {
+  flex: 0 0 42%;
+  min-width: 340px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-content);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.split-main.conductor .cd-mainhead {
+  background: var(--bg-panel);
+}
+.split-main.conductor .split-side.desk {
+  padding: 0;
+}
+.split-main.conductor .split-side.desk .desk-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.split-main.conductor .cd {
+  padding: 4px 4px 4px 0;
+}
+.split-main.conductor .cd-list {
+  padding-left: 0;
+  padding-top: 4px;
+}
+.split-main.conductor .cd-listhead {
+  margin-left: 84px;
+}
+.split-main.conductor .cd-mainnode {
+  left: -6px;
+  width: 11px;
+  height: 11px;
+  background: var(--text-secondary);
+  box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.18);
 }
