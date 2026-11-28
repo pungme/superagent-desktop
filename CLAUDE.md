@@ -423,6 +423,19 @@ it holds native views (browser pane) back with the overlay lock. The browser pan
 (`browser.ts`) stay native: a native view sits above all HTML, so a drawn menu could not show there.
 e2e: `context-menu.spec.ts`.
 
+## Performance notes
+
+- Never run git (or any child process) synchronously on the main thread in a path a window polls:
+  `session-git.ts` reads a Conductor session's branch / unmerged / files in the background (cache,
+  4 at a time) and `sessionsOf` answers from the cache; tools that need fresh facts use
+  `sessionsOfFresh` / `freshGit`. With 22 sessions the old sync version froze the app 1–5.5 s.
+- Project icons (`project:icon`) are kept between launches (kv `iconDetected:<path>`, a week) and
+  found one at a time.
+- Opt-in perf specs: `PERF=1 npx playwright test e2e/perf` (22-session Conductor, idle cost), and
+  `COVE_PERF_DATA=<folder with copies of cove.db and transcripts.sqlite>` for a real-sized store.
+- Compacting the stores (`storage-compact.ts`): Settings → Advanced asks, the app restarts, and
+  `runPendingCompact` VACUUMs with the system `/usr/bin/sqlite3` before anything opens the stores.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and
