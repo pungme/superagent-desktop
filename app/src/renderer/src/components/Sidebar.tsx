@@ -2519,10 +2519,17 @@ function ConductorSection(): React.JSX.Element | null {
   const tree = useStore((s) => s.tree)
   useEffect(() => {
     let alive = true
+    let last = ''
     const load = (): void => {
+      if (document.hidden) return
       window.cove
         .conductorOverview()
-        .then((r) => alive && setRows(r))
+        .then((r) => {
+          const json = JSON.stringify(r)
+          if (!alive || json === last) return
+          last = json
+          setRows(r)
+        })
         .catch(() => undefined)
     }
     load()

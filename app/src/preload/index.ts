@@ -1317,6 +1317,7 @@ export interface CoveApi {
   contactsRemoveField: (workspaceId: string, key: string) => Promise<boolean>
   onContactsChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   conductorGet: (workspaceId: string) => Promise<ConductorState | null>
+  conductorMainId: (workspaceId: string) => Promise<string | null>
   conductorOverview: () => Promise<
     {
       workspaceId: string
@@ -2062,6 +2063,7 @@ const cove: CoveApi = {
   contactsRemoveField: (ws, key) => ipcRenderer.invoke('contacts:remove-field', ws, key),
   onContactsChanged: (cb) => subscribe('contacts:changed', (p) => cb(p as { workspaceId: string })),
   conductorGet: (ws) => ipcRenderer.invoke('conductor:get', ws),
+  conductorMainId: (ws) => ipcRenderer.invoke('conductor:main-id', ws),
   conductorOverview: () => ipcRenderer.invoke('conductor:overview'),
   conductorPeek: (chatId) => ipcRenderer.invoke('conductor:peek', chatId),
   conductorMessages: (chatId) => ipcRenderer.invoke('conductor:messages', chatId),

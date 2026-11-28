@@ -1191,20 +1191,51 @@ ipcMain.handle('app:clear-workspace-chats', (_e, workspaceId: string) => {
 // again (the agent just worked in the project); a new or cleared override is
 // seen at once, since it is checked before the cache.
 const detectedIcons = new Map<string, DetectedIcon | null>()
+// Finding a project's icon walks its folders and decodes images on the main thread, 60 to 330 ms
+// per project: with thirty-odd projects that was seconds of a frozen window at start-up. Now the
+// answers are kept between launches (a week), and the ones still to find go one at a time with a
+// breath between, so a click or a keystroke is never stuck behind them.
+const ICON_KEEP_MS = 7 * 24 * 3600 * 1000
+let iconQueue: Promise<unknown> = Promise.resolve()
+const breath = (): Promise<void> => new Promise((r) => setTimeout(r, 15))
 ipcMain.handle(
   'project:icon',
-  (
+  async (
     _e,
     workspaceId: string,
     path: string,
     force?: boolean
-  ): DetectedIcon | { source: 'custom'; dataUri: string } | null => {
+  ): Promise<DetectedIcon | { source: 'custom'; dataUri: string } | null> => {
     const override = kvGet(iconKvKey(workspaceId))
     if (override) return { source: 'custom', dataUri: override }
     if (!force && detectedIcons.has(path)) return detectedIcons.get(path) ?? null
-    const found = detectProjectIcon(path)
-    detectedIcons.set(path, found)
-    return found
+    const key = `iconDetected:${path}`
+    if (!force) {
+      try {
+        const raw = kvGet(key)
+        const kept = raw ? (JSON.parse(raw) as { at: number; icon: DetectedIcon | null }) : null
+        if (kept && Date.now() - kept.at < ICON_KEEP_MS) {
+          detectedIcons.set(path, kept.icon)
+          return kept.icon
+        }
+      } catch {
+        // a damaged entry is found again
+      }
+    }
+    const run = iconQueue.then(async () => {
+      if (!force && detectedIcons.has(path)) return detectedIcons.get(path) ?? null
+      await breath()
+      const found = detectProjectIcon(path)
+      detectedIcons.set(path, found)
+      try {
+        kvSet(key, JSON.stringify({ at: Date.now(), icon: found }))
+      } catch {
+        // not kept; found again next time
+      }
+      return found
+    })
+    iconQueue = run.catch(() => undefined)
+    return run
   }
 )
 

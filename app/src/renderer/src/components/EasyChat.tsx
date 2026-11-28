@@ -7912,13 +7912,15 @@ export function EasyChat({
             </div>
           )}
         </div>
-        <RoutingPill
-          workspaceId={workspaceId}
-          chatId={chatId}
-          open={controlMenu === 'routing'}
-          onToggle={() => setControlMenu((m) => (m === 'routing' ? null : 'routing'))}
-          onPicked={() => setControlMenu(null)}
-        />
+        {conductorMain && (
+          <RoutingPill
+            workspaceId={workspaceId}
+            chatId={chatId}
+            open={controlMenu === 'routing'}
+            onToggle={() => setControlMenu((m) => (m === 'routing' ? null : 'routing'))}
+            onPicked={() => setControlMenu(null)}
+          />
+        )}
         {!browserProject && workspaceId !== '__desktop_chat__' && (
           <BrowserPill
             workspaceId={workspaceId}

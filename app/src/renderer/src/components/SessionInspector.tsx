@@ -38,8 +38,15 @@ export function SessionInspector({
 
   useEffect(() => {
     let alive = true
+    let last = ''
     const load = (): void => {
-      void window.cove.conductorMessages(session.chatId).then((m) => alive && setMsgs(m))
+      if (document.hidden) return
+      void window.cove.conductorMessages(session.chatId).then((m) => {
+        const json = JSON.stringify(m)
+        if (!alive || json === last) return
+        last = json
+        setMsgs(m)
+      })
     }
     load()
     const t = window.setInterval(load, 2500)

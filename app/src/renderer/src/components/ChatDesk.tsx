@@ -83,8 +83,8 @@ export function ChatDesk({
     let alive = true
     const load = (): void => {
       void window.cove
-        .conductorGet(ws.id)
-        .then((c) => alive && setConductorMainId(c?.chatId ?? null))
+        .conductorMainId(ws.id)
+        .then((id) => alive && setConductorMainId(id))
         .catch(() => undefined)
     }
     load()

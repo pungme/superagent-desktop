@@ -583,6 +583,16 @@ export function listChatEvents(chatId: string, afterSeq: number, limit = 500): C
     .all(chatId, afterSeq, limit) as ChatEventRow[]
 }
 
+/** The last `n` events of a chat, oldest first: for a glance at where it is, never the whole log. */
+export function tailChatEvents(chatId: string, n: number): ChatEventRow[] {
+  const rows = db
+    .prepare(
+      'SELECT chatId, seq, ts, kind, data FROM chat_events WHERE chatId = ? ORDER BY seq DESC LIMIT ?'
+    )
+    .all(chatId, n) as ChatEventRow[]
+  return rows.reverse()
+}
+
 /** A chat's unsent text, or '' when its composer is empty. */
 export function chatDraft(chatId: string): string {
   return (

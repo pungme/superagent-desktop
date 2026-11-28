@@ -1,8 +1,8 @@
-import { execFileSync } from 'child_process'
 import type { EventEmitter } from 'events'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { buildManifest, autoTitle, ticketLabel, type ConductorSession } from '../shared/conductor'
+import { cachedGit, forgetGit, freshGit, setGitUpdateHandler } from './session-git'
 import { MEMORY_KINDS, forget, memoryIndex, recall, remember } from './conductor-store'
 import {
   closeSession,
@@ -22,6 +22,7 @@ import {
   getDb,
   getWorkspace,
   listChatEvents,
+  tailChatEvents,
   openCards,
   markPendingBranch,
   setChatTitle
@@ -125,76 +126,37 @@ function openApproval(chatId: string): { requestId: string; preview: string } | 
   return found
 }
 
-/** Commits on a worker's branch that its project's main branch lacks; null when it has no branch. */
-function unmergedCount(cwd: string | null): number | null {
-  if (!cwd) return null
-  for (const base of ['main', 'master']) {
-    try {
-      const n = execFileSync('git', ['-C', cwd, 'rev-list', '--count', `${base}..HEAD`], {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['ignore', 'pipe', 'ignore']
-      })
-      return Number(n.trim()) || 0
-    } catch {
-      // not this base, or not a repository
-    }
-  }
-  return null
-}
-
-/** Files a worker has changed against the main branch, committed or not. */
-function changedFiles(cwd: string | null): string[] | undefined {
-  if (!cwd) return undefined
-  const run = (args: string[]): string[] | null => {
-    try {
-      return execFileSync('git', ['-C', cwd, ...args], {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['ignore', 'pipe', 'ignore']
-      })
-        .split('\n')
-        .filter(Boolean)
-    } catch {
-      return null
-    }
-  }
-  let files: string[] | null = null
-  for (const base of ['main', 'master']) {
-    files = run(['diff', '--name-only', `${base}...HEAD`])
-    if (files) break
-  }
-  if (!files) return undefined
-  const dirty = run(['status', '--porcelain']) ?? []
-  const all = new Set([...files, ...dirty.map((l) => l.slice(3).replace(/^.* -> /, ''))])
-  return [...all].sort()
-}
-
-function branchOf(cwd: string | null): string | undefined {
-  if (!cwd) return undefined
-  try {
-    const b = execFileSync('git', ['-C', cwd, 'rev-parse', '--abbrev-ref', 'HEAD'], {
-      encoding: 'utf8',
-      timeout: 5000,
-      stdio: ['ignore', 'pipe', 'ignore']
-    }).trim()
-    return b && b !== 'HEAD' ? b : undefined
-  } catch {
-    return undefined
-  }
-}
-
+const countCache = new Map<string, { at: number; n: number }>()
+/** Messages in a conversation (the person's and the agent's), counted at most every 10 s. */
 function messageCount(chatId: string): number {
+  const hit = countCache.get(chatId)
+  if (hit && Date.now() - hit.at < 10_000) return hit.n
   try {
     const r = getDb()
       .prepare(
-        `SELECT COUNT(*) AS n FROM chat_events WHERE chatId = ? AND (data LIKE '{"kind":"user"%' OR data LIKE '{"kind":"assistant"%')`
+        "SELECT COUNT(*) AS n FROM chat_events WHERE chatId = ? AND kind IN ('user', 'assistant')"
       )
       .get(chatId) as { n: number }
+    countCache.set(chatId, { at: Date.now(), n: r.n })
     return r.n
   } catch {
     return 0
   }
+}
+
+/** Like sessionsOf, but waits for git to answer for every session first: for what an agent asks. */
+export async function sessionsOfFresh(
+  info: ConductorInfo,
+  includeClosed = false
+): Promise<ConductorSession[]> {
+  const rows = listSessions(getDb(), info.workspaceId, { includeClosed })
+  await Promise.all(
+    rows.flatMap((r) => {
+      const cwd = getChat(r.chatId)?.cwd
+      return cwd ? [freshGit(cwd)] : []
+    })
+  )
+  return sessionsOf(info, includeClosed)
 }
 
 /** The project's sessions as the Conductor sees them (title, ticket, status, branch, summary). */
@@ -202,6 +164,11 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
   const db = getDb()
   return listSessions(db, info.workspaceId, { includeClosed }).map((r) => {
     const cwd = getChat(r.chatId)?.cwd ?? null
+    // A session that is not at work changes slowly: look at it less often.
+    const git = cachedGit(
+      cwd,
+      r.closedAt != null ? 60_000 : isGenerating(r.chatId) ? 5_000 : 20_000
+    )
     return {
       chatId: r.chatId,
       title: r.title,
@@ -217,9 +184,10 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
               ? 'working'
               : 'idle',
       updatedAt: r.updatedAt,
-      branch: branchOf(cwd),
-      unmerged: unmergedCount(cwd) ?? undefined,
-      files: changedFiles(cwd),
+      // From the cache, at once; a read in the background tells the windows when it finds more.
+      branch: git.branch,
+      unmerged: git.unmerged,
+      files: git.files,
       messages: messageCount(r.chatId)
     }
   })
@@ -291,11 +259,12 @@ export function recordSession(chatId: string, extra: { task?: string } = {}): vo
     (r) => r.chatId === chatId
   )
   const cwd = chat.cwd ?? null
-  const files = changedFiles(cwd)
+  const facts = cachedGit(cwd, 30_000)
+  const files = facts.files
   const lines = [
     `Title: ${chat.title || 'Untitled'}`,
     task ? `Task: ${task.replace(/\s+/g, ' ').slice(0, 600)}` : '',
-    branchOf(cwd) ? `Branch: ${branchOf(cwd)}` : '',
+    facts.branch ? `Branch: ${facts.branch}` : '',
     files?.length ? `Files: ${files.slice(0, 20).join(', ')}${files.length > 20 ? ' …' : ''}` : '',
     row?.summary ? `Latest: ${row.summary}` : ''
   ].filter(Boolean)
@@ -321,29 +290,18 @@ export function conductorTurnPrefix(chatId: string, message = ''): string {
   }
   const parts = [manifestFor(info)]
   if (ws?.path) {
-    try {
-      const st = execFileSync('git', ['-C', ws.path, 'status', '--porcelain', '-b'], {
-        encoding: 'utf8',
-        timeout: 4000,
-        stdio: ['ignore', 'pipe', 'ignore']
-      }).split('\n')
-      const branch = (st[0] ?? '').replace(/^## /, '')
-      const dirty = st.slice(1).filter(Boolean).length
-      if (branch)
-        parts.push(
-          `Project git: ${branch}${dirty ? `, ${dirty} uncommitted change(s)` : ', clean'}.`
-        )
-    } catch {
-      // not a repository
-    }
+    // From the cache: this runs in front of every message, and git must never hold one up.
+    const g = cachedGit(ws.path, 15_000)
+    if (g.branch)
+      parts.push(
+        `Project git: ${g.branch}${g.files?.length ? `, ${g.files.length} file(s) changed against main` : ', nothing changed against main'}.`
+      )
   }
   try {
     const todos = openCardsFor(info.workspaceId)
     if (todos.length)
       parts.push(
-        `Open to-dos (${todos.length}): ${todos
-          .slice(0, 6)
-          .join('; ')}${todos.length > 6 ? ' …' : ''}`
+        `Open to-dos (${todos.length}): ${todos.slice(0, 6).join('; ')}${todos.length > 6 ? ' …' : ''}`
       )
   } catch {
     // no board
@@ -367,10 +325,20 @@ export function conductorTurnPrefix(chatId: string, message = ''): string {
   return `[Conductor state, as of this message]\n${parts.join('\n')}\n[End of Conductor state]\n\n`
 }
 
+/** manifestFor, after git has answered for every session (what an agent's tool call gets). */
+export async function manifestForFresh(info: ConductorInfo): Promise<string> {
+  const ws = getWorkspace(info.workspaceId)
+  return buildManifest({
+    project: ws?.name ?? 'this project',
+    routing: info.routing,
+    sessions: await sessionsOfFresh(info),
+    unlinked: listUnlinked(getDb(), info.workspaceId)
+  })
+}
+
 /** A readable digest of the end of a worker's conversation. */
 function digest(chatId: string, turns: number): string {
-  const all = listChatEvents(chatId, 0, 100000)
-  const tail = all.slice(-Math.max(20, turns * 12))
+  const tail = tailChatEvents(chatId, Math.max(20, turns * 12))
   const lines: string[] = []
   for (const e of tail) {
     let d: {
@@ -435,8 +403,8 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     },
     async ({ includeClosed }) => {
       const c = now()
-      if (!includeClosed) return said(manifestFor(c))
-      const s = sessionsOf(c, true)
+      if (!includeClosed) return said(await manifestForFresh(c))
+      const s = await sessionsOfFresh(c, true)
       return said(
         s
           .map(
@@ -549,7 +517,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       const s = find({ ticket, chatId })
       if (!s) return notFound()
       const chat = getChat(s.chatId)
-      const unmerged = unmergedCount(chat?.cwd ?? null)
+      const unmerged = chat?.cwd ? ((await freshGit(chat.cwd)).unmerged ?? 0) : 0
       if (unmerged && !how)
         return said(
           `${s.ticket != null ? ticketLabel(s.ticket) : s.title} has ${unmerged} commit(s) not in the main branch. Ask the person: merge them and close, or close and keep the branch. Then call this again with how.`,
@@ -562,6 +530,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
         const r = await mergeCopy(wsRow.path, chat.cwd, s.title || 'Conductor session')
         if (!r.ok && r.reason !== 'nothing')
           return said(`Could not merge it (${r.reason}). Nothing was closed.`, true)
+        forgetGit(chat.cwd)
       }
       if (isGenerating(s.chatId)) {
         const { stopFromDot } = await import('./companion/rpc')
@@ -654,7 +623,8 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       if (isGenerating(s.chatId))
         return said(`${label} is still working. Merge when it is done.`, true)
       const chat = getChat(s.chatId)
-      if (!chat?.cwd || !unmergedCount(chat.cwd)) return said(`${label} has nothing to merge.`)
+      if (!chat?.cwd || !((await freshGit(chat.cwd)).unmerged ?? 0))
+        return said(`${label} has nothing to merge.`)
       const wsRow = getWorkspace(ws)
       if (!wsRow) return said('That project is gone.', true)
       const { mergeCopy } = await import('./chat-copy')
@@ -790,9 +760,8 @@ export interface InspectMessage {
   failed?: boolean
 }
 export function sessionMessages(chatId: string, max = 40): InspectMessage[] {
-  const all = listChatEvents(chatId, 0, 100000)
   const out: InspectMessage[] = []
-  for (const e of all.slice(-max * 4)) {
+  for (const e of tailChatEvents(chatId, max * 4)) {
     let d: {
       kind?: string
       text?: string
@@ -821,6 +790,10 @@ export function sessionMessages(chatId: string, max = 40): InspectMessage[] {
 }
 
 export function registerConductorIpc(): void {
+  // A background git read that found a session changed: every open Conductor looks again.
+  setGitUpdateHandler(() => {
+    for (const o of conductorOverview()) changed(o.workspaceId)
+  })
   ipcMain.handle('conductor:peek', (_e, chatId: string) => digest(String(chatId), 3))
   ipcMain.handle(
     'conductor:answer',
@@ -836,6 +809,11 @@ export function registerConductorIpc(): void {
   )
   ipcMain.handle('conductor:get', (_e, ws: string) => stateOf(String(ws)))
   ipcMain.handle('conductor:overview', () => conductorOverview())
+  // Which chat is a project's Main (a lookup, no git): what every desk asks.
+  ipcMain.handle(
+    'conductor:main-id',
+    (_e, ws: string) => getConductor(getDb(), String(ws))?.chatId ?? null
+  )
   // The inspector: a session's conversation, and a message to it, from the Sessions column.
   ipcMain.handle('conductor:messages', (_e, chatId: string) =>
     conductorOfWorker(getDb(), String(chatId)) ? sessionMessages(String(chatId)) : []

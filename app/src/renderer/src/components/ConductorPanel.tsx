@@ -66,14 +66,24 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     return () => window.removeEventListener('cove:conductor-inspect', on)
   }, [])
 
+  // Only a changed answer re-renders the column (it was a new object every five seconds).
+  const lastJson = useRef('')
   const load = useCallback(() => {
-    void window.cove.conductorGet(workspaceId).then(setState)
+    void window.cove.conductorGet(workspaceId).then((next) => {
+      const json = JSON.stringify(next)
+      if (json === lastJson.current) return
+      lastJson.current = json
+      setState(next)
+    })
   }, [workspaceId])
   useEffect(() => {
     load()
     const off = window.cove.onConductorChanged((p) => p.workspaceId === workspaceId && load())
-    // A worker starts and stops working without any change to the list: look again now and then.
-    const t = setInterval(load, 5000)
+    // A worker starts and stops working without any change to the list: look again now and then,
+    // but not while the window is hidden.
+    const t = setInterval(() => {
+      if (!document.hidden) load()
+    }, 5000)
     return () => {
       off()
       clearInterval(t)
@@ -107,6 +117,13 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     )
   }, [fresh])
 
+  // The cards' positions, for the wires: measured when the cards change or the column resizes,
+  // not on every render (it used to re-observe the column each time).
+  const cardKey = state
+    ? state.sessions
+        .map((x) => `${x.chatId}:${x.status}:${x.summary.length}:${x.approval ? 1 : 0}`)
+        .join('|') + `|${filter}|${inspecting ? 1 : 0}`
+    : ''
   useLayoutEffect(() => {
     const box = cardsRef.current
     if (!box) return
@@ -117,7 +134,6 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
         y: el.offsetTop + Math.min(26, el.offsetHeight / 2),
         status: el.dataset.status ?? 'idle'
       }))
-      // Only when something moved: setting it every time re-rendered for ever.
       setWires((cur) =>
         cur.length === next.length &&
         cur.every((w, i) => w.id === next[i].id && w.y === next[i].y && w.status === next[i].status)
@@ -129,7 +145,7 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     const ro = new ResizeObserver(measure)
     ro.observe(box)
     return () => ro.disconnect()
-  })
+  }, [cardKey])
 
   if (state === undefined) return <div className="cd" />
   if (state === null)
