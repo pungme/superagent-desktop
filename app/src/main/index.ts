@@ -74,7 +74,7 @@ import {
   findSessionByChat
 } from './agent'
 import { noteUserMessage } from './browser-ask'
-import { registerLoops } from './loops'
+import { registerLoops, restoreLoopsAfterUpdate } from './loops'
 import { killAllOneShots } from './kill-tree'
 import {
   startCompanionLog,
@@ -996,7 +996,11 @@ app.whenReady().then(async () => {
           localId: `resume-${chatId}-${Date.now()}`
         } as never),
       (chatId) => !!getChat(chatId)
-    ).catch(() => undefined)
+    )
+      // The loops that were running come back too; a chat just told to carry on does not get a
+      // round on top of that.
+      .then((resumed) => restoreLoopsAfterUpdate(resumed))
+      .catch(() => undefined)
   }, 8000)
 
   app.on('did-become-active', () => {

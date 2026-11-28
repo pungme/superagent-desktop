@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import { ipcMain } from 'electron'
 import { agentBus, findSessionByChat, sendToAgent } from './agent'
 import { isGenerating, logBus, record } from './companion/log'
-import { getChat } from './store'
+import { getChat, kvDel, kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
   DEFAULT_LOOP_ROUND_GAP_MS,
@@ -466,6 +466,107 @@ export function registerLoops(): void {
   ipcMain.on('loops:round-reply', (_e, nonce: string, answer: 'taken' | 'busy') =>
     offers.get(nonce)?.(answer)
   )
+}
+
+/**
+ * Loops across an update. The updater writes the running loops down just before it quits
+ * (`saveLoopsForUpdate`); the next start brings them back (`restoreLoopsAfterUpdate`) with their
+ * prompt, interval, round count and paused state. A chat that is being told to carry on does not
+ * get a round on top of that: its loop waits for that turn to end, like any other round.
+ */
+const SAVED_KEY = 'loopsAfterUpdate'
+const SAVED_MAX_AGE_MS = 30 * 60_000
+
+interface SavedLoop {
+  chatId: string
+  prompt: string
+  intervalMs: number | null
+  count: number
+  paused: boolean
+  quiet: number
+}
+
+export function saveLoopsForUpdate(now = Date.now()): number {
+  const saved: SavedLoop[] = [...loops.values()].map((l) => ({
+    chatId: l.chatId,
+    prompt: l.prompt,
+    intervalMs: l.intervalMs,
+    count: l.count,
+    paused: l.paused,
+    quiet: l.quiet
+  }))
+  if (saved.length) kvSet(SAVED_KEY, JSON.stringify({ at: now, saved }))
+  return saved.length
+}
+
+export function restoreLoopsAfterUpdate(resumedChats: string[], now = Date.now()): string[] {
+  const raw = kvGet(SAVED_KEY)
+  if (!raw) return []
+  kvDel(SAVED_KEY)
+  let saved: SavedLoop[] = []
+  try {
+    const v = JSON.parse(raw) as { at?: number; saved?: SavedLoop[] }
+    if (typeof v.at !== 'number' || now - v.at > SAVED_MAX_AGE_MS || !Array.isArray(v.saved))
+      return []
+    saved = v.saved
+  } catch {
+    return []
+  }
+  const back: string[] = []
+  for (const sv of saved) {
+    if (typeof sv.chatId !== 'string' || typeof sv.prompt !== 'string' || !getChat(sv.chatId))
+      continue
+    if (loops.has(sv.chatId)) continue
+    const l: Loop = {
+      chatId: sv.chatId,
+      prompt: sv.prompt,
+      intervalMs: sv.intervalMs,
+      count: Number(sv.count) || 0,
+      nextAt: null,
+      paused: sv.paused === true,
+      timer: null,
+      guard: null,
+      roundStart: now,
+      startedAt: now,
+      awaiting: false,
+      requestedGapMs: null,
+      quiet: Number(sv.quiet) || 0,
+      needsUser: false,
+      quietThisRound: false,
+      quietUntil: 0,
+      failures: 0
+    }
+    loops.set(l.chatId, l)
+    if (l.intervalMs !== null) {
+      l.timer = setInterval(() => {
+        if (l.paused) return
+        if (isGenerating(l.chatId) || Date.now() < l.quietUntil) {
+          l.nextAt = nextTick(l)
+          changed(l.chatId)
+          return
+        }
+        void fire(l)
+      }, l.intervalMs)
+      l.nextAt = l.paused ? null : nextTick(l)
+    }
+    if (resumedChats.includes(l.chatId)) {
+      // It is being told to carry on: that turn's end schedules the next round. If no turn ever
+      // starts for it, do not wait for ever.
+      l.awaiting = true
+      l.guard = setTimeout(() => {
+        l.guard = null
+        if (loops.get(l.chatId) === l && l.awaiting && !isGenerating(l.chatId)) {
+          l.awaiting = false
+          scheduleNext(l)
+        }
+      }, WATCHDOG_MS * 2)
+    } else if (l.intervalMs === null) {
+      scheduleNext(l)
+    }
+    changed(l.chatId)
+    back.push(l.chatId)
+  }
+  return back
 }
 
 /** For tests. */

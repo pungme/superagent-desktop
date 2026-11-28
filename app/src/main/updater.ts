@@ -6,6 +6,7 @@ import { appendFileSync } from 'fs'
 import { join } from 'path'
 import { kvGet, kvSet } from './store'
 import { recordInterrupted } from './update-resume'
+import { saveLoopsForUpdate } from './loops'
 
 /**
  * Opt-in beta updates. Off by default: a stable install only ever sees GitHub
@@ -172,6 +173,8 @@ export function startAutoUpdate(): void {
     logLine('info', `install requested (downloaded=${updateDownloaded})`)
     // Chats that are mid-turn are written down now; the new version tells each to carry on.
     try {
+      const loopsKept = saveLoopsForUpdate()
+      if (loopsKept) logLine('info', `restart: ${loopsKept} loop(s) will be restored`)
       const woken = recordInterrupted()
       if (woken.length) logLine('info', `restart: ${woken.length} working chat(s) will be resumed`)
     } catch (err) {

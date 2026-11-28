@@ -40,11 +40,19 @@ vi.mock('./companion/log', () => ({
   isGenerating: (id: string) => h.generating.has(id),
   record: h.record
 }))
-vi.mock('./store', () => ({ getChat: (id: string) => (id === 'gone' ? undefined : { id }) }))
+const kv = new Map<string, string>()
+vi.mock('./store', () => ({
+  getChat: (id: string) => (id === 'gone' ? undefined : { id }),
+  kvGet: (k: string) => kv.get(k),
+  kvSet: (k: string, v: string) => void kv.set(k, v),
+  kvDel: (k: string) => void kv.delete(k)
+}))
 
 import {
   loopCommand,
   loopFor,
+  saveLoopsForUpdate,
+  restoreLoopsAfterUpdate,
   pauseLoop,
   registerLoops,
   requestLoopWait,
@@ -398,5 +406,56 @@ describe('loops', () => {
     expect(requestLoopWait('c3', 360)).toBe('set')
     pauseLoop('c3', true)
     expect(requestLoopWait('c3', 360)).toBe('paused')
+  })
+})
+
+describe('loops across an update', () => {
+  beforeEach(() => {
+    kv.clear()
+    h.window = 'taken'
+    h.rounds.length = 0
+  })
+  it('brings a running loop back with its prompt, interval and count', () => {
+    loopCommand('c1', '/loop 5m check the build')
+    expect(saveLoopsForUpdate()).toBe(1)
+    _resetLoopsForTests()
+    expect(loopFor('c1')).toBeNull()
+    h.rounds.length = 0
+    expect(restoreLoopsAfterUpdate([])).toEqual(['c1'])
+    const l = loopFor('c1')!
+    expect(l.prompt).toBe('check the build')
+    expect(l.intervalMs).toBe(5 * 60_000)
+    expect(l.count).toBe(1)
+    // Restored, not restarted: no round was sent just for coming back.
+    expect(h.rounds).toHaveLength(0)
+    // Once, however many starts follow.
+    expect(restoreLoopsAfterUpdate([])).toEqual([])
+  })
+  it('keeps a paused loop paused', () => {
+    loopCommand('c2', '/loop 5m tidy')
+    pauseLoop('c2', true)
+    saveLoopsForUpdate()
+    _resetLoopsForTests()
+    restoreLoopsAfterUpdate([])
+    expect(loopFor('c2')?.paused).toBe(true)
+  })
+  it('skips a chat that is gone and a note that is too old', () => {
+    loopCommand('gone', '/loop 5m x')
+    saveLoopsForUpdate(0)
+    _resetLoopsForTests()
+    expect(restoreLoopsAfterUpdate([], 31 * 60_000)).toEqual([])
+    loopCommand('c3', '/loop 5m y')
+    saveLoopsForUpdate()
+    _resetLoopsForTests()
+    expect(restoreLoopsAfterUpdate([])).toEqual(['c3'])
+  })
+  it('does not send a round on top of the carry-on message', () => {
+    loopCommand('c4', '/loop 5m z')
+    saveLoopsForUpdate()
+    _resetLoopsForTests()
+    h.rounds.length = 0
+    restoreLoopsAfterUpdate(['c4'])
+    expect(h.rounds).toHaveLength(0)
+    expect(loopFor('c4')).not.toBeNull()
   })
 })
