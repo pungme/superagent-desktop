@@ -233,25 +233,61 @@ function openCardsFor(workspaceId: string): string[] {
  * branch, the files it changed and where it stands. Updated on every turn it finishes, so "what was
  * #3 doing / where is the campaign code" can be answered from saved facts, not from recollection.
  */
+/** One record per session, under a key that survives renaming it. */
+function sessionKey(chatId: string): string {
+  return `session ${chatId.slice(0, 8)}`
+}
+
+/** What was first asked in a chat: the task of a session that was connected rather than started. */
+function firstAsk(chatId: string): string | null {
+  for (const e of listChatEvents(chatId, 0, 200)) {
+    try {
+      const d = JSON.parse(e.data) as { kind?: string; text?: string }
+      if (d.kind === 'user' && d.text?.trim()) return d.text.trim()
+    } catch {
+      // skip
+    }
+  }
+  return null
+}
+
+/** Every session of a project has a record in Main's memory; the ones that lack one get it now. */
+export function backfillSessionRecords(workspaceId: string): number {
+  const have = new Set(
+    recall(getDb(), workspaceId, { kind: 'history', limit: 1000 }).map((r) => r.key)
+  )
+  let n = 0
+  for (const r of listSessions(getDb(), workspaceId, { includeClosed: true })) {
+    const chat = getChat(r.chatId)
+    if (!chat || have.has(sessionKey(r.chatId))) continue
+    recordSession(r.chatId)
+    n++
+  }
+  return n
+}
+
 export function recordSession(chatId: string, extra: { task?: string } = {}): void {
   const info = conductorOfWorker(getDb(), chatId)
   const chat = getChat(chatId)
   if (!info || !chat) return
-  const key = `session: ${chat.title || chatId}`
+  const key = sessionKey(chatId)
   const before = recall(getDb(), info.workspaceId, { limit: 500 }).find((r) => r.key === key)
-  const task = extra.task ?? before?.text.match(/^Task: (.*)$/m)?.[1] ?? ''
+  const task = extra.task ?? before?.text.match(/^Task: (.*)$/m)?.[1] ?? firstAsk(chatId) ?? ''
   const row = listSessions(getDb(), info.workspaceId, { includeClosed: true }).find(
     (r) => r.chatId === chatId
   )
   const cwd = chat.cwd ?? null
   const files = changedFiles(cwd)
   const lines = [
+    `Title: ${chat.title || 'Untitled'}`,
     task ? `Task: ${task.replace(/\s+/g, ' ').slice(0, 600)}` : '',
     branchOf(cwd) ? `Branch: ${branchOf(cwd)}` : '',
     files?.length ? `Files: ${files.slice(0, 20).join(', ')}${files.length > 20 ? ' …' : ''}` : '',
     row?.summary ? `Latest: ${row.summary}` : ''
   ].filter(Boolean)
-  if (lines.length) remember(getDb(), info.workspaceId, key, 'history', lines.join('\n'))
+  // Always a record, even for a chat with nothing in it yet: Main knows the session exists.
+  if (lines.length === 1) lines.push('No work in it yet.')
+  remember(getDb(), info.workspaceId, key, 'history', lines.join('\n'))
 }
 
 /**
@@ -263,6 +299,12 @@ export function conductorTurnPrefix(chatId: string, message = ''): string {
   const info = conductorOfMain(getDb(), chatId)
   if (!info) return ''
   const ws = getWorkspace(info.workspaceId)
+  // Sessions connected from existing chats have no record yet: give each one before Main reads.
+  try {
+    backfillSessionRecords(info.workspaceId)
+  } catch {
+    // memory is a help, never a blocker
+  }
   const parts = [manifestFor(info)]
   if (ws?.path) {
     try {
@@ -475,6 +517,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
     },
     async ({ chatId }) => {
       const t = connectChat(getDb(), ws, chatId)
+      recordSession(chatId)
       if (t == null) return said('That chat is not in this project, or cannot be connected.', true)
       refresh()
       return said(`Connected as ${ticketLabel(t)}.`)
@@ -518,13 +561,17 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
         }
       }
       closeSession(getDb(), s.chatId)
-      // What it did stays known after it is gone from the list.
+      // What it did stays known after it is gone from the list: its record, plus how it ended.
+      recordSession(s.chatId)
+      const prev = recall(getDb(), ws, { kind: 'history', limit: 1000 }).find(
+        (r) => r.key === sessionKey(s.chatId)
+      )
       remember(
         getDb(),
         ws,
-        `session: ${s.title || s.chatId}`,
+        sessionKey(s.chatId),
         'history',
-        `${how === 'merge' ? 'Merged and closed' : how === 'discard' ? 'Discarded and closed' : 'Closed'} on ${new Date().toISOString().slice(0, 10)}.${s.summary ? ` Last summary: ${s.summary}` : ''}`
+        `${prev?.text ?? `Title: ${s.title}`}\nStatus: ${how === 'merge' ? 'merged and closed' : how === 'discard' ? 'discarded and closed' : 'closed'} on ${new Date().toISOString().slice(0, 10)}`
       )
       refresh()
       return said(`Closed ${s.ticket != null ? ticketLabel(s.ticket) : s.title}.`)
@@ -631,6 +678,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       const s = find({ ticket, chatId })
       if (!s) return notFound()
       setSummary(getDb(), s.chatId, summary)
+      recordSession(s.chatId)
       return said('Noted.')
     }
   )
@@ -792,6 +840,7 @@ export function registerConductorIpc(): void {
       adoptChatIds: Array.isArray(adopt) ? adopt.map(String) : [],
       makeMain: () => createChat(workspaceId)
     })
+    backfillSessionRecords(workspaceId)
     changed(workspaceId)
     return stateOf(workspaceId)
   })
@@ -801,6 +850,7 @@ export function registerConductorIpc(): void {
   })
   ipcMain.handle('conductor:connect', (_e, ws: string, chatId: string) => {
     const t = connectChat(getDb(), String(ws), String(chatId))
+    recordSession(String(chatId))
     changed(String(ws))
     return t
   })
@@ -853,8 +903,14 @@ export async function startConductorDialog(
       'It adds one Main chat. You write to Main; it starts a session for each piece of work, sends your follow-ups to the right one, and asks when it is not sure. Nothing in your existing chats changes.'
   })
   if (response === (some ? 2 : 1)) return null
-  return enableConductor(db, workspaceId, {
+  const info = enableConductor(db, workspaceId, {
     adoptChatIds: some && response === 1 ? existing : [],
     makeMain: () => createChat(workspaceId)
   })
+  try {
+    backfillSessionRecords(workspaceId)
+  } catch {
+    // the records are filled on Main's next message anyway
+  }
+  return info
 }

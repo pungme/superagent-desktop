@@ -110,6 +110,9 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
       await tool('conductor_note_session', { ticket: 102, summary: 'Waiting on the design' })
     ).toContain('Noted')
     expect(await tool('conductor_list_sessions')).toContain('Waiting on the design')
+    // Main has a record of every session, the connected ones included, without saving any itself.
+    const records = await tool('conductor_recall', { kind: 'history' })
+    expect(records).toContain('Title: Pricing page')
     expect(await tool('conductor_inspect_session', { ticket: 101 })).toContain('#101')
     // Each session drives a browser of its own, as any chat does.
     writeFileSync(join(proj, 'a.html'), '<title>Session A</title><h1>Page of A</h1>')
@@ -209,7 +212,18 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await page.waitForTimeout(1500) // let the pane settle after the card goes
 
     // Routing, from the panel and as the Main chat sees it.
-    await panel.getByTestId('conductor-routing').selectOption('auto')
+    // In Main, routing is a pill in the composer's row of settings (folded behind the agent's
+    // logo in a narrow column).
+    if (
+      !(await page
+        .getByTestId('routing-pill')
+        .isVisible()
+        .catch(() => false))
+    )
+      await page.locator('.easy-input-agent:visible').first().click()
+    await page.getByTestId('routing-pill').locator('button').first().click()
+    await page.getByTestId('routing-pill').getByRole('button', { name: /^Auto/ }).click()
+    await expect(page.getByTestId('routing-pill')).toContainText('Auto')
     await expect.poll(() => tool('conductor_list_sessions')).toContain('Routing: Auto')
 
     // Closed from the panel, reopened. (The chat on screen stays in the list, so look at Main.)
@@ -257,6 +271,7 @@ process.stdin.on('data', (c) => {
     if (msg.type !== 'user') continue
     const text = typeof msg.message.content === 'string' ? msg.message.content : msg.message.content.map((p) => p.text || '').join('')
     fs.appendFileSync(process.env.FAKE_LOG, text + '\\n---\\n')
+    if (text.includes('ROUTE-IT')) out({ type: 'assistant', message: { id: 'r' + Math.random(), role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'tu' + Date.now(), name: 'mcp__cove-browser__conductor_send_to_session', input: { ticket: 101, text: 'Please also check the footer spacing.' } }] } })
     out({ type: 'assistant', message: { id: 'a' + Math.random(), role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'I fixed the header so it never wraps. Everything else is as it was.' }] } })
     out({ type: 'result', subtype: 'success', is_error: false, result: 'done' })
   }
@@ -363,6 +378,26 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     // Its routing receipts show in Main as cards, not raw tool steps (the stand-in calls none, so
     // this only checks the transcript does not show the state block to the person).
     await expect(page.locator('.easy-chat:visible')).not.toContainText('[Conductor state')
+    // A routing receipt in Main, and Move ▾ sends it to another session instead.
+    await input.fill('ROUTE-IT please')
+    await input.press('Enter')
+    const receipt = page.locator('.easy-receipt.sent:visible').first()
+    await expect(receipt).toBeVisible({ timeout: 20_000 })
+    await expect(receipt).toContainText('Sent to a session')
+    await receipt.getByTestId('receipt-move').click()
+    await page
+      .getByTestId('receipt-move-menu')
+      .locator('button')
+      .filter({ hasText: /pricing/i })
+      .first()
+      .click()
+    await expect(receipt).toContainText('Moved to')
+    await expect
+      .poll(() => readFileSync(log, 'utf8'), { timeout: 20_000 })
+      .toContain('Please also check the footer spacing.')
+    await expect
+      .poll(() => readFileSync(log, 'utf8'), { timeout: 20_000 })
+      .toContain('Leave my last request')
     expect(await tool('conductor_forget', { key: 'campaign table' })).toContain('Forgot')
     expect(await tool('conductor_recall', { query: 'deleted' })).toContain('Nothing saved')
   } finally {
@@ -476,6 +511,10 @@ test('conductor: each session gets its own worktree, and closing one with unmerg
     expect(await tool('conductor_list_sessions')).not.toContain('#101')
     // #102, with nothing to merge, closes straight away; its branch was not touched.
     expect(await tool('conductor_close_session', { ticket: 102 })).toContain('Closed #102')
+    // Closed, but still known: its record keeps the task and says how it ended.
+    const kept = await tool('conductor_recall', { query: 'Pricing' })
+    expect(kept).toContain('Title: Pricing page')
+    expect(kept).toContain('Status: closed')
   } finally {
     await app.close()
     for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })

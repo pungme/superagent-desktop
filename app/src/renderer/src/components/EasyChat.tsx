@@ -210,6 +210,8 @@ interface ToolCall {
    *  from the Mac's thumbnail store by this same tool id (see RemoteImages),
    *  same as a phone-sent message's pictures. */
   imageCount?: number
+  /** A Conductor routing call: what Main sent and to which session, so the receipt can move it. */
+  route?: { text: string; ticket?: number; chatId?: string }
 }
 
 interface DiffHunk {
@@ -292,6 +294,88 @@ function cardId(item: Item): string | null {
  * real Brave or Chrome (for their logins, extensions and password manager).
  * Only shown when there's an installed browser to pick.
  */
+/**
+ * In the Conductor's Main chat only: how Main routes your messages (Confirm or Auto), right in the
+ * composer's row of settings, as the plan has it. Nothing shows in any other chat.
+ */
+function RoutingPill({
+  workspaceId,
+  chatId,
+  open,
+  onToggle,
+  onPicked
+}: {
+  workspaceId: string
+  chatId: string
+  open: boolean
+  onToggle: () => void
+  onPicked: () => void
+}): React.JSX.Element | null {
+  const [routing, setRouting] = useState<'confirm' | 'auto' | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.cove
+        .conductorGet(workspaceId)
+        .then((c) => alive && setRouting(c && c.chatId === chatId ? c.routing : null))
+        .catch(() => undefined)
+    }
+    load()
+    const off = window.cove.onConductorChanged((p) => p.workspaceId === workspaceId && load())
+    return () => {
+      alive = false
+      off()
+    }
+  }, [workspaceId, chatId])
+  if (!routing) return null
+  const pick = (mode: 'confirm' | 'auto'): void => {
+    onPicked()
+    setRouting(mode)
+    void window.cove.conductorSetRouting(workspaceId, mode)
+  }
+  return (
+    <div className="easy-control" data-testid="routing-pill">
+      <button
+        className={`easy-control-btn ${open ? 'open' : ''}`}
+        onClick={onToggle}
+        title="How Main routes your messages"
+      >
+        <span className="easy-control-key">Routing</span>
+        <span className="easy-control-val">{routing === 'auto' ? 'Auto' : 'Confirm'}</span>
+        <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {open && (
+        <div className="easy-control-menu">
+          {(
+            [
+              ['confirm', 'Confirm', 'Main asks before it starts a session or routes a message'],
+              ['auto', 'Auto', 'Main starts and routes sessions itself; asks only when unsure']
+            ] as const
+          ).map(([v, label, hint]) => (
+            <button
+              key={v}
+              className={`easy-control-item ${v === routing ? 'on' : ''}`}
+              onClick={() => pick(v)}
+            >
+              <span className="easy-control-item-label">{label}</span>
+              <span className="easy-control-item-hint">{hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BrowserPill({
   workspaceId,
   chatId,
@@ -1146,7 +1230,102 @@ function receiptOf(name: string): { mark: string; word: string; kind: string } |
   return m ? (RECEIPTS[m[1]] ?? null) : null
 }
 
-function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
+function routeOf(name: string, input: unknown): ToolCall['route'] {
+  if (!/conductor_(send_to|spawn)_session$/.test(name) || !input || typeof input !== 'object')
+    return undefined
+  const o = input as { text?: unknown; task?: unknown; ticket?: unknown; chatId?: unknown }
+  const text = typeof o.text === 'string' ? o.text : typeof o.task === 'string' ? o.task : ''
+  if (!text) return undefined
+  return {
+    text,
+    ticket: typeof o.ticket === 'number' ? o.ticket : undefined,
+    chatId: typeof o.chatId === 'string' ? o.chatId : undefined
+  }
+}
+
+/**
+ * Move ▾ on a "Sent" receipt: send what Main sent to a different session instead, and tell the
+ * first one to leave it. For when Main picked the wrong session.
+ */
+function MoveMenu({
+  route,
+  workspaceId
+}: {
+  route: NonNullable<ToolCall['route']>
+  workspaceId: string
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [list, setList] = useState<{ chatId: string; title: string; ticket: number | null }[]>([])
+  const [moved, setMoved] = useState<string | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    if (!open) return
+    void window.cove.conductorGet(workspaceId).then((c) =>
+      setList(
+        (c?.sessions ?? [])
+          .filter((x) => x.status !== 'closed')
+          .filter((x) => x.chatId !== route.chatId && x.ticket !== route.ticket)
+          .map((x) => ({ chatId: x.chatId, title: x.title, ticket: x.ticket }))
+      )
+    )
+  }, [open, workspaceId, route.chatId, route.ticket])
+  if (moved) return <span className="easy-receipt-moved">Moved to {moved}</span>
+  const move = async (to: { chatId: string; title: string }): Promise<void> => {
+    setOpen(false)
+    const r = await window.cove.conductorSend(to.chatId, route.text)
+    if (!r.ok) return
+    setMoved(to.title || 'another session')
+    const st = await window.cove.conductorGet(workspaceId)
+    const from = st?.sessions.find(
+      (x) => x.chatId === route.chatId || (route.ticket != null && x.ticket === route.ticket)
+    )
+    if (from)
+      void window.cove.conductorSend(
+        from.chatId,
+        `Leave my last request: it belongs to the session "${to.title}" and was moved there.`
+      )
+  }
+  return (
+    <span className="easy-receipt-move">
+      <button
+        ref={btnRef}
+        className="easy-receipt-movebtn"
+        onClick={() => {
+          const r = btnRef.current?.getBoundingClientRect()
+          if (r) setAt({ x: r.left, y: r.bottom + 4 })
+          setOpen((v) => !v)
+        }}
+        data-testid="receipt-move"
+      >
+        Move ▾
+      </button>
+      {open &&
+        at &&
+        // Above every message row: drawn inside the list it sat under the next message.
+        createPortal(
+          <>
+            <span className="easy-receipt-scrim" onClick={() => setOpen(false)} />
+            <span
+              className="easy-receipt-menu"
+              style={{ left: at.x, top: at.y }}
+              data-testid="receipt-move-menu"
+            >
+              {list.length === 0 && <span className="easy-receipt-empty">No other session</span>}
+              {list.map((x) => (
+                <button key={x.chatId} onClick={() => void move(x)}>
+                  {x.title || 'Untitled'}
+                </button>
+              ))}
+            </span>
+          </>,
+          document.body
+        )}
+    </span>
+  )
+}
+
+function toolChip(t: ToolCall, cls: string, key: string, workspaceId?: string): React.JSX.Element {
   const receipt = receiptOf(t.name)
   if (receipt)
     return (
@@ -1154,6 +1333,9 @@ function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
         <span className="easy-receipt-mark">{receipt.mark}</span>
         <span className="easy-receipt-word">{receipt.word}</span>
         {t.detail && <span className="easy-receipt-detail">{t.detail}</span>}
+        {receipt.kind === 'sent' && t.route && workspaceId && (
+          <MoveMenu route={t.route} workspaceId={workspaceId} />
+        )}
       </span>
     )
   const { icon, verb } = toolLabel(t.name)
@@ -1190,7 +1372,7 @@ const ActivityStrip = memo(function ActivityStrip({
       <FileHandoffCard path={e.file.path} workspaceId={workspaceId} onLightbox={onLightbox} />
     ) : (
       <div className="easy-tools">
-        {toolChip(e.tool, 'easy-tool', e.tool.id)}
+        {toolChip(e.tool, 'easy-tool', e.tool.id, workspaceId)}
         {!!e.tool.imageCount && (
           <RemoteImages id={e.tool.id} count={e.tool.imageCount} onLightbox={onLightbox} />
         )}
@@ -1210,7 +1392,7 @@ const ActivityStrip = memo(function ActivityStrip({
     <div className="easy-toolgroup">
       {receipts.length > 0 && (
         <div className="easy-receipts">
-          {receipts.map((t) => toolChip(t, 'easy-tool', `r-${t.id}`))}
+          {receipts.map((t) => toolChip(t, 'easy-tool', `r-${t.id}`, workspaceId))}
         </div>
       )}
       <button
@@ -3886,7 +4068,8 @@ export function EasyChat({
                       id,
                       name,
                       detail: toolDetail(block.input),
-                      about: toolAbout(block.input)
+                      about: toolAbout(block.input),
+                      route: routeOf(name, block.input)
                     }
                   }
             // Keyed on the tool_use id, so a backend that re-states a call it
@@ -7624,6 +7807,13 @@ export function EasyChat({
             </div>
           )}
         </div>
+        <RoutingPill
+          workspaceId={workspaceId}
+          chatId={chatId}
+          open={controlMenu === 'routing'}
+          onToggle={() => setControlMenu((m) => (m === 'routing' ? null : 'routing'))}
+          onPicked={() => setControlMenu(null)}
+        />
         {!browserProject && workspaceId !== '__desktop_chat__' && (
           <BrowserPill
             workspaceId={workspaceId}

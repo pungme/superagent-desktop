@@ -266,22 +266,25 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             Open Main
           </button>
         )}
-        <label className="cd-routing" title="How Main decides where a message goes">
-          Routing
-          <select
-            value={state.routing}
-            data-testid="conductor-routing"
-            onChange={(e) =>
-              void window.cove.conductorSetRouting(
-                workspaceId,
-                e.target.value as 'confirm' | 'auto'
-              )
-            }
-          >
-            <option value="confirm">Confirm</option>
-            <option value="auto">Auto</option>
-          </select>
-        </label>
+        {/* In Main, routing is a pill in its composer. */}
+        {activeChatId !== state.chatId && (
+          <label className="cd-routing" title="How Main decides where a message goes">
+            Routing
+            <select
+              value={state.routing}
+              data-testid="conductor-routing"
+              onChange={(e) =>
+                void window.cove.conductorSetRouting(
+                  workspaceId,
+                  e.target.value as 'confirm' | 'auto'
+                )
+              }
+            >
+              <option value="confirm">Confirm</option>
+              <option value="auto">Auto</option>
+            </select>
+          </label>
+        )}
       </div>
       <p className="cd-mode" data-testid="conductor-mode-hint">
         {state.routing === 'auto'

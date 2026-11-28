@@ -18899,3 +18899,54 @@ button.easy-run-agent {
 .easy-receipt.new {
   animation: cd-spawn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+.easy-receipt-move {
+  position: relative;
+  margin-left: 6px;
+}
+.easy-receipt-movebtn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+}
+.easy-receipt-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+.easy-receipt-menu {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow: 0 10px 28px var(--shadow, rgba(0, 0, 0, 0.2));
+}
+.easy-receipt-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+.easy-receipt-menu button:hover {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.16));
+}
+.easy-receipt-empty {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.easy-receipt-moved {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
