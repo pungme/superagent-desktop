@@ -1148,9 +1148,10 @@ const TOOL_COLLAPSE_MIN = 2
 const taskStores = new Map<string, Map<string, TodoItem>>()
 
 // How long a backgrounded chat may sit idle before its claude process is reaped.
-// Long enough that flipping between two projects never restarts anything, short
+// Two minutes (was five: each resident agent is 400+ MB, and a busy day of Conductor
+// sessions filled the swap file). Long enough that flipping between two projects never restarts anything, short
 // enough that a day of clicking around doesn't leave a dozen idle agents resident.
-const IDLE_REAP_MS = 5 * 60 * 1000
+const IDLE_REAP_MS = 2 * 60 * 1000
 
 // One-liners for Claude's built-in slash commands, so the "/" menu explains each
 // like the terminal does. The session's init event only reports command *names*;
@@ -4715,7 +4716,7 @@ export function EasyChat({
     const timer = window.setTimeout(() => {
       const id = agentIdRef.current
       if (!id) return
-      window.cove.agentStop(id, 'chat off screen and idle for five minutes')
+      window.cove.agentStop(id, 'chat off screen and idle for two minutes')
       agentIdRef.current = null
       setReady(false)
       suspendedRef.current = true
