@@ -179,6 +179,16 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
 
     // The sessions live under the Conductor, not in the project's own list.
     await expect(page.getByTestId('sidebar-conductor')).toBeVisible()
+    // Main as the mockup has it: its header, and quick asks above the composer that fill the box.
+    await expect(page.getByTestId('conductor-mainhead')).toContainText('One chat for e2e-project')
+    await page
+      .getByTestId('conductor-chips')
+      .getByRole('button', { name: /Status/ })
+      .click()
+    await expect(page.locator('textarea.easy-input:visible').first()).toHaveValue(
+      'Where does everything stand?'
+    )
+    await page.locator('textarea.easy-input:visible').first().fill('')
     // Under Routines, the Conductors you have started: pick one to open Main with its Sessions.
     const crow = page.getByTestId('sidebar-conductor-row')
     await expect(crow).toHaveCount(1)
@@ -205,6 +215,13 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
       timeout: 10_000
     })
     await expect(page.getByTestId('conductor-escalations')).toContainText('Fix the header')
+    // Inspect opens that session in the column beside Main.
+    await page.getByTestId('conductor-escalations').getByRole('button', { name: 'Inspect' }).click()
+    await expect(page.getByTestId('conductor-inspector')).toBeVisible()
+    await page
+      .getByTestId('conductor-inspector')
+      .getByRole('button', { name: /Sessions/ })
+      .click()
     await page.getByTestId('conductor-escalations').getByRole('button', { name: 'Approve' }).click()
     expect(await asked3).toContain('allow')
     await expect(page.getByTestId('conductor-escalations')).toHaveCount(0)

@@ -971,6 +971,36 @@ export function ChatDesk({
               <span className="toolbar-label">Browser</span>
             </button>
           )}
+          {conductorMainId && (
+            <button
+              className={`toolbar-btn toolbar-icon ${conductorView ? 'on' : ''}`}
+              data-testid="toolbar-conductor"
+              onClick={() => {
+                if (!isMain) {
+                  void openConductor(ws.id)
+                  return
+                }
+                const next = !sessionsHidden
+                localStorage.setItem(`conductorHidden:${ws.id}`, next ? '1' : '0')
+                setSessionsHidden(next)
+              }}
+              title={
+                isMain
+                  ? conductorView
+                    ? 'Hide the sessions'
+                    : 'Show the sessions'
+                  : 'Back to Main'
+              }
+            >
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="3.5" cy="8" r="1.6" />
+                <circle cx="12.5" cy="3.5" r="1.6" />
+                <circle cx="12.5" cy="12.5" r="1.6" />
+                <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
+              </svg>
+              <span className="toolbar-label">Conductor</span>
+            </button>
+          )}
           {ws.kind === 'browser' ? (
             <>
               <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>
@@ -993,6 +1023,12 @@ export function ChatDesk({
                   <span className="workspace-chat" title={activeChat.title || 'New chat'}>
                     {activeChat.title || 'New chat'}
                   </span>
+                  {isMain && (
+                    <span className="workspace-conductor" data-testid="crumb-conductor">
+                      <i />
+                      Conductor
+                    </span>
+                  )}
                 </>
               )}
               <span className="workspace-path" title={ws.path}>
@@ -1267,6 +1303,12 @@ export function ChatDesk({
               active one is shown; busy siblings stay mounted but hidden so their
               turn keeps streaming. Stable key per chat → switching never remounts,
               so it never tears down a running session. */}
+            {conductorView && (
+              <div className="cd-mainhead" data-testid="conductor-mainhead">
+                <b>Main</b>
+                <span>· One chat for {ws.name}</span>
+              </div>
+            )}
             {activeChat && (
               <div className="chat-mount" style={{ display: 'flex' }}>
                 <EasyChat
@@ -1279,6 +1321,7 @@ export function ChatDesk({
                   focused={focused}
                   slotKey={inSplit ? 'tile' : 'desk'}
                   floating={floating}
+                  conductorMain={isMain}
                 />
               </div>
             )}

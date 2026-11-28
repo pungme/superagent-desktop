@@ -2556,7 +2556,11 @@ function ConductorSection(): React.JSX.Element | null {
           <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
         </svg>
         Conductor
-        {needs > 0 && <span className="sidebar-dash-badge">{needs} needs you</span>}
+        {needs > 0 ? (
+          <span className="sidebar-dash-badge">{needs} needs you</span>
+        ) : (
+          <span className="sidebar-conductor-total">{rows.reduce((n, r) => n + r.total, 0)}</span>
+        )}
       </button>
       {open &&
         rows.map((r) => {

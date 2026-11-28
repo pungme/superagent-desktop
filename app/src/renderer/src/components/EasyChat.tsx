@@ -295,6 +295,60 @@ function cardId(item: Item): string | null {
  * Only shown when there's an installed browser to pick.
  */
 /**
+ * Quick asks above Main's composer, as the mockup has them: status, a follow-up to the busiest
+ * session, a new task, and closing one that is done. Each only fills the box; nothing is sent.
+ */
+function ConductorChips({
+  workspaceId,
+  onPick
+}: {
+  workspaceId: string
+  onPick: (text: string) => void
+}): React.JSX.Element | null {
+  const [sessions, setSessions] = useState<{ title: string; status: string; summary: string }[]>([])
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.cove
+        .conductorGet(workspaceId)
+        .then(
+          (c) =>
+            alive &&
+            setSessions(
+              (c?.sessions ?? [])
+                .filter((x) => x.status !== 'closed')
+                .map((x) => ({ title: x.title, status: x.status, summary: x.summary }))
+            )
+        )
+    }
+    load()
+    const off = window.cove.onConductorChanged((p) => p.workspaceId === workspaceId && load())
+    return () => {
+      alive = false
+      off()
+    }
+  }, [workspaceId])
+  const busy = sessions.find((x) => x.status === 'working' || x.status === 'needs-you')
+  const done = sessions.find((x) => x.status === 'idle' && x.summary)
+  const chips: { label: string; hint?: string; text: string }[] = [
+    { label: 'Status', text: 'Where does everything stand?' },
+    ...(busy ? [{ label: 'Follow-up', hint: busy.title, text: `For "${busy.title}": ` }] : []),
+    { label: 'New task', text: 'New task: ' },
+    ...(done ? [{ label: 'Close', hint: done.title, text: `Close "${done.title}".` }] : [])
+  ]
+  return (
+    <div className="cd-chips" data-testid="conductor-chips">
+      {chips.map((c) => (
+        <button key={c.label} className="cd-chip" onClick={() => onPick(c.text)} title={c.text}>
+          <b>{c.label}</b>
+          {c.hint && <span> · {c.hint}</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
  * In the Conductor's Main chat only: how Main routes your messages (Confirm or Auto), right in the
  * composer's row of settings, as the plan has it. Nothing shows in any other chat.
  */
@@ -334,12 +388,8 @@ function RoutingPill({
     void window.cove.conductorSetRouting(workspaceId, mode)
   }
   return (
-    <div className="easy-control" data-testid="routing-pill">
-      <button
-        className={`easy-control-btn ${open ? 'open' : ''}`}
-        onClick={onToggle}
-        title="How Main routes your messages"
-      >
+    <div className="easy-control easy-auto" data-testid="routing-pill">
+      <button className={`easy-control-btn ${open ? 'open' : ''}`} onClick={onToggle}>
         <span className="easy-control-key">Routing</span>
         <span className="easy-control-val">{routing === 'auto' ? 'Auto' : 'Confirm'}</span>
         <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
@@ -353,6 +403,20 @@ function RoutingPill({
           />
         </svg>
       </button>
+      {!open && (
+        <div className="easy-auto-tip" role="tooltip">
+          <b>Routing: {routing === 'auto' ? 'Auto' : 'Confirm'}</b>
+          <span>How Main handles what you write here.</span>
+          <span>
+            <b>Confirm</b> talks a new task over and asks before it starts a session or sends your
+            message to one.
+          </span>
+          <span>
+            <b>Auto</b> starts and routes sessions by itself, and asks only when a message could
+            belong to more than one.
+          </span>
+        </div>
+      )}
       {open && (
         <div className="easy-control-menu">
           {(
@@ -689,6 +753,8 @@ interface EasyChatProps {
   slotKey?: string
   /** Browser first: this chat is hidden behind the page and floats over it (FloatChat). */
   floating?: boolean
+  /** This is a project's Conductor Main: its composer says so and offers quick asks. */
+  conductorMain?: boolean
   /** Where the chat sits relative to the pane, and how to flip it. */
 }
 
@@ -2018,7 +2084,8 @@ export function EasyChat({
   visible = true,
   focused: focusedProp,
   slotKey,
-  floating = false
+  floating = false,
+  conductorMain = false
 }: EasyChatProps): React.JSX.Element {
   // Keys, paste, dictation and commands: the focused chat only (see the prop).
   const focused = focusedProp ?? visible
@@ -7153,6 +7220,15 @@ export function EasyChat({
             ))}
           </div>
         )}
+        {conductorMain && (
+          <ConductorChips
+            workspaceId={workspaceId}
+            onPick={(text) => {
+              setInput(text)
+              requestAnimationFrame(() => inputRef.current?.focus())
+            }}
+          />
+        )}
         <div className="easy-input-box">
           {/* Narrow (a split window, a column beside a page): the chat's
               settings are this logo at the front of the box, not a line of
@@ -7244,9 +7320,11 @@ export function EasyChat({
             readOnly={!!dictation.partial}
             placeholder={
               ready || suspended || restarting
-                ? narrowComposer
-                  ? `Message ${agentName}…`
-                  : `Message ${agentName}…  (/ commands · @ files · paste an image)`
+                ? conductorMain
+                  ? `Message ${agentName}… (keep texting here — I manage the sessions)`
+                  : narrowComposer
+                    ? `Message ${agentName}…`
+                    : `Message ${agentName}…  (/ commands · @ files · paste an image)`
                 : 'Starting…'
             }
             rows={1}
@@ -7757,21 +7835,42 @@ export function EasyChat({
             </div>
           )}
         </div>
-        <div className="easy-control">
+        <div className="easy-control easy-auto">
           <button
             className={`easy-control-btn easy-auto-btn ${autoOn ? 'on' : ''}`}
             onClick={() => setAuto(!autoOn)}
-            title={
-              autoOn
-                ? 'Auto is on: when the agent finishes, it is asked whether anything is left and carries on. It stops when it is done, asks you something, or you write. Click to turn off.'
-                : 'Auto: when the agent finishes, ask it whether anything is left, and let it carry on until it is done.'
-            }
+            aria-describedby="easy-auto-tip"
           >
+            <svg
+              className="easy-auto-inf"
+              viewBox="0 0 24 12"
+              width="16"
+              height="8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M12 6c-2-2.8-3.6-4.2-5.6-4.2a4.2 4.2 0 0 0 0 8.4C8.4 10.2 10 8.8 12 6zm0 0c2 2.8 3.6 4.2 5.6 4.2a4.2 4.2 0 0 0 0-8.4C15.6 1.8 14 3.2 12 6z" />
+            </svg>
             <span className="easy-control-key">Auto</span>
             <span className="easy-control-val">
               {autoOn ? (autoRounds > 0 ? `On · ${autoRounds}/${AUTO_MAX_ROUNDS}` : 'On') : 'Off'}
             </span>
           </button>
+          {/* What it means, on hover: the system tooltip took a second and a half to show. */}
+          <div className="easy-auto-tip" id="easy-auto-tip" role="tooltip">
+            <b>Auto {autoOn ? 'is on' : 'is off'}</b>
+            <span>
+              When the agent finishes a turn, Superagent asks it whether anything is left and lets
+              it carry on, up to {AUTO_MAX_ROUNDS} rounds.
+            </span>
+            <span>
+              It stops when the work is done, when it asks you something, or when you write.
+            </span>
+            <em>{autoOn ? 'Click to turn it off.' : 'Click to turn it on.'}</em>
+          </div>
         </div>
         <div className="easy-control">
           <button

@@ -184,6 +184,19 @@ function branchOf(cwd: string | null): string | undefined {
   }
 }
 
+function messageCount(chatId: string): number {
+  try {
+    const r = getDb()
+      .prepare(
+        `SELECT COUNT(*) AS n FROM chat_events WHERE chatId = ? AND (data LIKE '{"kind":"user"%' OR data LIKE '{"kind":"assistant"%')`
+      )
+      .get(chatId) as { n: number }
+    return r.n
+  } catch {
+    return 0
+  }
+}
+
 /** The project's sessions as the Conductor sees them (title, ticket, status, branch, summary). */
 export function sessionsOf(info: ConductorInfo, includeClosed = false): ConductorSession[] {
   const db = getDb()
@@ -206,7 +219,8 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
       updatedAt: r.updatedAt,
       branch: branchOf(cwd),
       unmerged: unmergedCount(cwd) ?? undefined,
-      files: changedFiles(cwd)
+      files: changedFiles(cwd),
+      messages: messageCount(r.chatId)
     }
   })
 }

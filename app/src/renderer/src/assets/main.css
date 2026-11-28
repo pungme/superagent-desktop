@@ -19037,3 +19037,235 @@ button.easy-run-agent {
   font: inherit;
   font-size: 13px;
 }
+
+/* Auto (keep going): an infinity mark, and a hover card that says what it does. */
+.easy-auto {
+  position: relative;
+}
+.easy-auto-inf {
+  flex: none;
+  margin-right: 4px;
+  opacity: 0.7;
+}
+.easy-auto-btn.on .easy-auto-inf {
+  opacity: 1;
+  color: #2fb47a;
+}
+.easy-auto-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 270px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  box-shadow: 0 12px 30px var(--shadow, rgba(0, 0, 0, 0.22));
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+  transition-delay: 0s;
+}
+.easy-auto-tip b {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.easy-auto-tip em {
+  font-style: normal;
+  color: var(--text-tertiary);
+}
+.easy-auto:hover .easy-auto-tip,
+.easy-auto-btn:focus-visible + .easy-auto-tip {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.35s;
+}
+
+/* Conductor cards, as the mockup draws them. */
+.cd-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.12));
+}
+.cd-seg button {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.cd-seg button.on {
+  background: var(--bg-content);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.cd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(127, 127, 127, 0.14);
+  color: var(--text-secondary);
+}
+.cd-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cd-pill.working {
+  background: rgba(47, 128, 237, 0.12);
+  color: #2f80ed;
+}
+.cd-pill.needs-you {
+  background: rgba(240, 180, 41, 0.16);
+  color: #c98a00;
+}
+.cd-pill.done {
+  background: rgba(52, 199, 89, 0.14);
+  color: #1f9d4b;
+}
+.cd-pill.working i {
+  animation: cd-blink 1.2s ease-in-out infinite;
+}
+@keyframes cd-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.cd-card.picked {
+  border-color: #f08a24;
+  box-shadow: 0 0 0 1px #f08a24;
+}
+.cd-wire.picked {
+  stroke: #f08a24;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.cd-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cd-card .cd-summary {
+  -webkit-line-clamp: 1;
+}
+.cd-list .cd-listhead .cd-h2 {
+  margin-right: auto;
+}
+
+/* Main's header and quick asks (the mockup's "Main · One chat for …" and chips). */
+.cd-mainhead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.cd-mainhead span {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.split-main.conductor .split-side-chat {
+  display: flex;
+  flex-direction: column;
+}
+.split-main.conductor .split-side-chat > .chat-mount {
+  flex: 1;
+  min-height: 0;
+}
+.cd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+.cd-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font: inherit;
+  font-size: 12px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-chip b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.cd-chip:hover {
+  border-color: var(--text-tertiary);
+}
+.sidebar-conductor-total {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.16));
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+}
+.cd-esc-key {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.16));
+}
+/* The quick asks are a line of their own above the composer's row, never squeezed into it. */
+:has(> .cd-chips) {
+  flex-wrap: wrap;
+}
+.cd-chips {
+  flex: 0 0 100%;
+  width: 100%;
+  order: -1;
+}
+.workspace-conductor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.workspace-conductor i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ecf8e;
+}
+/* Cards white on a quieter column, as the mockup has them. */
+.split-main.conductor .split-side.desk .desk-card {
+  background: var(--bg-panel);
+}
+.split-main.conductor .cd-card {
+  background: var(--bg-content);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}

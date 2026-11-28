@@ -17,12 +17,18 @@ const STATUS_LABEL: Record<ConductorSession['status'], string> = {
   idle: 'Idle',
   closed: 'Closed'
 }
+/** An idle session that has reported back reads as Done (green), as in the mockup. */
+function look(s: ConductorSession): { cls: string; word: string } {
+  if (s.status === 'idle' && s.summary) return { cls: 'done', word: 'Done' }
+  return { cls: s.status, word: STATUS_LABEL[s.status] }
+}
 
 export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const [state, setState] = useState<ConductorState | null | undefined>(undefined)
-  const [showClosed, setShowClosed] = useState(false)
   const [allUnlinked, setAllUnlinked] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'active' | 'needs'>('all')
+  const [filter, setFilter] = useState<'active' | 'needs' | 'closed'>('active')
+  // The card last opened: outlined, its wire dashed orange, as the mockup has it.
+  const [picked, setPicked] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   // The session shown in the inspector, inside this column; null shows the cards.
   const [inspecting, setInspecting] = useState<string | null>(null)
@@ -46,6 +52,19 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     setPeekText('…')
     void window.cove.conductorPeek(chatId).then(setPeekText)
   }
+
+  // Inspect, from a card in Main: open that session here.
+  useEffect(() => {
+    const on = (e: Event): void => {
+      const id = (e as CustomEvent<{ chatId: string }>).detail?.chatId
+      if (id) {
+        setPicked(id)
+        setInspecting(id)
+      }
+    }
+    window.addEventListener('cove:conductor-inspect', on)
+    return () => window.removeEventListener('cove:conductor-inspect', on)
+  }, [])
 
   const load = useCallback(() => {
     void window.cove.conductorGet(workspaceId).then(setState)
@@ -130,20 +149,18 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
       </div>
     )
 
+  const rank = (x: ConductorSession): number =>
+    x.status === 'needs-you' ? 0 : x.status === 'working' ? 1 : 2
+  // Nothing left in Closed (the last one was reopened): back to the active ones.
+  const shown =
+    filter === 'closed' && !state.sessions.some((x) => x.status === 'closed') ? 'active' : filter
   const live = state.sessions
-    .filter((x) => x.status !== 'closed')
     .filter((x) =>
-      filter === 'needs'
-        ? x.status === 'needs-you'
-        : filter === 'active'
-          ? x.status === 'working' || x.status === 'needs-you'
-          : true
+      shown === 'closed'
+        ? x.status === 'closed'
+        : x.status !== 'closed' && (shown !== 'needs' || x.status === 'needs-you')
     )
-    .sort((a, b) => {
-      const rank = (x: ConductorSession): number =>
-        x.status === 'needs-you' ? 0 : x.status === 'working' ? 1 : 2
-      return rank(a) - rank(b) || b.updatedAt - a.updatedAt
-    })
+    .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt)
   const liveCount = state.sessions.filter((x) => x.status !== 'closed').length
   const closed = state.sessions.filter((s) => s.status === 'closed')
   // Opening a session keeps this panel beside it (the side panel is remembered per conversation),
@@ -161,20 +178,26 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   const row = (s: ConductorSession): React.JSX.Element => (
     <div
       key={s.chatId}
-      className={`cd-card ${s.status} ${s.chatId === activeChatId ? 'here' : ''}${fresh.includes(s.chatId) ? ' fresh' : ''}`}
+      className={`cd-card ${s.status} ${s.chatId === activeChatId ? 'here' : ''}${s.chatId === picked ? ' picked' : ''}${fresh.includes(s.chatId) ? ' fresh' : ''}`}
       data-chat={s.chatId}
       data-status={s.status}
       onMouseEnter={() => setHover(s.chatId)}
       onMouseLeave={() => setHover((h) => (h === s.chatId ? null : h))}
       data-testid="conductor-session"
     >
-      <button className="cd-card-open" onClick={() => setInspecting(s.chatId)}>
+      <button
+        className="cd-card-open"
+        onClick={() => {
+          setPicked(s.chatId)
+          setInspecting(s.chatId)
+        }}
+      >
         <span className="cd-top">
           {trackerKey(s.title) && <b className="cd-ticket">{trackerKey(s.title)}</b>}
           <span className="cd-title">{titleWithoutKey(s.title) || 'Untitled'}</span>
-          <span className={`cd-state ${s.status}`}>
+          <span className={`cd-pill ${look(s).cls}`}>
             <i />
-            {STATUS_LABEL[s.status]}
+            {look(s).word}
           </span>
         </span>
         {s.summary && !s.approval && <span className="cd-summary">{s.summary}</span>}
@@ -207,14 +230,30 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
           </span>
         )}
         <span className="cd-foot">
-          {s.branch && <code className="cd-branch">{s.branch}</code>}
+          {s.branch && (
+            <code className="cd-branch">
+              <svg
+                viewBox="0 0 16 16"
+                width="11"
+                height="11"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <circle cx="4.5" cy="3.4" r="1.4" />
+                <circle cx="4.5" cy="12.6" r="1.4" />
+                <circle cx="11.5" cy="5" r="1.4" />
+                <path d="M4.5 4.8v6.4M11.5 6.4c0 3.2-7 2.2-7 4.8" />
+              </svg>
+              {s.branch}
+            </code>
+          )}
           {s.unmerged ? <span>{s.unmerged} unmerged</span> : null}
-          {s.files?.length ? (
-            <span>
-              {s.files.length} {s.files.length === 1 ? 'file' : 'files'}
-            </span>
-          ) : null}
-          <span className="cd-when">{when(s.updatedAt)}</span>
+          <span className="cd-when">
+            {s.messages != null ? `${s.messages} ${s.messages === 1 ? 'msg' : 'msgs'} · ` : ''}
+            {when(s.updatedAt)}
+          </span>
         </span>
         {peeking === s.chatId && <pre className="cd-peek">{peekText}</pre>}
       </button>
@@ -252,45 +291,45 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
 
   return (
     <div className="cd" data-testid="conductor-panel">
-      <div className="cd-head">
-        {activeChatId === state.chatId ? (
-          <span className="cd-here" data-testid="conductor-main-here">
-            <i /> Conductor · {liveCount} {liveCount === 1 ? 'session' : 'sessions'}
-          </span>
-        ) : (
-          <button
-            className="cd-main"
-            onClick={() => open(state.chatId)}
-            data-testid="conductor-main"
-          >
-            Open Main
-          </button>
-        )}
-        {/* In Main, routing is a pill in its composer. */}
-        {activeChatId !== state.chatId && (
-          <label className="cd-routing" title="How Main decides where a message goes">
-            Routing
-            <select
-              value={state.routing}
-              data-testid="conductor-routing"
-              onChange={(e) =>
-                void window.cove.conductorSetRouting(
-                  workspaceId,
-                  e.target.value as 'confirm' | 'auto'
-                )
-              }
-            >
-              <option value="confirm">Confirm</option>
-              <option value="auto">Auto</option>
-            </select>
-          </label>
-        )}
-      </div>
-      <p className="cd-mode" data-testid="conductor-mode-hint">
-        {state.routing === 'auto'
-          ? 'Auto: a clear task starts a session at once; Main asks only when a message could belong to two.'
-          : 'Confirm: Main talks a new task over and asks before it starts a session.'}
-      </p>
+      {activeChatId !== state.chatId && (
+        <>
+          <div className="cd-head">
+            {
+              <button
+                className="cd-main"
+                onClick={() => open(state.chatId)}
+                data-testid="conductor-main"
+              >
+                Open Main
+              </button>
+            }
+            {/* In Main, routing is a pill in its composer. */}
+            {activeChatId !== state.chatId && (
+              <label className="cd-routing" title="How Main decides where a message goes">
+                Routing
+                <select
+                  value={state.routing}
+                  data-testid="conductor-routing"
+                  onChange={(e) =>
+                    void window.cove.conductorSetRouting(
+                      workspaceId,
+                      e.target.value as 'confirm' | 'auto'
+                    )
+                  }
+                >
+                  <option value="confirm">Confirm</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </label>
+            )}
+          </div>
+          <p className="cd-mode" data-testid="conductor-mode-hint">
+            {state.routing === 'auto'
+              ? 'Auto: a clear task starts a session at once; Main asks only when a message could belong to two.'
+              : 'Confirm: Main talks a new task over and asks before it starts a session.'}
+          </p>
+        </>
+      )}
       {inspecting && state.sessions.some((x) => x.chatId === inspecting) ? (
         <SessionInspector
           workspaceId={workspaceId}
@@ -309,8 +348,11 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
       ) : (
         <div className="cd-list">
           <div className="cd-listhead">
-            <span className="cd-h2">
-              Managed sessions <span className="cd-count">{liveCount}</span>
+            <span
+              className="cd-h2"
+              data-testid={activeChatId === state.chatId ? 'conductor-main-here' : undefined}
+            >
+              Sessions <span className="cd-count">{liveCount}</span>
             </span>
             {state.unlinked.length > 0 && (
               <button
@@ -321,10 +363,14 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
                 ↪ Connect session
               </button>
             )}
-            <span className="cd-filters">
-              {(['all', 'active', 'needs'] as const).map((f) => (
-                <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
-                  {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Needs you'}
+            <span className="cd-seg">
+              {(['active', 'needs', 'closed'] as const).map((f) => (
+                <button key={f} className={shown === f ? 'on' : ''} onClick={() => setFilter(f)}>
+                  {f === 'active'
+                    ? 'Active'
+                    : f === 'needs'
+                      ? 'Needs you'
+                      : `Closed (${closed.length})`}
                 </button>
               ))}
             </span>
@@ -354,8 +400,14 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
               )}
             </div>
           )}
-          {liveCount === 0 && (
-            <p className="cd-hint">No sessions yet. Tell Main what you want done.</p>
+          {live.length === 0 && (
+            <p className="cd-hint">
+              {shown === 'closed'
+                ? 'No closed sessions.'
+                : shown === 'needs'
+                  ? 'Nothing needs you.'
+                  : 'No sessions yet. Tell Main what you want done.'}
+            </p>
           )}
           <div className={`cd-cards${fresh.length ? ' spawning' : ''}`} ref={cardsRef}>
             <svg className="cd-wires" aria-hidden="true">
@@ -366,7 +418,7 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
                 return (
                   <path
                     key={w.id}
-                    className={`cd-wire ${w.status}${hover === w.id ? ' hot' : ''}${fresh.includes(w.id) ? ' fresh' : ''}`}
+                    className={`cd-wire ${w.status}${hover === w.id ? ' hot' : ''}${picked === w.id ? ' picked' : ''}${fresh.includes(w.id) ? ' fresh' : ''}`}
                     d={`M0 ${oy} C ${x1 * 0.55} ${oy}, ${x1 * 0.45} ${w.y}, ${x1} ${w.y}`}
                   />
                 )
@@ -382,14 +434,6 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
             ))}
             {live.map(row)}
           </div>
-          {closed.length > 0 && (
-            <>
-              <button className="cd-h cd-fold" onClick={() => setShowClosed((v) => !v)}>
-                {showClosed ? '▾' : '▸'} Closed ({closed.length})
-              </button>
-              {showClosed && closed.map((x) => row(x))}
-            </>
-          )}
         </div>
       )}
     </div>

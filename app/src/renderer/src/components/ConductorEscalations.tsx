@@ -28,9 +28,8 @@ export function ConductorEscalations({
       {asking.map((s) => (
         <div key={s.chatId} className="cd-esc">
           <span className="cd-esc-text">
-            <b>{trackerKey(s.title) ?? titleWithoutKey(s.title)}</b>{' '}
-            {s.title && s.ticket != null ? `${s.title} ` : ''}
-            wants to: {s.approval!.preview}
+            {trackerKey(s.title) && <b className="cd-esc-key">{trackerKey(s.title)}</b>}{' '}
+            <b>{titleWithoutKey(s.title) || 'A session'}</b> wants to: {s.approval!.preview}
           </span>
           <span className="cd-esc-btns">
             <button
@@ -46,6 +45,16 @@ export function ConductorEscalations({
               }
             >
               Deny
+            </button>
+            <button
+              className="cd-esc-inspect"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent('cove:conductor-inspect', { detail: { chatId: s.chatId } })
+                )
+              }
+            >
+              Inspect
             </button>
           </span>
         </div>

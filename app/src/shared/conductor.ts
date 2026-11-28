@@ -23,6 +23,8 @@ export interface ConductorSession {
   unmerged?: number
   /** Files it has changed against the main branch (commits and uncommitted work). */
   files?: string[]
+  /** Messages in its conversation (the person's and the agent's). */
+  messages?: number
 }
 
 /** Pairs of live sessions that both changed the same files: where their work will collide. */
@@ -169,8 +171,9 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'parallel one: ask whether to add it to that session or wait until it is done (in Auto too). ' +
     'Independent work gets its own session. When the list shows an Overlap, merge those sessions ' +
     'one at a time and tell the person about the likely conflict. ' +
-    'Before closing a session with unmerged commits, offer: merge into main and close, close and ' +
-    'keep the branch, or discard and close (only if the person asks for that). ' +
+    'Before closing a session with unmerged commits, offer the three ways as an ```ask block of ' +
+    'choices: "Merge into main & close", "Close & keep branch", "Discard changes & close" (discard ' +
+    'only if the person picks it). ' +
     'When a session finishes work the person has seen or approved (its list entry shows unmerged ' +
     'commits and it is idle), offer to merge it into main: conductor_merge_session lands the commits ' +
     'and keeps the session open, conductor_close_session with how "merge" lands and closes. Merge only ' +
