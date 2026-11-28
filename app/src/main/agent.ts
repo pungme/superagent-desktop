@@ -260,6 +260,12 @@ export function markContextCopied(chatId: string): void {
  * its memory — and only in front of ONE message, so the conversation is not
  * re-sent on every turn. Empty when there is nothing to catch up on.
  */
+/** Something to put in front of every message to a chat's agent (the Conductor's state); set by index.ts. */
+let turnPrefix: (chatId: string, message: string) => string = () => ''
+export function setTurnPrefixProbe(fn: (chatId: string, message: string) => string): void {
+  turnPrefix = fn
+}
+
 export function takeRecap(chatId: string | undefined): string {
   const why = chatId ? contextLost.get(chatId) : undefined
   // Back on a thread of its own after another agent had the chat: only what it missed.
@@ -780,6 +786,7 @@ export function sendToAgent(
   const session = sessions.get(id)
   if (!session || !session.backend.writable) return false
   session.lastSend = { text, images }
+  const origText = text
   // One id for the durable event, its saved thumbnails, and the live renderer
   // notification. Previously the live path had no id at all, so an image sent
   // from the iOS share sheet could not ask main for its thumbnail.
@@ -812,6 +819,13 @@ export function sendToAgent(
   // on every screen — is what the person typed and nothing else.
   if (origin.replyTo) text = replyPrefix(origin.replyTo) + text
   text = takeRecap(session.chatId) + text
+  if (session.chatId) {
+    try {
+      text = turnPrefix(session.chatId, origText) + text
+    } catch {
+      // a state that cannot be read never stops a message
+    }
+  }
   let paths: string[] = []
   if (images.length > 0) {
     paths = images.map((im) => saveImageForAgent(im)).filter((p): p is string => !!p)

@@ -18317,12 +18317,7 @@ button.easy-run-agent {
   padding-top: 10px;
 }
 .cd-list::before {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 0;
-  height: 10px;
-  border-left: 1.5px solid var(--border-strong);
+  display: none;
 }
 .cd-list {
   position: relative;
@@ -18523,10 +18518,11 @@ button.easy-run-agent {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-left: 16px;
+  padding-left: 34px;
 }
 /* The trunk from Main, and a curve into each card. */
 .cd-cards::before {
+  display: none;
   content: '';
   position: absolute;
   left: 3px;
@@ -18543,6 +18539,7 @@ button.easy-run-agent {
   transition: border-color 0.12s;
 }
 .cd-card::before {
+  display: none;
   content: '';
   position: absolute;
   left: -13px;
@@ -18775,4 +18772,130 @@ button.easy-run-agent {
   .cd-cards.spawning .cd-mainnode {
     animation: none;
   }
+}
+
+/* The Conductor view: Main on the left, its managed sessions on the right (the mockup). */
+.split-main.conductor .split-side-chat {
+  order: 0;
+}
+.split-main.conductor .split-divider {
+  order: 1;
+}
+.split-main.conductor .split-side.desk {
+  order: 2;
+}
+.split-main.conductor .desk-card {
+  background: transparent;
+}
+.split-main.conductor .cd {
+  padding: 18px 22px;
+  height: 100%;
+  overflow-y: auto;
+}
+.cd-here {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.cd-here i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ecf8e;
+}
+
+/* Curved wires from Main's edge to each session card (the mockup's connectors). */
+.cd-wires {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.cd-wire {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.4;
+  transition:
+    stroke 0.15s,
+    stroke-width 0.15s;
+}
+.cd-wire.working {
+  stroke: rgba(62, 207, 142, 0.7);
+}
+.cd-wire.needs-you {
+  stroke: #f0b429;
+  stroke-dasharray: 4 3;
+}
+.cd-wire.hot {
+  stroke: var(--text-secondary);
+  stroke-width: 2;
+}
+.cd-wire.fresh {
+  stroke: #3ecf8e;
+  stroke-width: 2;
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: cd-wire-draw 0.7s ease-out 0.1s forwards;
+}
+@keyframes cd-wire-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-wire.fresh {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Main's routing receipts (✦ New session · Fix the header). */
+.easy-receipts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.easy-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.easy-receipt-mark {
+  font-weight: 700;
+}
+.easy-receipt.new .easy-receipt-mark,
+.easy-receipt.new .easy-receipt-word {
+  color: #2fb47a;
+}
+.easy-receipt.merged .easy-receipt-mark {
+  color: #8a6cf0;
+}
+.easy-receipt-word {
+  font-weight: 600;
+  flex: none;
+}
+.easy-receipt-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.easy-receipt.new {
+  animation: cd-spawn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }

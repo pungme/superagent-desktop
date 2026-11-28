@@ -245,3 +245,94 @@ export function conductorMarks(
     })
   return out
 }
+
+/**
+ * Main's memory: what the Conductor keeps across turns, compactions and restarts, per project.
+ * One row per key, so remembering the same thing again updates it instead of piling up copies.
+ * Kinds: decision, fact, preference, structure (data shapes, schemas, where things live), plan,
+ * history (what a closed session did; written by Superagent itself).
+ */
+export const MEMORY_KINDS = [
+  'decision',
+  'fact',
+  'preference',
+  'structure',
+  'plan',
+  'history'
+] as const
+export type MemoryKind = (typeof MEMORY_KINDS)[number]
+export interface MemoryEntry {
+  key: string
+  kind: MemoryKind
+  text: string
+  updatedAt: number
+}
+
+function ensureMemory(db: Db): void {
+  db.exec(`CREATE TABLE IF NOT EXISTS conductor_memory (
+    workspaceId TEXT NOT NULL,
+    key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    PRIMARY KEY (workspaceId, key)
+  )`)
+}
+
+export function remember(
+  db: Db,
+  workspaceId: string,
+  key: string,
+  kind: MemoryKind,
+  text: string,
+  now = Date.now()
+): void {
+  ensureMemory(db)
+  db.prepare(
+    `INSERT INTO conductor_memory (workspaceId, key, kind, text, updatedAt) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(workspaceId, key) DO UPDATE SET kind = excluded.kind, text = excluded.text, updatedAt = excluded.updatedAt`
+  ).run(workspaceId, key.trim().slice(0, 120), kind, text.trim().slice(0, 8000), now)
+}
+
+export function forget(db: Db, workspaceId: string, key: string): boolean {
+  ensureMemory(db)
+  return (
+    db
+      .prepare('DELETE FROM conductor_memory WHERE workspaceId = ? AND key = ?')
+      .run(workspaceId, key).changes > 0
+  )
+}
+
+/** Entries matching words in `query` (any of them, in key or text) and/or a kind; newest first. */
+export function recall(
+  db: Db,
+  workspaceId: string,
+  opts: { query?: string; kind?: MemoryKind; limit?: number } = {}
+): MemoryEntry[] {
+  ensureMemory(db)
+  const rows = db
+    .prepare(
+      'SELECT key, kind, text, updatedAt FROM conductor_memory WHERE workspaceId = ? ORDER BY updatedAt DESC'
+    )
+    .all(workspaceId) as MemoryEntry[]
+  const words = (opts.query ?? '')
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length > 1)
+  const hit = rows.filter(
+    (r) =>
+      (!opts.kind || r.kind === opts.kind) &&
+      (words.length === 0 ||
+        words.some((w) => r.key.toLowerCase().includes(w) || r.text.toLowerCase().includes(w)))
+  )
+  return hit.slice(0, opts.limit ?? 20)
+}
+
+/** The index Main sees every turn: each key and kind with the start of its text. */
+export function memoryIndex(db: Db, workspaceId: string, max = 30): string {
+  const rows = recall(db, workspaceId, { limit: max })
+  if (!rows.length) return ''
+  return rows
+    .map((r) => `- [${r.kind}] ${r.key}: ${r.text.replace(/\s+/g, ' ').slice(0, 90)}`)
+    .join('\n')
+}

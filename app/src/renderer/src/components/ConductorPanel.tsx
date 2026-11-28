@@ -3,6 +3,7 @@ import type { ConductorState } from '../../../preload'
 import { titleWithoutKey, trackerKey, type ConductorSession } from '../../../shared/conductor'
 import { useStore } from '../state'
 import { when } from '../lib/relative-time'
+import { SessionInspector } from './SessionInspector'
 
 /**
  * A project's Conductor: the Main chat you keep writing to, and the worker sessions it has
@@ -23,12 +24,17 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   const [allUnlinked, setAllUnlinked] = useState(false)
   const [filter, setFilter] = useState<'all' | 'active' | 'needs'>('all')
   const [connecting, setConnecting] = useState(false)
+  // The session shown in the inspector, inside this column; null shows the cards.
+  const [inspecting, setInspecting] = useState<string | null>(null)
   // Sessions that just appeared (Main spawned them): they animate in for a moment, and a spark
   // runs down the trunk from Main to each. The first look at the list animates nothing.
   const seen = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<string[]>([])
   const cardsRef = useRef<HTMLDivElement>(null)
   const [spark, setSpark] = useState<{ key: string; y: number }[]>([])
+  // The curves from Main's edge to each card: where each card's middle sits in the column.
+  const [wires, setWires] = useState<{ id: string; y: number; status: string }[]>([])
+  const [hover, setHover] = useState<string | null>(null)
   const selectChat = useStore((s) => s.selectChat)
   const activeChatId = useStore((s) => s.activeChatId[workspaceId])
   // The session whose recent conversation is shown under its row, and what it says.
@@ -82,6 +88,30 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
     )
   }, [fresh])
 
+  useLayoutEffect(() => {
+    const box = cardsRef.current
+    if (!box) return
+    const measure = (): void => {
+      const cards = [...box.querySelectorAll<HTMLElement>('[data-chat]')]
+      const next = cards.map((el) => ({
+        id: el.dataset.chat!,
+        y: el.offsetTop + Math.min(26, el.offsetHeight / 2),
+        status: el.dataset.status ?? 'idle'
+      }))
+      // Only when something moved: setting it every time re-rendered for ever.
+      setWires((cur) =>
+        cur.length === next.length &&
+        cur.every((w, i) => w.id === next[i].id && w.y === next[i].y && w.status === next[i].status)
+          ? cur
+          : next
+      )
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(box)
+    return () => ro.disconnect()
+  })
+
   if (state === undefined) return <div className="cd" />
   if (state === null)
     return (
@@ -133,9 +163,12 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
       key={s.chatId}
       className={`cd-card ${s.status} ${s.chatId === activeChatId ? 'here' : ''}${fresh.includes(s.chatId) ? ' fresh' : ''}`}
       data-chat={s.chatId}
+      data-status={s.status}
+      onMouseEnter={() => setHover(s.chatId)}
+      onMouseLeave={() => setHover((h) => (h === s.chatId ? null : h))}
       data-testid="conductor-session"
     >
-      <button className="cd-card-open" onClick={() => open(s.chatId)}>
+      <button className="cd-card-open" onClick={() => setInspecting(s.chatId)}>
         <span className="cd-top">
           {trackerKey(s.title) && <b className="cd-ticket">{trackerKey(s.title)}</b>}
           <span className="cd-title">{titleWithoutKey(s.title) || 'Untitled'}</span>
@@ -220,9 +253,19 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
   return (
     <div className="cd" data-testid="conductor-panel">
       <div className="cd-head">
-        <button className="cd-main" onClick={() => open(state.chatId)} data-testid="conductor-main">
-          Open Main
-        </button>
+        {activeChatId === state.chatId ? (
+          <span className="cd-here" data-testid="conductor-main-here">
+            <i /> Conductor · {liveCount} {liveCount === 1 ? 'session' : 'sessions'}
+          </span>
+        ) : (
+          <button
+            className="cd-main"
+            onClick={() => open(state.chatId)}
+            data-testid="conductor-main"
+          >
+            Open Main
+          </button>
+        )}
         <label className="cd-routing" title="How Main decides where a message goes">
           Routing
           <select
@@ -245,76 +288,106 @@ export function ConductorPanel({ workspaceId }: { workspaceId: string }): React.
           ? 'Auto: a clear task starts a session at once; Main asks only when a message could belong to two.'
           : 'Confirm: Main talks a new task over and asks before it starts a session.'}
       </p>
-      <div className="cd-list">
-        <div className="cd-listhead">
-          <span className="cd-h2">
-            Managed sessions <span className="cd-count">{liveCount}</span>
-          </span>
-          {state.unlinked.length > 0 && (
-            <button
-              className="cd-connect-btn"
-              data-testid="conductor-connect-open"
-              onClick={() => setConnecting((v) => !v)}
-            >
-              ↪ Connect session
-            </button>
-          )}
-          <span className="cd-filters">
-            {(['all', 'active', 'needs'] as const).map((f) => (
-              <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
-                {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Needs you'}
-              </button>
-            ))}
-          </span>
-        </div>
-        {connecting && state.unlinked.length > 0 && (
-          <div className="cd-connect-pop">
-            <div className="cd-h">Chats not connected to Main</div>
-            {(allUnlinked ? state.unlinked : state.unlinked.slice(0, 6)).map((c) => (
-              <div key={c.chatId} className="cd-row unlinked">
-                <button className="cd-open" onClick={() => open(c.chatId)}>
-                  <span className="cd-title">{c.title || 'Untitled'}</span>
-                </button>
-                <span className="cd-actions">
-                  <button
-                    data-testid="conductor-connect"
-                    onClick={() => void window.cove.conductorConnect(workspaceId, c.chatId)}
-                  >
-                    Connect
-                  </button>
-                </span>
-              </div>
-            ))}
-            {!allUnlinked && state.unlinked.length > 6 && (
-              <button className="cd-h cd-fold" onClick={() => setAllUnlinked(true)}>
-                ▸ Show all {state.unlinked.length}
+      {inspecting && state.sessions.some((x) => x.chatId === inspecting) ? (
+        <SessionInspector
+          session={state.sessions.find((x) => x.chatId === inspecting)!}
+          onBack={() => setInspecting(null)}
+          onOpenChat={() => open(inspecting)}
+          onClose={() => {
+            void window.cove.conductorClose(workspaceId, inspecting)
+            setInspecting(null)
+          }}
+          onDetach={() => {
+            void window.cove.conductorDisconnect(workspaceId, inspecting)
+            setInspecting(null)
+          }}
+        />
+      ) : (
+        <div className="cd-list">
+          <div className="cd-listhead">
+            <span className="cd-h2">
+              Managed sessions <span className="cd-count">{liveCount}</span>
+            </span>
+            {state.unlinked.length > 0 && (
+              <button
+                className="cd-connect-btn"
+                data-testid="conductor-connect-open"
+                onClick={() => setConnecting((v) => !v)}
+              >
+                ↪ Connect session
               </button>
             )}
+            <span className="cd-filters">
+              {(['all', 'active', 'needs'] as const).map((f) => (
+                <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
+                  {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Needs you'}
+                </button>
+              ))}
+            </span>
           </div>
-        )}
-        {liveCount === 0 && (
-          <p className="cd-hint">No sessions yet. Tell Main what you want done.</p>
-        )}
-        <div className={`cd-cards${fresh.length ? ' spawning' : ''}`} ref={cardsRef}>
-          <span className="cd-mainnode" title="Main" />
-          {spark.map((k) => (
-            <i
-              key={k.key}
-              className="cd-spark"
-              style={{ '--to': `${k.y}px` } as React.CSSProperties}
-            />
-          ))}
-          {live.map(row)}
+          {connecting && state.unlinked.length > 0 && (
+            <div className="cd-connect-pop">
+              <div className="cd-h">Chats not connected to Main</div>
+              {(allUnlinked ? state.unlinked : state.unlinked.slice(0, 6)).map((c) => (
+                <div key={c.chatId} className="cd-row unlinked">
+                  <button className="cd-open" onClick={() => open(c.chatId)}>
+                    <span className="cd-title">{c.title || 'Untitled'}</span>
+                  </button>
+                  <span className="cd-actions">
+                    <button
+                      data-testid="conductor-connect"
+                      onClick={() => void window.cove.conductorConnect(workspaceId, c.chatId)}
+                    >
+                      Connect
+                    </button>
+                  </span>
+                </div>
+              ))}
+              {!allUnlinked && state.unlinked.length > 6 && (
+                <button className="cd-h cd-fold" onClick={() => setAllUnlinked(true)}>
+                  ▸ Show all {state.unlinked.length}
+                </button>
+              )}
+            </div>
+          )}
+          {liveCount === 0 && (
+            <p className="cd-hint">No sessions yet. Tell Main what you want done.</p>
+          )}
+          <div className={`cd-cards${fresh.length ? ' spawning' : ''}`} ref={cardsRef}>
+            <svg className="cd-wires" aria-hidden="true">
+              {wires.map((w) => {
+                // From Main's edge, at the first card's height, curving into each card.
+                const oy = wires[0]?.y ?? 20
+                const x1 = 34
+                return (
+                  <path
+                    key={w.id}
+                    className={`cd-wire ${w.status}${hover === w.id ? ' hot' : ''}${fresh.includes(w.id) ? ' fresh' : ''}`}
+                    d={`M0 ${oy} C ${x1 * 0.55} ${oy}, ${x1 * 0.45} ${w.y}, ${x1} ${w.y}`}
+                  />
+                )
+              })}
+            </svg>
+            <span className="cd-mainnode" title="Main" style={{ top: (wires[0]?.y ?? 20) - 4 }} />
+            {spark.map((k) => (
+              <i
+                key={k.key}
+                className="cd-spark"
+                style={{ '--to': `${k.y}px` } as React.CSSProperties}
+              />
+            ))}
+            {live.map(row)}
+          </div>
+          {closed.length > 0 && (
+            <>
+              <button className="cd-h cd-fold" onClick={() => setShowClosed((v) => !v)}>
+                {showClosed ? '▾' : '▸'} Closed ({closed.length})
+              </button>
+              {showClosed && closed.map((x) => row(x))}
+            </>
+          )}
         </div>
-        {closed.length > 0 && (
-          <>
-            <button className="cd-h cd-fold" onClick={() => setShowClosed((v) => !v)}>
-              {showClosed ? '▾' : '▸'} Closed ({closed.length})
-            </button>
-            {showClosed && closed.map((x) => row(x))}
-          </>
-        )}
-      </div>
+      )}
     </div>
   )
 }

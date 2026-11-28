@@ -1328,6 +1328,10 @@ export interface CoveApi {
     }[]
   >
   conductorPeek: (chatId: string) => Promise<string>
+  conductorMessages: (
+    chatId: string
+  ) => Promise<{ role: 'user' | 'agent' | 'tool'; text: string; failed?: boolean }[]>
+  conductorSend: (chatId: string, text: string) => Promise<{ ok: boolean; error?: string }>
   conductorAnswer: (workspaceId: string, requestId: string, approve: boolean) => Promise<boolean>
   conductorEnable: (workspaceId: string, adoptChatIds: string[]) => Promise<ConductorState | null>
   conductorSetRouting: (workspaceId: string, mode: 'confirm' | 'auto') => Promise<void>
@@ -2060,6 +2064,8 @@ const cove: CoveApi = {
   conductorGet: (ws) => ipcRenderer.invoke('conductor:get', ws),
   conductorOverview: () => ipcRenderer.invoke('conductor:overview'),
   conductorPeek: (chatId) => ipcRenderer.invoke('conductor:peek', chatId),
+  conductorMessages: (chatId) => ipcRenderer.invoke('conductor:messages', chatId),
+  conductorSend: (chatId, text) => ipcRenderer.invoke('conductor:send', chatId, text),
   conductorAnswer: (ws, requestId, approve) =>
     ipcRenderer.invoke('conductor:answer', ws, requestId, approve),
   conductorEnable: (ws, adopt) => ipcRenderer.invoke('conductor:enable', ws, adopt),

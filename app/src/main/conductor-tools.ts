@@ -3,6 +3,7 @@ import type { EventEmitter } from 'events'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { buildManifest, autoTitle, ticketLabel, type ConductorSession } from '../shared/conductor'
+import { MEMORY_KINDS, forget, memoryIndex, recall, remember } from './conductor-store'
 import {
   closeSession,
   conductorOfMain,
@@ -21,6 +22,7 @@ import {
   getDb,
   getWorkspace,
   listChatEvents,
+  openCards,
   markPendingBranch,
   setChatTitle
 } from './store'
@@ -82,7 +84,10 @@ export function watchConductor(logBus: EventEmitter, hookBus: EventEmitter): voi
       const text = lastReply.get(chatId)
       lastReply.delete(chatId)
       try {
-        if (text && conductorOfWorker(getDb(), chatId)) setSummary(getDb(), chatId, summaryOf(text))
+        if (text && conductorOfWorker(getDb(), chatId)) {
+          setSummary(getDb(), chatId, summaryOf(text))
+          recordSession(chatId)
+        }
         touch(chatId)
       } catch {
         // the store is gone (quitting)
@@ -217,6 +222,95 @@ export function manifestFor(info: ConductorInfo): string {
   })
 }
 
+function openCardsFor(workspaceId: string): string[] {
+  return openCards()
+    .filter((c) => c.workspaceId === workspaceId)
+    .map((c) => c.title)
+}
+
+/**
+ * Superagent's own record of a session, kept in Main's memory whatever the model does: its task,
+ * branch, the files it changed and where it stands. Updated on every turn it finishes, so "what was
+ * #3 doing / where is the campaign code" can be answered from saved facts, not from recollection.
+ */
+export function recordSession(chatId: string, extra: { task?: string } = {}): void {
+  const info = conductorOfWorker(getDb(), chatId)
+  const chat = getChat(chatId)
+  if (!info || !chat) return
+  const key = `session: ${chat.title || chatId}`
+  const before = recall(getDb(), info.workspaceId, { limit: 500 }).find((r) => r.key === key)
+  const task = extra.task ?? before?.text.match(/^Task: (.*)$/m)?.[1] ?? ''
+  const row = listSessions(getDb(), info.workspaceId, { includeClosed: true }).find(
+    (r) => r.chatId === chatId
+  )
+  const cwd = chat.cwd ?? null
+  const files = changedFiles(cwd)
+  const lines = [
+    task ? `Task: ${task.replace(/\s+/g, ' ').slice(0, 600)}` : '',
+    branchOf(cwd) ? `Branch: ${branchOf(cwd)}` : '',
+    files?.length ? `Files: ${files.slice(0, 20).join(', ')}${files.length > 20 ? ' …' : ''}` : '',
+    row?.summary ? `Latest: ${row.summary}` : ''
+  ].filter(Boolean)
+  if (lines.length) remember(getDb(), info.workspaceId, key, 'history', lines.join('\n'))
+}
+
+/**
+ * What goes in front of each message to Main, for its agent only (never the transcript): the
+ * session list as it is now, the project's git state and open to-dos, and the index of what it
+ * has saved. So Main never works from a stale picture, and its own memory survives compaction.
+ */
+export function conductorTurnPrefix(chatId: string, message = ''): string {
+  const info = conductorOfMain(getDb(), chatId)
+  if (!info) return ''
+  const ws = getWorkspace(info.workspaceId)
+  const parts = [manifestFor(info)]
+  if (ws?.path) {
+    try {
+      const st = execFileSync('git', ['-C', ws.path, 'status', '--porcelain', '-b'], {
+        encoding: 'utf8',
+        timeout: 4000,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).split('\n')
+      const branch = (st[0] ?? '').replace(/^## /, '')
+      const dirty = st.slice(1).filter(Boolean).length
+      if (branch)
+        parts.push(
+          `Project git: ${branch}${dirty ? `, ${dirty} uncommitted change(s)` : ', clean'}.`
+        )
+    } catch {
+      // not a repository
+    }
+  }
+  try {
+    const todos = openCardsFor(info.workspaceId)
+    if (todos.length)
+      parts.push(
+        `Open to-dos (${todos.length}): ${todos
+          .slice(0, 6)
+          .join('; ')}${todos.length > 6 ? ' …' : ''}`
+      )
+  } catch {
+    // no board
+  }
+  // Recall done for it: the saved entries that match what the person just wrote, in full.
+  const relevant = message.trim()
+    ? recall(getDb(), info.workspaceId, { query: message, limit: 5 })
+    : []
+  if (relevant.length)
+    parts.push(
+      `From your saved memory, matching this message:\n${relevant
+        .map((r) => `[${r.kind}] ${r.key}\n${r.text.slice(0, 1200)}`)
+        .join('\n\n')}`
+    )
+  const mem = memoryIndex(getDb(), info.workspaceId)
+  parts.push(
+    mem
+      ? `Your saved memory (conductor_recall reads an entry in full):\n${mem}`
+      : 'Your saved memory is empty. Save decisions, facts, preferences and data structures with conductor_remember.'
+  )
+  return `[Conductor state, as of this message]\n${parts.join('\n')}\n[End of Conductor state]\n\n`
+}
+
 /** A readable digest of the end of a worker's conversation. */
 function digest(chatId: string, turns: number): string {
   const all = listChatEvents(chatId, 0, 100000)
@@ -323,6 +417,7 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
       markPendingBranch(chatId)
       setChatTitle(chatId, (title ?? '').trim() || autoTitle(task))
       const ticket = connectChat(getDb(), c.workspaceId, chatId)
+      recordSession(chatId, { task })
       refresh()
       const { askFromDot } = await import('./companion/rpc')
       const sent = await askFromDot(chatId, task)
@@ -423,9 +518,65 @@ export function registerConductorTools(server: McpServer, ctx: { chatId: string 
         }
       }
       closeSession(getDb(), s.chatId)
+      // What it did stays known after it is gone from the list.
+      remember(
+        getDb(),
+        ws,
+        `session: ${s.title || s.chatId}`,
+        'history',
+        `${how === 'merge' ? 'Merged and closed' : how === 'discard' ? 'Discarded and closed' : 'Closed'} on ${new Date().toISOString().slice(0, 10)}.${s.summary ? ` Last summary: ${s.summary}` : ''}`
+      )
       refresh()
       return said(`Closed ${s.ticket != null ? ticketLabel(s.ticket) : s.title}.`)
     }
+  )
+
+  server.registerTool(
+    'conductor_remember',
+    {
+      description:
+        "Save something to this project's memory so you still know it in later turns, after this conversation is compacted, and after a restart: decisions the person made, facts about the project, their preferences, data structures and schemas (with field names), where things live, and plans. One entry per key; saving the same key again updates it. Keep each entry short and precise.",
+      inputSchema: {
+        key: z.string().min(1).max(120),
+        kind: z.enum(MEMORY_KINDS),
+        text: z.string().min(1).max(8000)
+      }
+    },
+    async ({ key, kind, text }) => {
+      remember(getDb(), ws, key, kind, text)
+      return said(`Remembered "${key}".`)
+    }
+  )
+
+  server.registerTool(
+    'conductor_recall',
+    {
+      description:
+        "Look up what you saved in this project's memory: by words (any of them, in the key or the text) and/or by kind. The index of keys is in every message's Conductor state; recall reads the full text.",
+      inputSchema: {
+        query: z.string().max(400).optional(),
+        kind: z.enum(MEMORY_KINDS).optional()
+      }
+    },
+    async ({ query, kind }) => {
+      const hits = recall(getDb(), ws, { query, kind })
+      return said(
+        hits.length
+          ? hits.map((h) => `[${h.kind}] ${h.key}\n${h.text}`).join('\n\n')
+          : 'Nothing saved matches that.'
+      )
+    }
+  )
+
+  server.registerTool(
+    'conductor_forget',
+    {
+      description:
+        "Remove an entry from this project's memory, when it is wrong or no longer true.",
+      inputSchema: { key: z.string().min(1).max(120) }
+    },
+    async ({ key }) =>
+      said(forget(getDb(), ws, key) ? `Forgot "${key}".` : `Nothing saved under "${key}".`)
   )
 
   server.registerTool(
@@ -570,6 +721,43 @@ export function conductorOverview(): ConductorOverview[] {
   return out
 }
 
+/** A session's latest messages for the inspector: what was asked, what the agent said, its tools. */
+export interface InspectMessage {
+  role: 'user' | 'agent' | 'tool'
+  text: string
+  failed?: boolean
+}
+export function sessionMessages(chatId: string, max = 40): InspectMessage[] {
+  const all = listChatEvents(chatId, 0, 100000)
+  const out: InspectMessage[] = []
+  for (const e of all.slice(-max * 4)) {
+    let d: {
+      kind?: string
+      text?: string
+      name?: string
+      detail?: string
+      ok?: boolean
+      summary?: string
+    }
+    try {
+      d = JSON.parse(e.data)
+    } catch {
+      continue
+    }
+    if (d.kind === 'user' && d.text) out.push({ role: 'user', text: d.text.slice(0, 4000) })
+    else if (d.kind === 'assistant' && d.text)
+      out.push({ role: 'agent', text: d.text.slice(0, 8000) })
+    else if (d.kind === 'tool')
+      out.push({
+        role: 'tool',
+        text: `${d.name ?? 'tool'} ${(d.detail ?? '').slice(0, 140)}`.trim()
+      })
+    else if (d.kind === 'tool_result' && d.ok === false)
+      out.push({ role: 'tool', text: `failed: ${(d.summary ?? '').slice(0, 200)}`, failed: true })
+  }
+  return out.slice(-max)
+}
+
 export function registerConductorIpc(): void {
   ipcMain.handle('conductor:peek', (_e, chatId: string) => digest(String(chatId), 3))
   ipcMain.handle(
@@ -586,6 +774,17 @@ export function registerConductorIpc(): void {
   )
   ipcMain.handle('conductor:get', (_e, ws: string) => stateOf(String(ws)))
   ipcMain.handle('conductor:overview', () => conductorOverview())
+  // The inspector: a session's conversation, and a message to it, from the Sessions column.
+  ipcMain.handle('conductor:messages', (_e, chatId: string) =>
+    conductorOfWorker(getDb(), String(chatId)) ? sessionMessages(String(chatId)) : []
+  )
+  ipcMain.handle('conductor:send', async (_e, chatId: string, text: string) => {
+    if (!conductorOfWorker(getDb(), String(chatId))) return { ok: false, error: 'not a session' }
+    const t = String(text ?? '').trim()
+    if (!t) return { ok: false, error: 'empty' }
+    const { askFromDot } = await import('./companion/rpc')
+    return askFromDot(String(chatId), t.slice(0, 20_000))
+  })
   ipcMain.handle('conductor:enable', (_e, ws: string, adopt: unknown) => {
     const workspaceId = String(ws)
     if (!getWorkspace(workspaceId)) return null

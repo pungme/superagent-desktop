@@ -3,6 +3,10 @@ import Database from 'better-sqlite3'
 import {
   closeSession,
   conductorMarks,
+  forget,
+  memoryIndex,
+  recall,
+  remember,
   conductorOfMain,
   conductorOfWorker,
   connectChat,
@@ -131,5 +135,25 @@ describe('conductor rows', () => {
     expect(m.get(x)).toEqual({ conductor: 'session', ticket: 101 })
     expect(m.get(y)).toEqual({ conductor: 'session', ticket: 102, closed: true })
     expect(m.has(plain)).toBe(false)
+  })
+
+  it("keeps Main's memory per project: one entry per key, recall by words or kind, forget", () => {
+    remember(db, 'w1', 'auth flow', 'decision', 'Magic links only, no passwords', 1)
+    remember(db, 'w1', 'campaign table', 'structure', 't800_campaigns: id, status, deleted', 2)
+    remember(db, 'w2', 'other', 'fact', 'not mine', 3)
+    // Saving the same key again updates it.
+    remember(db, 'w1', 'auth flow', 'decision', 'Magic links and Google', 4)
+    expect(recall(db, 'w1').map((r) => r.key)).toEqual(['auth flow', 'campaign table'])
+    expect(recall(db, 'w1', { query: 'google' })[0].text).toBe('Magic links and Google')
+    expect(recall(db, 'w1', { query: 'status deleted' }).map((r) => r.key)).toEqual([
+      'campaign table'
+    ])
+    expect(recall(db, 'w1', { kind: 'structure' })).toHaveLength(1)
+    expect(memoryIndex(db, 'w1')).toContain('[structure] campaign table')
+    expect(memoryIndex(db, 'w1')).not.toContain('not mine')
+    expect(forget(db, 'w1', 'auth flow')).toBe(true)
+    expect(forget(db, 'w1', 'auth flow')).toBe(false)
+    expect(recall(db, 'w1')).toHaveLength(1)
+    expect(memoryIndex(db, 'w3')).toBe('')
   })
 })

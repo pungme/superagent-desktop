@@ -71,7 +71,8 @@ import {
   killAllAgents,
   markContextLost,
   agentBus,
-  findSessionByChat
+  findSessionByChat,
+  setTurnPrefixProbe
 } from './agent'
 import { noteUserMessage } from './browser-ask'
 import { registerLoops, restoreLoopsAfterUpdate } from './loops'
@@ -84,6 +85,7 @@ import {
 } from './companion/log'
 import {
   registerConductorIpc,
+  conductorTurnPrefix,
   setGeneratingProbe,
   startConductorDialog,
   watchConductor
@@ -423,6 +425,8 @@ app.whenReady().then(async () => {
   registerFloatChatIpc()
   registerRoutinesIpc()
   registerConductorIpc()
+  // Main gets the Conductor's state and its memory index in front of every message.
+  setTurnPrefixProbe(conductorTurnPrefix)
   setGeneratingProbe(chatIsGenerating)
   watchConductor(logBus, hookBus)
   registerContactsIpc()

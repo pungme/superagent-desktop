@@ -130,22 +130,12 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
       made.a
     )
     await expect.poll(() => tool('conductor_list_sessions')).toContain('Needs you')
+    // The way in: the Conductor section under Routines opens Main as the Conductor view.
     await page.reload()
     await page.waitForSelector('.sidebar', { timeout: 20_000 })
-    await page.click('.sidebar-item:has-text("e2e-project")')
-    if (
-      !(await page
-        .getByTestId('tab-sessions')
-        .isVisible()
-        .catch(() => false))
-    )
-      await page
-        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
-        .first()
-        .click()
-    await page.getByTestId('tab-sessions').click()
+    await page.getByTestId('sidebar-conductor-row').first().click()
+    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('conductor-approval')).toContainText('rm -rf build')
-    await expect(page.getByTestId('tab-sessions').locator('.cd-tabdot')).toBeVisible()
     await page.getByTestId('conductor-approve').click()
     expect(await asked).toContain('allow')
     await expect(page.getByTestId('conductor-approval')).toHaveCount(0)
@@ -162,20 +152,11 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     expect(await refused2).toContain('deny')
 
     // The Sessions tab.
+    // The way in: the Conductor section under Routines opens Main as the Conductor view.
     await page.reload()
     await page.waitForSelector('.sidebar', { timeout: 20_000 })
-    await page.click('.sidebar-item:has-text("e2e-project")')
-    if (
-      !(await page
-        .getByTestId('tab-sessions')
-        .isVisible()
-        .catch(() => false))
-    )
-      await page
-        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
-        .first()
-        .click()
-    await page.getByTestId('tab-sessions').click()
+    await page.getByTestId('sidebar-conductor-row').first().click()
+    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
     const panel = page.getByTestId('conductor-panel')
     await expect(panel.getByTestId('conductor-session')).toHaveCount(2)
     // No invented numbers: a session shows its title (and its tracker key, when it has one).
@@ -211,7 +192,7 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await expect(panel.locator('.cd-peek')).toHaveCount(0)
 
     // In Main, a session's question is a card above the composer.
-    await panel.getByTestId('conductor-main').click()
+    await expect(panel.getByTestId('conductor-main-here')).toBeVisible()
     const asked3 = tool(
       'permission_prompt',
       { tool_name: 'Bash', input: { command: 'make deploy' } },
@@ -226,28 +207,14 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await expect(page.getByTestId('conductor-escalations')).toHaveCount(0)
     // The side panel is per conversation: bring Sessions back on Main for what follows.
     await page.waitForTimeout(1500) // let the pane settle after the card goes
-    if (!(await panel.isVisible().catch(() => false))) {
-      await page
-        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
-        .first()
-        .click()
-      await page.getByTestId('tab-sessions').click()
-    }
 
     // Routing, from the panel and as the Main chat sees it.
     await panel.getByTestId('conductor-routing').selectOption('auto')
     await expect.poll(() => tool('conductor_list_sessions')).toContain('Routing: Auto')
 
     // Closed from the panel, reopened. (The chat on screen stays in the list, so look at Main.)
-    await panel.getByTestId('conductor-main').click()
+    await expect(panel.getByTestId('conductor-main-here')).toBeVisible()
     // The side panel is per conversation: open Sessions again on Main if it is not there.
-    if (!(await panel.isVisible().catch(() => false))) {
-      await page
-        .locator('.tile-todo-btn:visible, .toolbar-btn[title="Todo"]:visible')
-        .first()
-        .click()
-      await page.getByTestId('tab-sessions').click()
-    }
     await panel.getByTestId('conductor-session').first().hover()
     await panel.getByRole('button', { name: 'Close', exact: true }).first().click()
     await expect(panel.getByTestId('conductor-session')).toHaveCount(1)
@@ -364,6 +331,40 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     expect(await tool('conductor_spawn_session', { task: 'Look at the pricing page.' })).toContain(
       '#102'
     )
+
+    // Main's memory: saved, recalled, updated by key, forgotten.
+    expect(
+      await tool('conductor_remember', {
+        key: 'campaign table',
+        kind: 'structure',
+        text: 't800_campaigns: id, status, deleted'
+      })
+    ).toContain('Remembered')
+    expect(await tool('conductor_recall', { query: 'deleted' })).toContain('t800_campaigns')
+    // Every message to Main carries the Conductor state, with the memory index in it.
+    await page.getByTestId('sidebar-conductor-row').first().click()
+    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 10_000 })
+    const input = page.locator('textarea.easy-input:visible').first()
+    await input.fill('What is in the campaign table?')
+    await input.press('Enter')
+    await expect
+      .poll(() => readFileSync(log, 'utf8'), { timeout: 20_000 })
+      .toContain('[Conductor state, as of this message]')
+    const said = readFileSync(log, 'utf8')
+    expect(said).toContain('[structure] campaign table')
+    // Recalled for it, not left to the model: the matching entry in full.
+    expect(said).toContain('From your saved memory, matching this message')
+    expect(said).toContain('t800_campaigns: id, status, deleted')
+    // Superagent keeps its own record of each session, whatever the model saves.
+    expect(await tool('conductor_recall', { query: 'header' })).toContain(
+      'Task: Fix the header so it never wraps on a phone.'
+    )
+    expect(said).toContain('What is in the campaign table?')
+    // Its routing receipts show in Main as cards, not raw tool steps (the stand-in calls none, so
+    // this only checks the transcript does not show the state block to the person).
+    await expect(page.locator('.easy-chat:visible')).not.toContainText('[Conductor state')
+    expect(await tool('conductor_forget', { key: 'campaign table' })).toContain('Forgot')
+    expect(await tool('conductor_recall', { query: 'deleted' })).toContain('Nothing saved')
   } finally {
     await app.close()
     for (const d of [data, proj, fake, home]) rmSync(d, { recursive: true, force: true })

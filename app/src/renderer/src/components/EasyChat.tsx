@@ -969,7 +969,16 @@ function toolAbout(input: unknown): string | undefined {
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const o = input as Record<string, unknown>
-  const pick = o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
+  const pick =
+    o.query ??
+    o.url ??
+    o.pattern ??
+    o.command ??
+    o.prompt ??
+    o.description ??
+    o.text ??
+    o.title ??
+    o.task
   if (typeof pick === 'string') {
     if (pick.startsWith('select:')) return friendlyToolNames(pick)
     return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
@@ -1124,7 +1133,29 @@ type Activity =
   | { kind: 'diff'; diff: FileDiff }
   | { kind: 'file'; file: { id: string; path: string } }
 
+/** The Conductor's routing, said as a receipt in Main ("✦ New session · Fix the header"). */
+const RECEIPTS: Record<string, { mark: string; word: string; kind: string }> = {
+  conductor_spawn_session: { mark: '✦', word: 'New session', kind: 'new' },
+  conductor_send_to_session: { mark: '↳', word: 'Sent to a session', kind: 'sent' },
+  conductor_merge_session: { mark: '⇡', word: 'Merged', kind: 'merged' },
+  conductor_close_session: { mark: '✕', word: 'Closed a session', kind: 'closed' },
+  conductor_adopt_session: { mark: '↪', word: 'Connected a chat', kind: 'sent' }
+}
+function receiptOf(name: string): { mark: string; word: string; kind: string } | null {
+  const m = name.match(/^mcp__[a-z0-9-]+__(conductor_[a-z_]+)$/i)
+  return m ? (RECEIPTS[m[1]] ?? null) : null
+}
+
 function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
+  const receipt = receiptOf(t.name)
+  if (receipt)
+    return (
+      <span key={key} className={`easy-receipt ${receipt.kind}`} title={t.detail}>
+        <span className="easy-receipt-mark">{receipt.mark}</span>
+        <span className="easy-receipt-word">{receipt.word}</span>
+        {t.detail && <span className="easy-receipt-detail">{t.detail}</span>}
+      </span>
+    )
   const { icon, verb } = toolLabel(t.name)
   return (
     <span key={key} className={cls} title={t.detail}>
@@ -1168,6 +1199,8 @@ const ActivityStrip = memo(function ActivityStrip({
   }
 
   const tools = entries.flatMap((e) => (e.kind === 'tool' ? [e.tool] : []))
+  // Routing receipts stay in view: what Main started or sent is the point of its turn.
+  const receipts = tools.filter((t) => receiptOf(t.name))
   const edits = entries.filter((e) => e.kind === 'diff').length
   const parts: string[] = []
   if (tools.length) parts.push(`${tools.length} step${tools.length > 1 ? 's' : ''}`)
@@ -1175,6 +1208,11 @@ const ActivityStrip = memo(function ActivityStrip({
 
   return (
     <div className="easy-toolgroup">
+      {receipts.length > 0 && (
+        <div className="easy-receipts">
+          {receipts.map((t) => toolChip(t, 'easy-tool', `r-${t.id}`))}
+        </div>
+      )}
       <button
         className="easy-tools-toggle"
         onClick={() => setOpen((o) => !o)}

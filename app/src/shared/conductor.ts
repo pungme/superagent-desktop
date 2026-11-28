@@ -154,8 +154,15 @@ export function conductorPrompt(routing: ConductorRouting): string {
     'the work belongs to from what you know of their tracker, put its id in front ("WD-284 Fix header wrap"); ' +
     'otherwise give it no number at all. The numbers (#101) are only handles for your tools: tell the person ' +
     'about a session by its ticket id or its title, never by that number. ' +
-    'The session list that follows is as it was when this conversation began: call ' +
-    'conductor_list_sessions for the current one before you route a message or answer about status. ' +
+    'Every message to you starts with a [Conductor state] block that Superagent adds (the person did ' +
+    "not write it): the sessions as they are now, the project's git state, its open to-dos and the " +
+    'index of your saved memory. Trust the newest one over anything earlier in this conversation. ' +
+    'Memory: this conversation gets compacted and restarted, so what must last goes into your saved ' +
+    'memory with conductor_remember: decisions the person made, their preferences, facts about the ' +
+    'project, data structures and schemas (field names and where they live), plans, and what a session ' +
+    'found out. Use one clear key per thing and update it rather than adding near-copies; remove what ' +
+    'is no longer true with conductor_forget. Before you answer about something decided or built ' +
+    'earlier, check the index and conductor_recall it rather than guessing. ' +
     'Sessions work side by side, so keep them from colliding: before you start a session or send ' +
     'a message, compare it with what the working sessions touch (the list shows the files). If it ' +
     'would change the same files or the same feature as one that is still working, do not start a ' +

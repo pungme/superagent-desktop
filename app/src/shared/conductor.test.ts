@@ -71,8 +71,12 @@ describe('conductor helpers', () => {
     expect(conductorPrompt('auto')).toContain('WD-284')
   })
 
-  it('tells the Conductor its list can be out of date', () => {
-    expect(conductorPrompt('confirm')).toContain('call conductor_list_sessions for the current one')
+  it('tells Main about the per-message state and its saved memory', () => {
+    const p = conductorPrompt('confirm')
+    expect(p).toContain('[Conductor state]')
+    expect(p).toContain('conductor_remember')
+    expect(p).toContain('conductor_recall')
+    expect(p).toContain('data structures')
   })
 
   it('says which routing mode applies', () => {

@@ -7,6 +7,8 @@ import { useChatBrowser } from '../hooks/useChatBrowser'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
+import { ConductorPanel } from './ConductorPanel'
+import { openConductor } from '../lib/open-conductor'
 import { FileViewer } from './FileViewer'
 import { RoutineRunView } from './RoutineRunView'
 import { BranchMenu } from './BranchMenu'
@@ -74,6 +76,30 @@ export function ChatDesk({
   // before a chat is selected. The native browser view + its login session stay
   // keyed by ws.id, so switching chats swaps what's shown, not who you're as.
   const activeChatId = chatId
+  // The Conductor's Main chat shows as the Conductor view (the mockup): Main on the left, its
+  // sessions on the right, instead of a chat with a side panel.
+  const [conductorMainId, setConductorMainId] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.cove
+        .conductorGet(ws.id)
+        .then((c) => alive && setConductorMainId(c?.chatId ?? null))
+        .catch(() => undefined)
+    }
+    load()
+    const off = window.cove.onConductorChanged((p) => p.workspaceId === ws.id && load())
+    return () => {
+      alive = false
+      off()
+    }
+  }, [ws.id])
+  const isMain = !!activeChatId && activeChatId === conductorMainId
+  // The toolbar's Conductor button hides or shows the sessions column while in Main.
+  const [sessionsHidden, setSessionsHidden] = useState(
+    () => localStorage.getItem(`conductorHidden:${ws.id}`) === '1'
+  )
+  const conductorView = isMain && !sessionsHidden
   // Where the conversation on screen actually works. A chat on its own worktree
   // writes there and nowhere else, so Files rooted on the project showed main
   // and hid everything the agent had just made.
@@ -182,7 +208,9 @@ export function ChatDesk({
   // whole desk.
   // A window of a split too narrow for a pane beside the chat (see MiniPane).
   const miniWanted = !!tile && tile.count > 1 && tile.rect.w < MINI_BELOW && !hidden
-  const surface = boardOpen ? (
+  const surface = conductorView ? (
+    <ConductorPanel workspaceId={ws.id} />
+  ) : boardOpen ? (
     <BoardPanel
       workspaceId={ws.id}
       onClose={() => {
@@ -221,7 +249,7 @@ export function ChatDesk({
     />
   ) : null
 
-  const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
+  const paneOpen = conductorView || browserOpen || !!openFilePath || simOpen || boardOpen
   // A window of a split too narrow for the pane beside the chat: the page or
   // simulator becomes a mini inside this window instead (MiniPane), the page
   // scaled from desktop width. ⤢ makes the window full size, where it docks.
@@ -824,6 +852,36 @@ export function ChatDesk({
                 <path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z" />
               </svg>
             </button>
+            {conductorMainId && (
+              <button
+                className={`toolbar-btn toolbar-icon ${conductorView ? 'on' : ''}`}
+                data-testid="toolbar-conductor"
+                onClick={() => {
+                  if (!isMain) {
+                    void openConductor(ws.id)
+                    return
+                  }
+                  const next = !sessionsHidden
+                  localStorage.setItem(`conductorHidden:${ws.id}`, next ? '1' : '0')
+                  setSessionsHidden(next)
+                }}
+                title={
+                  isMain
+                    ? conductorView
+                      ? 'Hide the sessions'
+                      : 'Show the sessions'
+                    : 'Back to Main'
+                }
+                aria-label="Conductor"
+              >
+                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                  <circle cx="3.5" cy="8" r="1.6" />
+                  <circle cx="12.5" cy="3.5" r="1.6" />
+                  <circle cx="12.5" cy="12.5" r="1.6" />
+                  <path d="M5 7.4C8 6.6 9 4.6 11 4M5 8.6c3 .8 4 2.8 6 3.4" />
+                </svg>
+              </button>
+            )}
             {tile.count <= 3 && !tile.zoomed && (
               <button
                 className="toolbar-btn toolbar-icon"
@@ -1110,7 +1168,9 @@ export function ChatDesk({
         )}
         {/* Sits between the tree and the chat: a file you click on the left opens
             next to it, rather than across the window. Chat keeps the far side. */}
-        <div className={`split-main ${layout === 'bottom' ? 'vert' : ''}`}>
+        <div
+          className={`split-main ${layout === 'bottom' && !conductorView ? 'vert' : ''} ${conductorView ? 'conductor' : ''}`}
+        >
           {/* A hidden desk (a busy or recent chat kept alive) shows no panes:
               its page stays in main, and its simulator is found again when it
               comes back on screen. */}
@@ -1130,18 +1190,21 @@ export function ChatDesk({
                         paddingRight: floatInset,
                         transition: 'padding-right 0.45s cubic-bezier(0.32, 0.72, 0, 1)'
                       }
-                    : { flexBasis: `${(1 - ratio) * 100}%` }
+                    : { flexBasis: conductorView ? '58%' : `${(1 - ratio) * 100}%` }
                 }
               >
                 {surface && (
                   <div
                     className="desk-card"
-                    style={{ flexBasis: simOpen && !boardOpen ? `${deskRatio * 100}%` : '100%' }}
+                    style={{
+                      flexBasis:
+                        simOpen && !boardOpen && !conductorView ? `${deskRatio * 100}%` : '100%'
+                    }}
                   >
                     {surface}
                   </div>
                 )}
-                {surface && simOpen && !boardOpen && (
+                {surface && simOpen && !boardOpen && !conductorView && (
                   <div
                     className={`desk-divider ${dragging ? 'dragging' : ''}`}
                     onPointerDown={onDeskDividerDown}
@@ -1151,7 +1214,7 @@ export function ChatDesk({
                 {/* The list takes the whole desk while it's open. Sharing it with
                   the simulator squeezed the list to ~200px, which is too narrow
                   to read an item in, let alone open one. */}
-                {simOpen && !boardOpen && (
+                {simOpen && !boardOpen && !conductorView && (
                   <div
                     className="desk-card desk-card-sim"
                     style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
@@ -1191,7 +1254,13 @@ export function ChatDesk({
               floating
                 ? // Still mounted (its agent lives here), out of the way.
                   { flexBasis: 0, width: 0, minWidth: 0, overflow: 'hidden' }
-                : { flexBasis: paneOpen && !hidden && !mini ? `${ratio * 100}%` : '100%' }
+                : {
+                    flexBasis: conductorView
+                      ? '42%'
+                      : paneOpen && !hidden && !mini
+                        ? `${ratio * 100}%`
+                        : '100%'
+                  }
             }
           >
             {/* Each chat keeps its own mounted <EasyChat> (and its agent). Only the
