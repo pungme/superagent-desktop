@@ -441,6 +441,8 @@ export type RpcMethod =
   | 'conductor.messages'
   | 'conductor.send'
   | 'conductor.session'
+  | 'conductor.memory'
+  | 'conductor.merge'
   | 'today.get'
   | 'today.hand'
   | 'today.ask'

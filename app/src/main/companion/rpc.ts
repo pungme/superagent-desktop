@@ -220,6 +220,11 @@ const conductorSession = z.object({
   chatId: z.string().min(1),
   action: z.enum(['close', 'reopen', 'connect', 'disconnect'])
 })
+const conductorMemory = z.object({
+  workspaceId: z.string().min(1),
+  forget: z.string().min(1).max(200).optional()
+})
+const conductorMerge = z.object({ workspaceId: z.string().min(1), chatId: z.string().min(1) })
 const todayGet = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 const todayHand = z.object({ cardId: z.string().min(1) })
 const todayAsk = z.object({ text: z.string().min(1).max(200_000) })
@@ -554,6 +559,23 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return conductorSessionAction(p.data.workspaceId, p.data.chatId, p.data.action)
           ? { ok: true, result: {} }
           : fail('not-found', 'no such session')
+      }
+      case 'conductor.memory': {
+        const p = conductorMemory.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorMemoryFor, conductorForgetFor } = await import('../conductor-tools')
+        if (p.data.forget) conductorForgetFor(p.data.workspaceId, p.data.forget)
+        const entries = conductorMemoryFor(p.data.workspaceId)
+        return entries
+          ? { ok: true, result: { entries } }
+          : fail('not-found', 'no Conductor in this project')
+      }
+      case 'conductor.merge': {
+        const p = conductorMerge.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorMergeFor } = await import('../conductor-tools')
+        const r = await conductorMergeFor(p.data.workspaceId, p.data.chatId)
+        return r.ok ? { ok: true, result: {} } : fail('unavailable', r.error ?? 'could not merge')
       }
       case 'today.get': {
         const p = todayGet.safeParse(params)

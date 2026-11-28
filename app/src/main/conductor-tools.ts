@@ -764,6 +764,37 @@ export function conductorSessionAction(
   return true
 }
 
+/** What Main has saved to remember (decisions, structures, plans), for the phone's Memory view. */
+export function conductorMemoryFor(workspaceId: string): ReturnType<typeof recall> | null {
+  if (!getConductor(getDb(), workspaceId)) return null
+  return recall(getDb(), workspaceId, { limit: 200 })
+}
+
+/** Forget one saved memory, from the phone. */
+export function conductorForgetFor(workspaceId: string, key: string): boolean {
+  return getConductor(getDb(), workspaceId) ? forget(getDb(), workspaceId, key) : false
+}
+
+/** Merge a session's commits into the project's main branch (the session stays open). */
+export async function conductorMergeFor(
+  workspaceId: string,
+  chatId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const db = getDb()
+  if (!getConductor(db, workspaceId) || !conductorOfWorker(db, chatId))
+    return { ok: false, error: 'not a session of this Conductor' }
+  if (isGenerating(chatId)) return { ok: false, error: 'it is still working' }
+  const chat = getChat(chatId)
+  const wsRow = getWorkspace(workspaceId)
+  if (!chat?.cwd || !wsRow) return { ok: false, error: 'no folder to merge' }
+  if (!((await freshGit(chat.cwd)).unmerged ?? 0)) return { ok: false, error: 'nothing to merge' }
+  const { mergeCopy } = await import('./chat-copy')
+  const r = await mergeCopy(wsRow.path, chat.cwd, chat.title || 'Conductor session')
+  if (!r.ok && r.reason !== 'nothing') return { ok: false, error: String(r.reason) }
+  changed(workspaceId)
+  return { ok: true }
+}
+
 /** A session's latest messages, for the phone's inspector (only sessions of a Conductor). */
 export function conductorMessagesFor(chatId: string): InspectMessage[] | null {
   return conductorOfWorker(getDb(), chatId) ? sessionMessages(chatId) : null
