@@ -19292,3 +19292,7 @@ button.easy-run-agent {
 .sidebar-conductor-row {
   padding-left: 22px;
 }
+.easy-ctx-compact.queued {
+  border-color: #f0b429;
+  color: #c98a00;
+}

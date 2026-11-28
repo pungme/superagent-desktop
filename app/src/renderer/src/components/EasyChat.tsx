@@ -5422,6 +5422,23 @@ export function EasyChat({
   // carry on, until it says it is done (shared/auto-mode.ts holds every reason to
   // stop). Per chat, off by default, kept across restarts.
   const [autoOn, setAutoOnState] = useState(false)
+  // Compact was asked for while the agent was working: it runs when the turn ends.
+  const [compactQueued, setCompactQueued] = useState(false)
+  const compactWasWorkingRef = useRef(false)
+  useEffect(() => {
+    const working = generating || thinking
+    const ended = compactWasWorkingRef.current && !working
+    compactWasWorkingRef.current = working
+    if (!ended || !compactQueued) return
+    // Cleared when it fires, not now: clearing it here re-ran this effect and cancelled the timer.
+    const t = setTimeout(() => {
+      setCompactQueued(false)
+      if (generatingRef.current || !readyRef.current) return
+      submitRef.current?.('/compact', [], { files: [], reply: null, keepComposer: true })
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generating, thinking, compactQueued])
   const autoRoundsRef = useRef(0)
   // What the agent answered the last Auto round: the same answer again ends Auto.
   const autoLastReplyRef = useRef('')
@@ -6457,11 +6474,15 @@ export function EasyChat({
    * The [1m] tag still forces 1M for the models that offer it as a choice
    * (Sonnet), and everything else is the 200K baseline.
    */
-  const ctxWindow =
+  const guessedWindow =
     reportedCtxWindow ??
     (activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b|fable/i.test(activeModel))
       ? 1_000_000
       : 200_000)
+  // More in the conversation than the window we guessed can hold: the guess is too small (a
+  // model with the 1M window), not a conversation at 420%. Believe the number we measured.
+  const ctxWindow =
+    (ctxTokens ?? 0) > guessedWindow ? Math.max(1_000_000, guessedWindow) : guessedWindow
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
   // Every stamped reply's new tokens, summed — this chat's running total across
   // its whole lifetime (it's saved on the message, so it survives reloads), plus
@@ -7976,16 +7997,24 @@ export function EasyChat({
                     offers the fix too — /compact summarises the conversation and
                     hands the room back, which is otherwise something you have to
                     know to type. */}
-                {ctxPercent >= 75 && (
+                {ctxPercent >= 75 && provider === 'claude' && (
                   <button
-                    className="easy-ctx-compact"
-                    disabled={generating || thinking}
+                    className={`easy-ctx-compact${compactQueued ? ' queued' : ''}`}
+                    data-testid="compact-button"
                     title={
                       generating || thinking
-                        ? 'Wait for Claude to finish, then compact'
+                        ? compactQueued
+                          ? 'Compacting as soon as this turn ends (click to cancel)'
+                          : 'Claude is working: compact as soon as this turn ends'
                         : 'Summarise the conversation so far to free up memory (/compact)'
                     }
                     onClick={() => {
+                      if (generating || thinking) {
+                        // Not a dead button while the agent works (a chat on Auto or a loop is
+                        // nearly always working): it runs right after this turn.
+                        setCompactQueued((q) => !q)
+                        return
+                      }
                       setAtBottom(true)
                       submitRef.current?.('/compact', [], {
                         files: [],
@@ -7994,7 +8023,7 @@ export function EasyChat({
                       })
                     }}
                   >
-                    Compact
+                    {compactQueued ? 'Compact next' : 'Compact'}
                   </button>
                 )}
               </span>
