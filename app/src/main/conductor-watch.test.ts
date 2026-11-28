@@ -17,6 +17,7 @@ vi.mock('./store', () => ({
   getWorkspace: () => ({ name: 'proj', path: '/tmp' }),
   createChat: () => 'x',
   listChatEvents: () => [],
+  lastChatPreview: () => null,
   markPendingBranch: () => undefined,
   setChatTitle: () => undefined
 }))

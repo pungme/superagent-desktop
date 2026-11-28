@@ -2498,6 +2498,44 @@ function useSplitDrag(): {
   }
 }
 
+/** One project's Conductor row: its own icon in the column the rows above keep for theirs. */
+function ConductorRow({
+  row,
+  here,
+  open
+}: {
+  row: { workspaceId: string; name: string; total: number; needsYou: number; working: number }
+  here: boolean
+  open: () => void
+}): React.JSX.Element {
+  const ws = useStore((s) =>
+    s.tree.flatMap((g) => g.workspaces).find((w) => w.id === row.workspaceId)
+  )
+  const icon = useProjectIcon(row.workspaceId, ws?.path ?? '', ws?.kind ?? '')
+  return (
+    <button
+      className={`sidebar-conductor-row ${here ? 'on' : ''}`}
+      data-testid="sidebar-conductor-row"
+      title={`${row.name}: ${row.total} sessions`}
+      onClick={open}
+    >
+      <span className="sidebar-conductor-icon">
+        <ProjectIcon icon={icon} kind={ws?.kind ?? ''} size={14} />
+      </span>
+      <span className="sidebar-conductor-name">{row.name}</span>
+      <span
+        className={`sidebar-conductor-count ${row.needsYou > 0 ? 'ask' : row.working > 0 ? 'busy' : ''}`}
+      >
+        {row.needsYou > 0
+          ? `${row.needsYou} needs you`
+          : row.working > 0
+            ? `${row.working} working`
+            : `${row.total} ${row.total === 1 ? 'session' : 'sessions'}`}
+      </span>
+    </button>
+  )
+}
+
 /**
  * Under Today and Routines: the Conductors you have started, one row per project. Pick one to open
  * its Main chat with the Sessions beside it. Nothing shows until a Conductor exists.
@@ -2584,24 +2622,12 @@ function ConductorSection(): React.JSX.Element | null {
         rows.map((r) => {
           const here = r.workspaceId === activeId && activeChat[r.workspaceId] === r.mainChatId
           return (
-            <button
+            <ConductorRow
               key={r.workspaceId}
-              className={`sidebar-conductor-row ${here ? 'on' : ''}`}
-              data-testid="sidebar-conductor-row"
-              title={`${r.name}: ${r.total} sessions`}
-              onClick={() => void openConductor(r.workspaceId)}
-            >
-              <span className="sidebar-conductor-name">{r.name}</span>
-              <span
-                className={`sidebar-conductor-count ${r.needsYou > 0 ? 'ask' : r.working > 0 ? 'busy' : ''}`}
-              >
-                {r.needsYou > 0
-                  ? `${r.needsYou} needs you`
-                  : r.working > 0
-                    ? `${r.working} working`
-                    : `${r.total} ${r.total === 1 ? 'session' : 'sessions'}`}
-              </span>
-            </button>
+              row={r}
+              here={here}
+              open={() => void openConductor(r.workspaceId)}
+            />
           )
         })}
     </div>

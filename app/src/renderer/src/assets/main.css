@@ -19301,7 +19301,21 @@ button.easy-run-agent {
 .sidebar-conductor-row {
   width: calc(100% - 12px);
   margin: 0 6px;
-  padding: 0 10px 0 32px;
+  padding: 0 10px;
+  gap: 8px;
+}
+.sidebar-conductor-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+.sidebar-conductor-icon .sidebar-favicon,
+.sidebar-conductor-icon svg {
+  width: 14px;
+  height: 14px;
 }
 .easy-ctx-compact.queued {
   border-color: #f0b429;
