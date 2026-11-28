@@ -19269,3 +19269,9 @@ button.easy-run-agent {
   background: var(--bg-content);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
+
+/* The Auto / loop chip sits inside the person's bubble: in the bubble's own colour, never dark on dark. */
+.easy-loop-chip {
+  color: inherit;
+  opacity: 0.72;
+}

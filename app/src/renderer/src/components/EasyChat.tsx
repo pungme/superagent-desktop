@@ -5423,6 +5423,8 @@ export function EasyChat({
   // stop). Per chat, off by default, kept across restarts.
   const [autoOn, setAutoOnState] = useState(false)
   const autoRoundsRef = useRef(0)
+  // What the agent answered the last Auto round: the same answer again ends Auto.
+  const autoLastReplyRef = useRef('')
   const [autoRounds, setAutoRounds] = useState(0)
   useEffect(() => {
     setAutoOnState(!!chatId && localStorage.getItem(`cove.auto:${chatId}`) === '1')
@@ -5464,7 +5466,10 @@ export function EasyChat({
       }
     }
     // Something the person wrote starts the count again.
-    if (lastUser.trim() !== AUTO_PROMPT) autoRoundsRef.current = 0
+    if (lastUser.trim() !== AUTO_PROMPT) {
+      autoRoundsRef.current = 0
+      autoLastReplyRef.current = ''
+    }
     const decision = autoNext({
       on: true,
       rounds: autoRoundsRef.current,
@@ -5475,9 +5480,12 @@ export function EasyChat({
       failed: false,
       queued: queuedRef.current.length,
       typing: input.trim().length > 0,
-      ready: readyRef.current && !suspendedRef.current
+      ready: readyRef.current && !suspendedRef.current,
+      previousReply: lastUser.trim() === AUTO_PROMPT ? autoLastReplyRef.current : '',
+      loopRunning: !!loop && !loop.paused
     })
     setAutoRounds(autoRoundsRef.current)
+    autoLastReplyRef.current = lastReply
     if (!decision.send) return
     // A beat, so the turn has settled and a person typing right now wins.
     const t = setTimeout(() => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  waitsOnPerson,
   AUTO_DONE,
   AUTO_MAX_ROUNDS,
   AUTO_PROMPT,
@@ -61,7 +62,50 @@ describe('autoNext', () => {
     expect(why({ lastReply: '  ' })).toBe('empty')
   })
   it('asks for a decision rather than guessing, and names the sentinel', () => {
-    expect(AUTO_PROMPT).toContain('ask me and stop')
+    expect(AUTO_PROMPT).toContain('ask me as a question')
     expect(AUTO_PROMPT).toContain(AUTO_DONE)
+  })
+})
+
+describe('auto mode does not go round in circles', () => {
+  const base = {
+    on: true,
+    rounds: 1,
+    lastReply: 'Did the next thing.',
+    askedQuestion: false,
+    needsYou: false,
+    stopped: false,
+    failed: false,
+    queued: 0,
+    typing: false,
+    ready: true
+  }
+  it('stops when the agent is waiting on the person without a question mark', () => {
+    expect(
+      autoNext({
+        ...base,
+        lastReply: 'Quit and reopen Superagent so beta.66 installs, then tell me.'
+      })
+    ).toEqual({ send: false, why: 'question' })
+    expect(autoNext({ ...base, lastReply: 'I need you to approve the deploy.' })).toEqual({
+      send: false,
+      why: 'question'
+    })
+    expect(waitsOnPerson('Added the tests and pushed them.')).toBe(false)
+  })
+  it('stops when the agent answers the same as last round', () => {
+    const r = 'Your Mac is still on beta.60. Nothing new this round.'
+    expect(autoNext({ ...base, lastReply: r, previousReply: r + ' ' })).toEqual({
+      send: false,
+      why: 'repeat'
+    })
+    expect(
+      autoNext({ ...base, lastReply: 'Fixed the header.', previousReply: 'Wrote the tests.' })
+    ).toEqual({
+      send: true
+    })
+  })
+  it('stands aside while a /loop is running', () => {
+    expect(autoNext({ ...base, loopRunning: true })).toEqual({ send: false, why: 'loop' })
   })
 })
