@@ -160,6 +160,18 @@ export async function sessionsOfFresh(
   return sessionsOf(info, includeClosed)
 }
 
+/** A session's last message, read at most every 30 s: the list is asked for every few seconds and
+ *  a chat's events table can be large. */
+const previews = new Map<string, { at: number; text: string | undefined }>()
+function previewOf(chatId: string): string | undefined {
+  const hit = previews.get(chatId)
+  const now = Date.now()
+  if (hit && now - hit.at < 30_000) return hit.text
+  const text = lastChatPreview(chatId) ?? undefined
+  previews.set(chatId, { at: now, text })
+  return text
+}
+
 /** The project's sessions as the Conductor sees them (title, ticket, status, branch, summary). */
 export function sessionsOf(info: ConductorInfo, includeClosed = false): ConductorSession[] {
   const db = getDb()
@@ -176,7 +188,7 @@ export function sessionsOf(info: ConductorInfo, includeClosed = false): Conducto
       ticket: r.ticket,
       summary: r.summary,
       // Sessions from before summaries were kept still say something: their last message.
-      preview: r.summary ? undefined : (lastChatPreview(r.chatId) ?? undefined),
+      preview: r.summary ? undefined : previewOf(r.chatId),
       approval: openApproval(r.chatId),
       status:
         r.closedAt != null

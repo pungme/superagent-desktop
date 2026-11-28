@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { highlightFile, languageLabel } from '../lib/editor-highlight'
 import { Markdown } from './Markdown'
-import { MarkdownWysiwyg } from './MarkdownWysiwyg'
+
+// The Markdown editor (Milkdown, ProseMirror) is a big library, only needed when you edit.
+const MarkdownWysiwyg = lazy(() =>
+  import('./MarkdownWysiwyg').then((m) => ({ default: m.MarkdownWysiwyg }))
+)
 
 interface FileViewerProps {
   path: string
@@ -266,12 +270,14 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
           content !== false &&
           (editing && md && !source ? (
             <div className="file-viewer-md">
+              <Suspense fallback={null}>
               <MarkdownWysiwyg
                 value={draft}
                 onChange={setDraft}
                 onSave={() => void save()}
                 onBlur={() => void save()}
               />
+              </Suspense>
             </div>
           ) : editing ? (
             <CodeEditor

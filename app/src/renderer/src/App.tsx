@@ -1,8 +1,15 @@
 import { goBack, visited, type Visit } from '../../shared/visit-history'
-import { TodayView } from './components/TodayView'
-import { RoutinesOverview } from './components/RoutinesOverview'
 import { applySavedFromMac } from './lib/saved-prompts'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
+// Screens that are not the first thing on screen load when first asked for, not at start-up: the
+// main bundle was 2 MB to parse before the window could show anything.
+const TodayView = lazy(() => import('./components/TodayView').then((m) => ({ default: m.TodayView })))
+const RoutinesOverview = lazy(() =>
+  import('./components/RoutinesOverview').then((m) => ({ default: m.RoutinesOverview }))
+)
+const Onboarding = lazy(() => import('./components/Onboarding').then((m) => ({ default: m.Onboarding })))
+const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })))
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView, type WorkspaceTile } from './components/WorkspaceView'
 import { SplitLayer } from './components/SplitLayer'
@@ -17,9 +24,7 @@ import { IntroSplash } from './components/IntroSplash'
 import { Tour } from './tour/Tour'
 import { REPLAY_TOUR_EVENT } from './tour/tour-keys'
 import { ComputerPanel } from './components/ComputerPanel'
-import { Onboarding } from './components/Onboarding'
 import { StartScreen } from './components/StartScreen'
-import { Settings } from './components/Settings'
 import { CommandPalette } from './components/CommandPalette'
 import { useStore, keepChatChanges, keepErrorText, SHOT_TTL_MS } from './state'
 
@@ -712,6 +717,7 @@ function App(): React.JSX.Element {
       <>
         {intro}
         <IntroSplash />
+        <Suspense fallback={null}>
         <Onboarding
           onDone={() => {
             localStorage.setItem('cove.connectionsOffered', '1')
@@ -720,6 +726,7 @@ function App(): React.JSX.Element {
             setOnboarded(true)
           }}
         />
+        </Suspense>
       </>
     )
   }
@@ -840,13 +847,17 @@ function App(): React.JSX.Element {
         {/* Today: the day on one screen (calendar, to-dos, agents). */}
         {overlay === 'today' && !settingsOpen && (
           <div className="today-host">
-            <TodayView visible />
+            <Suspense fallback={null}>
+              <TodayView visible />
+            </Suspense>
           </div>
         )}
         {/* Routines: every project's scheduled runs on one page. */}
         {overlay === 'routines' && !settingsOpen && (
           <div className="today-host">
-            <RoutinesOverview visible />
+            <Suspense fallback={null}>
+              <RoutinesOverview visible />
+            </Suspense>
           </div>
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,
@@ -855,6 +866,7 @@ function App(): React.JSX.Element {
             are hosted with the projects above (homeWs), so they can also be
             windows of a split. */}
         {settingsOpen && (
+          <Suspense fallback={null}>
           <Settings
             initialSection={settingsInitialSection}
             onClose={() => {
@@ -862,6 +874,7 @@ function App(): React.JSX.Element {
               setSettingsInitialSection('general')
             }}
           />
+          </Suspense>
         )}
       </main>
       <PreviewToast />
