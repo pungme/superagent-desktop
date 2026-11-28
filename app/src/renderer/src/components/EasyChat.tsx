@@ -7328,11 +7328,9 @@ export function EasyChat({
             readOnly={!!dictation.partial}
             placeholder={
               ready || suspended || restarting
-                ? conductorMain
-                  ? `Message ${agentName}… (keep texting here — I manage the sessions)`
-                  : narrowComposer
-                    ? `Message ${agentName}…`
-                    : `Message ${agentName}…  (/ commands · @ files · paste an image)`
+                ? narrowComposer
+                  ? `Message ${agentName}…`
+                  : `Message ${agentName}…  (/ commands · @ files · paste an image)`
                 : 'Starting…'
             }
             rows={1}

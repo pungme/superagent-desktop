@@ -214,10 +214,16 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await expect(page.getByTestId('conductor-escalations')).toContainText('make deploy', {
       timeout: 10_000
     })
+    if (process.env.SHOT)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-1-needs-you.png') })
+
     await expect(page.getByTestId('conductor-escalations')).toContainText('Fix the header')
     // Inspect opens that session in the column beside Main.
     await page.getByTestId('conductor-escalations').getByRole('button', { name: 'Inspect' }).click()
     await expect(page.getByTestId('conductor-inspector')).toBeVisible()
+    if (process.env.SHOT)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-2-inspector.png') })
+
     await page
       .getByTestId('conductor-inspector')
       .getByRole('button', { name: /Sessions/ })
@@ -258,6 +264,9 @@ test('conductor: Main chat, numbered sessions, the Sessions tab, its own tools',
     await tool('conductor_spawn_session', { task: 'Look at the footer.', title: 'Footer pass' })
     await expect(panel.getByTestId('conductor-session')).toHaveCount(3, { timeout: 20_000 })
     await expect(panel.locator('.cd-card.fresh')).toHaveCount(1)
+    if (process.env.SHOT)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-3-spawning.png') })
+
     await expect(panel.locator('.cd-spark')).toHaveCount(1)
     await expect(panel.locator('.cd-card.fresh')).toHaveCount(0, { timeout: 8000 })
     await expect(panel.locator('.cd-spark')).toHaveCount(0)
@@ -401,7 +410,13 @@ test('conductor: Main starts a worker, which gets its brief and leaves a summary
     const receipt = page.locator('.easy-receipt.sent:visible').first()
     await expect(receipt).toBeVisible({ timeout: 20_000 })
     await expect(receipt).toContainText('Sent to a session')
+    if (process.env.SHOT)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-4-receipt.png') })
+
     await receipt.getByTestId('receipt-move').click()
+    if (process.env.SHOT)
+      await page.screenshot({ path: join(process.env.SHOT, 'conductor-5-move-menu.png') })
+
     await page
       .getByTestId('receipt-move-menu')
       .locator('button')
