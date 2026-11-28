@@ -209,6 +209,17 @@ const conductorRouting = z.object({
   workspaceId: z.string().min(1),
   routing: z.enum(['auto', 'confirm'])
 })
+const conductorEnable = z.object({
+  workspaceId: z.string().min(1),
+  adopt: z.array(z.string()).max(200).optional()
+})
+const conductorMessages = z.object({ chatId: z.string().min(1) })
+const conductorSend = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(20_000) })
+const conductorSession = z.object({
+  workspaceId: z.string().min(1),
+  chatId: z.string().min(1),
+  action: z.enum(['close', 'reopen', 'connect', 'disconnect'])
+})
 const todayGet = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 const todayHand = z.object({ cardId: z.string().min(1) })
 const todayAsk = z.object({ text: z.string().min(1).max(200_000) })
@@ -510,6 +521,39 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return setConductorRouting(p.data.workspaceId, p.data.routing)
           ? { ok: true, result: {} }
           : fail('not-found', 'no Conductor in this project')
+      }
+      case 'conductor.enable': {
+        const p = conductorEnable.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorEnableFor } = await import('../conductor-tools')
+        const state = conductorEnableFor(p.data.workspaceId, p.data.adopt ?? [])
+        return state ? { ok: true, result: state } : fail('not-found', 'no such project')
+      }
+      case 'conductor.messages': {
+        const p = conductorMessages.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorMessagesFor } = await import('../conductor-tools')
+        const messages = conductorMessagesFor(p.data.chatId)
+        return messages
+          ? { ok: true, result: { messages } }
+          : fail('not-found', 'not a Conductor session')
+      }
+      case 'conductor.send': {
+        const p = conductorSend.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorMessagesFor } = await import('../conductor-tools')
+        if (!conductorMessagesFor(p.data.chatId))
+          return fail('not-found', 'not a Conductor session')
+        const r = await askFromDot(p.data.chatId, p.data.text)
+        return r.ok ? { ok: true, result: {} } : fail('unavailable', r.error ?? 'could not send')
+      }
+      case 'conductor.session': {
+        const p = conductorSession.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const { conductorSessionAction } = await import('../conductor-tools')
+        return conductorSessionAction(p.data.workspaceId, p.data.chatId, p.data.action)
+          ? { ok: true, result: {} }
+          : fail('not-found', 'no such session')
       }
       case 'today.get': {
         const p = todayGet.safeParse(params)

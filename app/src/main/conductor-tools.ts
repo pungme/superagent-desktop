@@ -716,6 +716,44 @@ export function setConductorRouting(workspaceId: string, mode: 'auto' | 'confirm
   return true
 }
 
+/** Start a Conductor in a project from the phone (a clean Main, or connecting its chats). */
+export function conductorEnableFor(workspaceId: string, adopt: string[]): ConductorState | null {
+  if (!getWorkspace(workspaceId)) return null
+  enableConductor(getDb(), workspaceId, {
+    adoptChatIds: adopt,
+    makeMain: () => createChat(workspaceId)
+  })
+  backfillSessionRecords(workspaceId)
+  changed(workspaceId)
+  return stateOf(workspaceId)
+}
+
+/** Close, reopen, connect or disconnect a session, from the phone. */
+export function conductorSessionAction(
+  workspaceId: string,
+  chatId: string,
+  action: 'close' | 'reopen' | 'connect' | 'disconnect'
+): boolean {
+  const db = getDb()
+  if (!getConductor(db, workspaceId)) return false
+  if (action === 'connect') {
+    connectChat(db, workspaceId, chatId)
+    recordSession(chatId)
+  } else {
+    if (!conductorOfWorker(db, chatId)) return false
+    if (action === 'close') closeSession(db, chatId)
+    else if (action === 'reopen') reopenSession(db, chatId)
+    else disconnectChat(db, chatId)
+  }
+  changed(workspaceId)
+  return true
+}
+
+/** A session's latest messages, for the phone's inspector (only sessions of a Conductor). */
+export function conductorMessagesFor(chatId: string): InspectMessage[] | null {
+  return conductorOfWorker(getDb(), chatId) ? sessionMessages(chatId) : null
+}
+
 const changed = (workspaceId: string): void => {
   broadcastToWindows('conductor:changed', { workspaceId })
   broadcastToWindows('projects:changed', {})
