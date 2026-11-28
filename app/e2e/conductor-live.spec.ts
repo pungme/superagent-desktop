@@ -391,73 +391,79 @@ for (const agent of AGENTS)
     }
   })
 
-test('claude: Main saves what it is told and answers from its saved memory after a clean restart', async () => {
-  test.skip(!LIVE, 'set CLAUDE_LIVE=1 to run against the real agents')
-  test.setTimeout(420_000)
-  const data = mkdtempSync(join(tmpdir(), 'cove-condmem-data-'))
-  const proj = mkdtempSync(join(tmpdir(), 'cove-condmem-proj-'))
-  writeFileSync(join(proj, 'README.md'), '# demo\n')
-  const launch = (): ReturnType<typeof electron.launch> =>
-    electron.launch({
-      args: [join(__dirname, '..', 'out', 'main', 'index.js')],
-      env: { ...process.env, COVE_USER_DATA: data, COVE_E2E_PROJECT: proj, NODE_ENV: 'production' }
-    })
-  const memory = (): string => {
-    try {
-      return execFileSync(
-        'sqlite3',
-        [join(data, 'cove.db'), 'SELECT key || ": " || text FROM conductor_memory'],
-        {
-          encoding: 'utf8'
+for (const agent of AGENTS)
+  test(`${agent}: Main saves what it is told and answers from its saved memory after a clean restart`, async () => {
+    test.skip(!LIVE, 'set CLAUDE_LIVE=1 to run against the real agents')
+    test.setTimeout(420_000)
+    const data = mkdtempSync(join(tmpdir(), 'cove-condmem-data-'))
+    const proj = mkdtempSync(join(tmpdir(), 'cove-condmem-proj-'))
+    writeFileSync(join(proj, 'README.md'), '# demo\n')
+    const launch = (): ReturnType<typeof electron.launch> =>
+      electron.launch({
+        args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+        env: {
+          ...process.env,
+          COVE_USER_DATA: data,
+          COVE_E2E_PROJECT: proj,
+          NODE_ENV: 'production'
         }
-      )
-    } catch {
-      return ''
+      })
+    const memory = (): string => {
+      try {
+        return execFileSync(
+          'sqlite3',
+          [join(data, 'cove.db'), 'SELECT key || ": " || text FROM conductor_memory'],
+          {
+            encoding: 'utf8'
+          }
+        )
+      } catch {
+        return ''
+      }
     }
-  }
-  let app = await launch()
-  try {
-    let page = await app.firstWindow()
-    await page.waitForLoadState('domcontentloaded')
-    await page.evaluate(() => {
-      localStorage.setItem('cove.onboarded', '1')
-      localStorage.setItem('cove.connectionsOffered', '1')
-    })
-    await page.evaluate(() => window.cove.kvSet('cove.provider', 'claude'))
-    const ids = await page.evaluate(async () => {
-      const tree = await window.cove.storeTree()
-      const w = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
-      const st = await window.cove.conductorEnable(w.id, [])
-      return { ws: w.id, main: st!.chatId }
-    })
-    await page.reload()
-    await page.waitForSelector('.sidebar', { timeout: 20_000 })
-    await page.getByTestId('sidebar-conductor-row').first().click()
-    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 20_000 })
-    let input = page.locator('textarea.easy-input:visible').first()
-    await input.fill(
-      'Remember this for later: our campaigns live in the database table t800_campaigns, with the fields id, status and deleted. Just save it; no session is needed.'
-    )
-    await input.press('Enter')
-    await expect.poll(memory, { timeout: 180_000, intervals: [3000] }).toContain('t800_campaigns')
+    let app = await launch()
+    try {
+      let page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      await page.evaluate(() => {
+        localStorage.setItem('cove.onboarded', '1')
+        localStorage.setItem('cove.connectionsOffered', '1')
+      })
+      await page.evaluate((a) => window.cove.kvSet('cove.provider', a), agent)
+      const ids = await page.evaluate(async () => {
+        const tree = await window.cove.storeTree()
+        const w = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
+        const st = await window.cove.conductorEnable(w.id, [])
+        return { ws: w.id, main: st!.chatId }
+      })
+      await page.reload()
+      await page.waitForSelector('.sidebar', { timeout: 20_000 })
+      await page.getByTestId('sidebar-conductor-row').first().click()
+      await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 20_000 })
+      let input = page.locator('textarea.easy-input:visible').first()
+      await input.fill(
+        'Remember this for later: our campaigns live in the database table t800_campaigns, with the fields id, status and deleted. Just save it; no session is needed.'
+      )
+      await input.press('Enter')
+      await expect.poll(memory, { timeout: 180_000, intervals: [3000] }).toContain('t800_campaigns')
 
-    // Main forgets the conversation: its chat is cleared and the app starts again.
-    await page.waitForTimeout(8000)
-    await page.evaluate((id) => window.cove.chatClear(id), ids.main)
-    await app.close()
-    app = await launch()
-    page = await app.firstWindow()
-    await page.waitForSelector('.sidebar', { timeout: 20_000 })
-    await page.getByTestId('sidebar-conductor-row').first().click()
-    await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 20_000 })
-    input = page.locator('textarea.easy-input:visible').first()
-    await input.fill('Which database table holds our campaigns, and which fields does it have?')
-    await input.press('Enter')
-    await expect(page.locator('.easy-chat:visible').first()).toContainText('t800_campaigns', {
-      timeout: 180_000
-    })
-  } finally {
-    await app.close().catch(() => undefined)
-    for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
-  }
-})
+      // Main forgets the conversation: its chat is cleared and the app starts again.
+      await page.waitForTimeout(8000)
+      await page.evaluate((id) => window.cove.chatClear(id), ids.main)
+      await app.close()
+      app = await launch()
+      page = await app.firstWindow()
+      await page.waitForSelector('.sidebar', { timeout: 20_000 })
+      await page.getByTestId('sidebar-conductor-row').first().click()
+      await expect(page.getByTestId('conductor-main-here')).toBeVisible({ timeout: 20_000 })
+      input = page.locator('textarea.easy-input:visible').first()
+      await input.fill('Which database table holds our campaigns, and which fields does it have?')
+      await input.press('Enter')
+      await expect(page.locator('.easy-chat:visible').first()).toContainText('t800_campaigns', {
+        timeout: 180_000
+      })
+    } finally {
+      await app.close().catch(() => undefined)
+      for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })
+    }
+  })

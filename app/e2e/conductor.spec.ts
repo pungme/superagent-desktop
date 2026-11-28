@@ -546,8 +546,22 @@ test('conductor: each session gets its own worktree, and closing one with unmerg
     // Closed: nothing is left to ask about.
     expect(await tool('conductor_close_session', { ticket: 101 })).toContain('Closed #101')
     expect(await tool('conductor_list_sessions')).not.toContain('#101')
-    // #102, with nothing to merge, closes straight away; its branch was not touched.
-    expect(await tool('conductor_close_session', { ticket: 102 })).toContain('Closed #102')
+    // #102 changes the same file differently: merging it conflicts. Nothing lands on main, the
+    // session stays, and Main is told why.
+    writeFileSync(join(b, 'header.txt'), 'other\n')
+    git(b, 'add', '.')
+    git(b, 'commit', '-qm', 'Another header')
+    const mainBefore = git(proj, 'rev-parse', 'main').trim()
+    const conflict = await tool('conductor_merge_session', { ticket: 102 }).catch((e) => String(e))
+    expect(conflict).toContain('Could not merge')
+    expect(git(proj, 'rev-parse', 'main').trim()).toBe(mainBefore)
+    expect(readFileSync(join(proj, 'header.txt'), 'utf8')).toBe('fixed\n')
+    expect(await tool('conductor_list_sessions')).toContain('#102')
+    // Closed keeping its branch: the work is still there to sort out by hand.
+    expect(await tool('conductor_close_session', { ticket: 102, how: 'keep' })).toContain(
+      'Closed #102'
+    )
+    expect(git(proj, 'branch', '--list')).toContain(branchB)
     // Closed, but still known: its record keeps the task and says how it ended.
     const kept = await tool('conductor_recall', { query: 'Pricing' })
     expect(kept).toContain('Title: Pricing page')
