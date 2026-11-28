@@ -899,6 +899,16 @@ export interface CoveApi {
   setAppIcon: (png: Uint8Array | null) => Promise<boolean>
   /** Disk usage by category; bytes are measured with du, not estimated. */
   storageUsage: () => Promise<{ key: string; label: string; bytes: number }[]>
+  /** Each conversation store's size and the free space inside it that compacting gives back. */
+  storageSpace: () => Promise<{ file: string; bytes: number; freeBytes: number }[]>
+  /** Asks (native dialog), then restarts the app to compact. False when cancelled. */
+  storageCompact: () => Promise<boolean>
+  storageCompactResult: () => Promise<{
+    at: number
+    before: number
+    after: number
+    failed?: string
+  } | null>
   /** Remove the app's own logs and memory snapshots. */
   clearLogs: () => Promise<void>
   /** A block of text to copy and send when the app has been crashing. */
@@ -1820,6 +1830,9 @@ const cove: CoveApi = {
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
   storageUsage: () => ipcRenderer.invoke('app:storage-usage'),
+  storageSpace: () => ipcRenderer.invoke('storage:space'),
+  storageCompact: () => ipcRenderer.invoke('storage:compact'),
+  storageCompactResult: () => ipcRenderer.invoke('storage:compact-result'),
   clearLogs: () => ipcRenderer.invoke('app:clear-logs'),
   diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
   storageByProject: () => ipcRenderer.invoke('app:storage-by-project'),

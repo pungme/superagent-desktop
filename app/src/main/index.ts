@@ -1,6 +1,7 @@
 // Before everything: what the released app will not be started with.
 import { registerContactsIpc } from './contacts'
 import { popupMenu, registerCtxMenuIpc } from './ctx-menu'
+import { requestCompact, runPendingCompact, storeSpace, takeCompactResult } from './storage-compact'
 import { registerTodayIpc } from './today'
 import { duplicateChat } from './chat-duplicate'
 import { registerCliUpdaterIpc, startCliAutoUpdate } from './cli-updater'
@@ -75,7 +76,8 @@ import {
   setTurnPrefixProbe
 } from './agent'
 import { noteUserMessage } from './browser-ask'
-import { registerLoops, restoreLoopsAfterUpdate } from './loops'
+import { registerLoops, restoreLoopsAfterUpdate, saveLoopsForUpdate } from './loops'
+import { allowQuit, flushAllTranscripts } from './transcripts'
 import { killAllOneShots } from './kill-tree'
 import {
   startCompanionLog,
@@ -131,7 +133,7 @@ import {
   attachSimOwners
 } from './simulator'
 import { buildMenu } from './menu'
-import { setBusyChatsProbe, resumeInterrupted } from './update-resume'
+import { setBusyChatsProbe, resumeInterrupted, recordInterrupted } from './update-resume'
 import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startHealthWatch, healthLog } from './health'
@@ -355,6 +357,8 @@ function saidInChat(chatId: string, role: 'user' | 'assistant', text: string): v
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('dev.cove.app')
+  // A compaction asked for in Settings runs now, before anything opens the stores.
+  await runPendingCompact(app.getPath('userData'))
 
   // Electron denies permission requests by default, which would silently break
   // push-to-talk dictation. Only the microphone is granted, and only to our own
@@ -1142,7 +1146,15 @@ ipcMain.handle('app:storage-usage', async () => {
     {
       key: 'conversations',
       label: 'Conversations — transcripts, mostly pasted images',
-      paths: ['cove.db', 'cove.db-wal', 'cove.db-shm', 'attachments'].map((p) => join(userData, p))
+      paths: [
+        'cove.db',
+        'cove.db-wal',
+        'cove.db-shm',
+        'transcripts.sqlite',
+        'transcripts.sqlite-wal',
+        'transcripts.sqlite-shm',
+        'attachments'
+      ].map((p) => join(userData, p))
     },
     {
       key: 'caches',
@@ -1177,6 +1189,44 @@ ipcMain.handle('app:storage-usage', async () => {
 // actually thinks in when deciding what to clear. Cheap (grouped SQL, no
 // disk walk), so unlike storage-usage above it can run whenever asked.
 ipcMain.handle('app:storage-by-project', () => storageByProject())
+
+// Compacting the stores (storage-compact.ts): how much it would give back, what the last one did,
+// and asking for one, which restarts the app.
+ipcMain.handle('storage:space', () => storeSpace(app.getPath('userData')))
+ipcMain.handle('storage:compact-result', () => takeCompactResult(app.getPath('userData')))
+ipcMain.handle('storage:compact', async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const opts = {
+    type: 'question' as const,
+    buttons: ['Compact and restart', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    message: 'Compact your conversations?',
+    detail:
+      'Superagent restarts and gives back the free space inside its conversation stores. It takes about a minute. Nothing is deleted, and chats that are working carry on after the restart.'
+  }
+  const { response } = win
+    ? await dialog.showMessageBox(win, opts)
+    : await dialog.showMessageBox(opts)
+  if (response !== 0) return false
+  // The same care as a restart for an update: working chats and loops come back afterwards.
+  try {
+    recordInterrupted()
+    saveLoopsForUpdate()
+  } catch {
+    // they just won't resume
+  }
+  try {
+    await flushAllTranscripts(8000)
+  } catch {
+    // best effort
+  }
+  requestCompact(app.getPath('userData'))
+  allowQuit()
+  app.relaunch()
+  app.quit()
+  return true
+})
 
 ipcMain.handle('app:clear-workspace-chats', (_e, workspaceId: string) => {
   const chatIds = clearWorkspaceChats(workspaceId)

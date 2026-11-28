@@ -19296,3 +19296,48 @@ button.easy-run-agent {
   border-color: #f0b429;
   color: #c98a00;
 }
+/* Settings → Storage: compacting the conversation stores. */
+.storage-compact {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.storage-compact-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.storage-compact-text b {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.storage-compact-done {
+  color: #1f9d4b;
+}
+.storage-compact-btn {
+  flex: none;
+  align-self: center;
+  border: 1px solid var(--border);
+  background: var(--bg-content);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.storage-compact-btn:hover:not(:disabled) {
+  border-color: var(--text-tertiary);
+}
+.storage-compact-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

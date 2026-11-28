@@ -1269,6 +1269,21 @@ export function Settings({
     if (section !== 'advanced' || storage !== null) return
     void window.cove.storageUsage?.().then((s) => setStorage(s ?? []))
   }, [section, storage])
+  // Compacting the conversation stores: how much it gives back, and what the last one did.
+  const [space, setSpace] = useState<{ file: string; bytes: number; freeBytes: number }[] | null>(
+    null
+  )
+  const [compactDone, setCompactDone] = useState<{
+    before: number
+    after: number
+    failed?: string
+  } | null>(null)
+  useEffect(() => {
+    if (section !== 'advanced' || space !== null) return
+    void window.cove.storageSpace?.().then((s) => setSpace(s ?? []))
+    void window.cove.storageCompactResult?.().then((r) => r && setCompactDone(r))
+  }, [section, space])
+  const reclaimable = (space ?? []).reduce((n, s) => n + s.freeBytes, 0)
   const [clearing, setClearing] = useState(false)
   const clearCaches = async (): Promise<void> => {
     setClearing(true)
@@ -2081,6 +2096,32 @@ export function Settings({
                           )}
                         </div>
                       ))}
+                      <div className="storage-compact" data-testid="storage-compact">
+                        <div className="storage-compact-text">
+                          <b>Compact conversations</b>
+                          <span>
+                            {space === null
+                              ? 'Measuring…'
+                              : reclaimable > 0
+                                ? `${fmtBytes(reclaimable)} of free space inside the conversation stores can be given back. Superagent restarts to do it (about a minute). Nothing is deleted; working chats carry on after.`
+                                : 'Nothing to give back: the conversation stores have no free space inside.'}
+                          </span>
+                          {compactDone && (
+                            <span className="storage-compact-done">
+                              {compactDone.failed
+                                ? `Last compaction stopped: ${compactDone.failed}`
+                                : `Last compaction: ${fmtBytes(compactDone.before)} → ${fmtBytes(compactDone.after)}.`}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          className="storage-compact-btn"
+                          disabled={space === null || reclaimable === 0}
+                          onClick={() => void window.cove.storageCompact?.()}
+                        >
+                          Compact…
+                        </button>
+                      </div>
                       <button
                         className="storage-clear"
                         disabled={clearing}
